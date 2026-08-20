@@ -555,7 +555,7 @@ new class extends Component
             'practiceName' => 'required|string|max:150',
             'logoFile' => 'nullable|file|mimes:png,jpg,jpeg,svg|max:2048',
             'practiceAddress' => 'nullable|string|max:255',
-            'npiNumber' => 'nullable|string|max:10',
+            'npiNumber' => 'nullable|digits:10',
             'specialty' => 'nullable|string|max:100',
             'billableProviders' => 'required|integer|min:1|max:9999',
         ]);
@@ -977,37 +977,40 @@ new class extends Component
                     </label>
                     <input wire:model="practiceName" type="text" placeholder="Riverside Family Medicine"
                         {{ $this->practice?->is_profile_locked ? 'disabled' : '' }}
-                        class="w-full rounded-xl border border-[#dbe4ee] {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' : 'border-[#dbe4ee]' }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                     @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address</label>
                     <input wire:model="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                     @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number</label>
-                    <input wire:model="npiNumber" type="text" placeholder="1234567890"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    <input wire:model="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="1234567890"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
+                        class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    @error('npiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty</label>
                     <select wire:model="specialty"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                         @foreach(['General Practice','Dermatology','Cardiology','Behavioral Health','Pediatrics','Orthopedics','Dental','Other'] as $s)
                             <option value="{{ $s }}" @selected($specialty === $s)>{{ $s }}</option>
                         @endforeach
                     </select>
+                    @error('specialty') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers</label>
                     <input wire:model="billableProviders" type="number" min="1"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                     @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             </div>

@@ -425,6 +425,67 @@ class PortalTest extends TestCase
             ->assertHasErrors(['practiceName']);
     }
 
+    public function test_save_profile_validates_npi_number_and_specialty_length(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('npiNumber', '123456789012345')
+            ->set('specialty', str_repeat('x', 101))
+            ->call('saveProfile')
+            ->assertHasErrors(['npiNumber', 'specialty']);
+    }
+
+    public function test_save_profile_rejects_non_digit_npi_number(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('npiNumber', 'sdfsdfsdfsdf')
+            ->call('saveProfile')
+            ->assertHasErrors(['npiNumber']);
+    }
+
+    public function test_save_profile_accepts_a_valid_ten_digit_npi_number(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('npiNumber', '1234567890')
+            ->call('saveProfile')
+            ->assertHasNoErrors(['npiNumber']);
+    }
+
     // ── Step 2: Questionnaire downloads ─────────────────────────────────────
 
     public function test_essential_tier_client_sees_only_universal_questionnaires(): void
