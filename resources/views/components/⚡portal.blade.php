@@ -898,7 +898,8 @@ new class extends Component
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry</label>
-                            <input wire:model="cardExpiry" type="text" placeholder="MM / YY"
+                            <input wire:model="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
+                                x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); $el.value = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>

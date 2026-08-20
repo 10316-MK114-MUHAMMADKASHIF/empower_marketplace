@@ -73,11 +73,12 @@ new class extends Component
         @endforeach
 
         <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search practice or email…"
-            class="ml-auto w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+            class="w-full sm:ml-auto sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
     </div>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] overflow-hidden">
-        <table class="w-full text-sm">
+        <div class="w-full overflow-x-auto">
+            <table class="w-full min-w-[800px] text-sm">
             <thead>
                 <tr class="bg-page text-left text-xs font-extrabold uppercase tracking-wider text-empower-muted">
                     <th class="px-5 py-3">Practice</th>
@@ -120,7 +121,8 @@ new class extends Component
                     </tr>
                 @endforelse
             </tbody>
-        </table>
+            </table>
+        </div>
     </div>
 
     <div>{{ $this->submissions->links() }}</div>

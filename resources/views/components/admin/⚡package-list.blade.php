@@ -62,7 +62,8 @@ new class extends Component
     </div>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] overflow-hidden">
-        <table class="w-full text-sm">
+        <div class="w-full overflow-x-auto">
+            <table class="w-full min-w-[720px] text-sm">
             <thead>
                 <tr class="bg-page text-left text-xs font-extrabold uppercase tracking-wider text-empower-muted">
                     <th class="px-5 py-3">Package</th>
@@ -101,6 +102,7 @@ new class extends Component
                     </tr>
                 @endforelse
             </tbody>
-        </table>
+            </table>
+        </div>
     </div>
 </div>

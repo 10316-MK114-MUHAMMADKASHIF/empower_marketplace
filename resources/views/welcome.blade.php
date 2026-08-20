@@ -53,10 +53,10 @@
                     Proactive Compliance &middot; In Collaboration with Frier Levitt
                 </span>
                 <h1 class="text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight">
-                    Proactive Compliance<br>by Empower
+                    Proactive Compliance by Empower
                 </h1>
                 <p class="w-full text-base lg:text-lg text-white/60 mb-6 leading-relaxed">
-                    A fully managed compliance program for healthcare practices — HIPAA policies, a Compliance &amp; Ethics Program, staff training, and ongoing monitoring, with an optional Kovel-protected legal review from Frier Levitt.
+                    A guided 5-step compliance onboarding flow for healthcare practices: simulated payment, profile confirmation, intake upload, admin review, and document delivery in your portal dashboard.
                 </p>
                 <div class="flex flex-wrap gap-3 mb-8">
                     <a href="#pricing" class="rounded-lg bg-[#76c8c0] px-6 py-3 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors shadow-lg">Explore Packages</a>
@@ -69,11 +69,11 @@
                     </span>
                     <span class="flex items-center gap-2">
                         <svg class="h-4 w-4 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                        HIPAA-ready workflows
+                        5-step guided portal flow
                     </span>
                     <span class="flex items-center gap-2">
                         <svg class="h-4 w-4 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        Built for multi-provider teams
+                        AI-assisted intake extraction
                     </span>
                 </div>
             </div>
@@ -83,14 +83,14 @@
     {{-- Stats strip --}}
     <section class="bg-white border-b border-[#dbe4ee]">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-2 lg:grid-cols-4 divide-x divide-[#dbe4ee]">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[#dbe4ee]">
                 @foreach([
                     ['HIPAA', 'Privacy and security focus'],
                     ['Ethics', 'Program and training support'],
                     ['Audit', 'Risk visibility at a glance'],
                     ['Managed', 'End-to-end compliance options'],
                 ] as [$title, $sub])
-                <div class="py-7 px-6 text-center">
+                <div class="bg-white py-7 px-6 text-center">
                     <div class="text-xl font-bold text-[#12304f] mb-1">{{ $title }}</div>
                     <div class="text-xs text-[#5d6e7f]">{{ $sub }}</div>
                 </div>
@@ -100,13 +100,13 @@
     </section>
 
     {{-- Services --}}
-    <section id="services" class="py-20 lg:py-24">
+    <section id="services" class="py-14 lg:py-16">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-14">
+            <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#76c8c0]">Services</span>
-                <h2 class="mt-3 text-3xl font-bold text-[#12304f]">Everything organized into a clear compliance offering.</h2>
+                <h2 class="mt-3 text-3xl font-bold text-[#12304f]">Built for your full compliance lifecycle.</h2>
                 <p class="mt-4 text-[#5d6e7f] max-w-2xl mx-auto leading-relaxed">
-                    From written policies and staff training to ongoing monitoring and an optional privileged legal review, every core element of an effective compliance program is covered.
+                    Start with package selection and portal onboarding, then move through profile capture, intake upload, review, and finalized document delivery with ongoing compliance support.
                 </p>
             </div>
 
@@ -134,9 +134,9 @@
     </section>
 
     {{-- Pricing --}}
-    <section id="pricing" class="py-20 lg:py-24 bg-white">
+    <section id="pricing" class="py-14 lg:py-16 bg-white">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-14">
+            <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#76c8c0]">Pricing</span>
                 <h2 class="mt-3 text-3xl font-bold text-[#12304f]">Choose Your Compliance Package</h2>
                 <p class="mt-4 text-[#5d6e7f] max-w-2xl mx-auto leading-relaxed">
@@ -207,7 +207,7 @@
             </div>
 
             {{-- Legal Add-on --}}
-            <div class="mt-8 rounded-2xl border border-[#dbe4ee] bg-gradient-to-r from-[#76c8c0]/12 to-white p-7 shadow-sm">
+            <div class="mt-6 rounded-2xl border border-[#dbe4ee] bg-gradient-to-r from-[#76c8c0]/12 to-white p-7 shadow-sm">
                 <div class="flex flex-col lg:flex-row lg:items-start gap-6">
                     <div class="flex items-start gap-4 flex-1">
                         <span class="flex-shrink-0 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#12304f] text-white">
@@ -225,7 +225,7 @@
                         <div class="text-xs text-[#5d6e7f] mt-1">flat-fee retainer / practice &middot; Kovel &middot; Attorney-Client Privilege</div>
                     </div>
                 </div>
-                <div class="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                     @foreach(['I|Risk Assessment & Strategy Call', 'II|Coding & Documentation Review', 'III|Legal Analysis & Summary Letter', 'IV|Post-Report Implementation Call', 'V|Business Associate Agreements'] as $step)
                     @php [$num, $label] = explode('|', $step) @endphp
                     <div class="rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-3.5">
@@ -239,25 +239,25 @@
     </section>
 
     {{-- Process --}}
-    <section id="process" class="py-20 lg:py-24 bg-[#f4f7fb]">
+    <section id="process" class="py-14 lg:py-16 bg-[#f4f7fb]">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
                 <div>
                     <span class="text-xs font-bold tracking-widest uppercase text-[#76c8c0]">Process</span>
-                    <h2 class="mt-3 text-3xl font-bold text-[#12304f]">A simple, guided onboarding flow.</h2>
+                    <h2 class="mt-3 text-3xl font-bold text-[#12304f]">A 5-step flow from payment to compliance documents.</h2>
                     <p class="mt-4 text-[#5d6e7f] leading-relaxed">
-                        Pay for your package, complete a short practice intake, and Empower verifies everything before your documents are generated — accurate practice details in, accurate compliance documents out.
+                        Your portal walks each practice through a fixed sequence: simulated payment, profile lock, intake uploads with AI extraction, admin review, and dashboard-based delivery.
                     </p>
                     <a href="{{ route('contact') }}" class="mt-8 inline-block rounded-xl bg-[#12304f] px-6 py-3 text-sm font-semibold text-white hover:bg-[#0a2037] transition-colors">Talk to the team</a>
                 </div>
 
                 <div class="rounded-2xl bg-white border border-[#dbe4ee] shadow-sm divide-y divide-[#dbe4ee]">
                     @foreach([
-                        ['1', 'Create your account & pay', 'Select a package, sign up, and complete payment — no waiting on a review before you get started.'],
-                        ['2', 'Complete your practice intake', 'Confirm your key practice details and download any additional forms required for your package.'],
-                        ['3', 'Upload & confirm your details', 'Upload your completed forms and lock in your practice name, logo, address, and provider count.'],
-                        ['4', 'Empower reviews your submission', 'Our compliance team verifies your details before your documents are generated.'],
-                        ['5', 'Manage everything from your dashboard', 'Generate, preview, and download every document in your package — add more packages or OSHA locations anytime.'],
+                        ['1', 'Payment (simulated)', 'Select your package and complete simulated payment to activate onboarding immediately.'],
+                        ['2', 'Practice Profile', 'Submit practice details and OSHA locations; core profile fields lock after submission for document consistency.'],
+                        ['3', 'Intake Upload', 'Upload package-required forms and handbook inputs; AI extracts structured data from files for drafting.'],
+                        ['4', 'Review Status', 'Your submission moves through submitted and under-review states until admin approval or requested changes.'],
+                        ['5', 'Dashboard & Documents', 'Access history, payments, and generated files from your dashboard, with stale indicators when profile data changes.'],
                     ] as [$num, $title, $desc])
                     <div class="flex items-start gap-4 p-5">
                         <span class="flex-shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#12304f] text-xs font-bold text-white">{{ $num }}</span>
@@ -273,13 +273,13 @@
     </section>
 
     {{-- CTA --}}
-    <section id="contact" class="py-20 lg:py-24 bg-gradient-to-br from-[#0a2037] via-[#12304f] to-[#1a4a70]">
+    <section id="contact" class="py-14 lg:py-16 bg-gradient-to-br from-[#0a2037] via-[#12304f] to-[#1a4a70]">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-2xl text-center">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#76c8c0]">Ready to get started?</span>
                 <h2 class="mt-3 text-3xl font-bold text-white">Proactive Compliance by Empower launches September 8, 2026.</h2>
                 <p class="mt-4 text-white/60 leading-relaxed">
-                    Select a package to begin onboarding today, or reach out to talk through which compliance tier — or the Frier Levitt legal review add-on — is the right fit for your practice.
+                    Select your package and begin the 5-step onboarding flow today, or contact us to map the right tier and legal review options for your practice.
                 </p>
                 <a href="{{ route('contact') }}" class="mt-8 inline-block rounded-xl bg-[#76c8c0] px-8 py-3.5 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors shadow-lg">Contact Us</a>
             </div>
@@ -288,7 +288,7 @@
 
 </main>
 
-<footer class="bg-[#0a2037] py-8">
+<footer class="bg-[#0a2037] py-6">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
         <span class="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5">
             <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[22px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-[#12304f] text-sm\'>EMPOWER</span>'">
