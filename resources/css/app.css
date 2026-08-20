@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Empower brand palette */
+    --color-navy: #12304f;
+    --color-navy-dark: #0a2037;
+    --color-accent: #76c8c0;
+    --color-accent-dark: #5bb2aa;
+    --color-page: #f4f7fb;
+    --color-empower-text: #173045;
+    --color-empower-muted: #5d6e7f;
+    --color-empower-border: #dbe4ee;
+}

@@ -1,0 +1,106 @@
+<?php
+
+use App\Models\ActivityLog;
+use App\Models\Package;
+use Illuminate\Support\Collection;
+use Livewire\Attributes\Computed;
+use Livewire\Component;
+
+new class extends Component
+{
+    #[Computed]
+    public function packages(): Collection
+    {
+        return Package::orderBy('sort_order')->get();
+    }
+
+    public function toggleActive(int $packageId): void
+    {
+        $package = Package::findOrFail($packageId);
+        $package->update(['is_active' => ! $package->is_active]);
+
+        ActivityLog::record(
+            $package->is_active ? 'package.activated' : 'package.deactivated',
+            "{$package->name} was ".($package->is_active ? 'activated' : 'deactivated').'.',
+            user: auth()->user(),
+            subject: $package,
+        );
+
+        unset($this->packages);
+    }
+
+    public function delete(int $packageId): void
+    {
+        $package = Package::findOrFail($packageId);
+
+        if ($package->orders()->exists()) {
+            $this->addError('delete', "{$package->name} has existing orders and can't be deleted. Deactivate it instead.");
+
+            return;
+        }
+
+        $name = $package->name;
+        $package->delete();
+
+        ActivityLog::record('package.deleted', "{$name} was deleted.", user: auth()->user());
+
+        unset($this->packages);
+    }
+};
+?>
+
+<div class="space-y-4">
+    @error('delete')
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
+    @enderror
+
+    <div class="flex justify-end">
+        <a href="{{ route('admin.packages.create') }}" wire:navigate
+            class="inline-flex items-center gap-1 rounded bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
+            + New Package
+        </a>
+    </div>
+
+    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-page text-left text-xs font-extrabold uppercase tracking-wider text-empower-muted">
+                    <th class="px-5 py-3">Package</th>
+                    <th class="px-5 py-3">Billing</th>
+                    <th class="px-5 py-3">Annual Price</th>
+                    <th class="px-5 py-3">Status</th>
+                    <th class="px-5 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-empower-border">
+                @forelse($this->packages as $package)
+                    <tr class="hover:bg-page/60 transition-colors">
+                        <td class="px-5 py-3.5">
+                            <div class="font-semibold text-navy">{{ $package->name }}</div>
+                            <div class="text-xs text-empower-muted">{{ $package->slug }}</div>
+                        </td>
+                        <td class="px-5 py-3.5 text-empower-text capitalize">{{ $package->billing_type }}</td>
+                        <td class="px-5 py-3.5 text-empower-text">
+                            {{ $package->annual_price !== null ? '$'.number_format($package->annual_price) : 'Custom quote' }}
+                        </td>
+                        <td class="px-5 py-3.5">
+                            <button wire:click="toggleActive({{ $package->id }})"
+                                class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider transition-colors {{ $package->is_active ? 'bg-[#dff7f0] text-[#0f7a4f]' : 'bg-[#edf2f7] text-empower-muted' }}">
+                                {{ $package->is_active ? 'Active' : 'Inactive' }}
+                            </button>
+                        </td>
+                        <td class="px-5 py-3.5 text-right space-x-3">
+                            <a href="{{ route('admin.packages.edit', $package) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
+                            <button wire:click="delete({{ $package->id }})" wire:confirm="Delete {{ $package->name }}? This cannot be undone."
+                                class="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="5" class="px-5 py-10 text-center text-sm text-empower-muted italic">No packages yet.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>

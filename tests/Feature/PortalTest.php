@@ -1,0 +1,905 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\AiExtractionStatus;
+use App\Enums\IntakeSubmissionStatus;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
+use App\Jobs\GenerateComplianceDocument;
+use App\Models\GeneratedDocument;
+use App\Models\IntakeSubmission;
+use App\Models\IntakeUpload;
+use App\Models\Order;
+use App\Models\Package;
+use App\Models\Practice;
+use App\Models\User;
+use App\Support\Cart;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Livewire\Livewire;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\TestCase;
+
+class PortalTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+        Storage::fake('public');
+    }
+
+    // ── Guest access ────────────────────────────────────────────────────────
+
+    public function test_guest_can_view_portal_and_sees_account_creation_fields(): void
+    {
+        $this->withoutVite()->get(route('portal'))
+            ->assertOk()
+            ->assertSee('Account Information')
+            ->assertSee('Payment Details');
+    }
+
+    public function test_authenticated_user_sees_portal(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        $this->withoutVite()->actingAs($user)->get(route('portal'))->assertOk();
+    }
+
+    public function test_admin_visiting_portal_is_redirected_to_admin_dashboard(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('portal')
+            ->assertRedirect(route('admin.dashboard'));
+    }
+
+    public function test_visiting_portal_without_a_practice_creates_one(): void
+    {
+        $user = User::factory()->create();
+        $this->assertNull($user->practice);
+
+        Livewire::actingAs($user)->test('portal');
+
+        $this->assertNotNull($user->fresh()->practice);
+    }
+
+    public function test_guest_cannot_call_save_profile_directly(): void
+    {
+        $this->withoutExceptionHandling();
+        $this->expectException(HttpException::class);
+
+        Livewire::test('portal')->call('saveProfile');
+    }
+
+    public function test_guest_cannot_call_submit_intake_directly(): void
+    {
+        $this->withoutExceptionHandling();
+        $this->expectException(HttpException::class);
+
+        Livewire::test('portal')->call('submitIntake');
+    }
+
+    public function test_osha_location_can_be_added_even_if_practice_was_missing_on_load(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)->test('portal');
+        $practice = $user->fresh()->practice;
+
+        Livewire::actingAs($user)->test('portal.osha-location-modal', ['practiceId' => $practice->id])
+            ->dispatch('open-osha-modal')
+            ->set('name', 'Main Office')
+            ->call('save');
+
+        $this->assertDatabaseHas('osha_locations', [
+            'practice_id' => $practice->id,
+            'name' => 'Main Office',
+        ]);
+    }
+
+    // ── Step 1: Payment ─────────────────────────────────────────────────────
+
+    public function test_guest_paying_creates_account_practice_and_order(): void
+    {
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountName', 'Jane Provider')
+            ->set('accountEmail', 'jane@practice.com')
+            ->set('accountPassword', 'secret123')
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertSee('Payment received');
+
+        $user = User::where('email', 'jane@practice.com')->first();
+        $this->assertNotNull($user);
+        $this->assertNotNull($user->practice);
+        $this->assertAuthenticatedAs($user);
+
+        $this->assertDatabaseHas('orders', [
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid->value,
+        ]);
+    }
+
+    public function test_guest_pay_requires_account_fields(): void
+    {
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasErrors(['accountName', 'accountEmail', 'accountPassword']);
+    }
+
+    public function test_guest_pay_rejects_duplicate_email(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountName', 'Jane Provider')
+            ->set('accountEmail', 'taken@example.com')
+            ->set('accountPassword', 'secret123')
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasErrors(['accountEmail']);
+    }
+
+    public function test_authenticated_user_paying_does_not_require_account_fields(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasNoErrors();
+    }
+
+    public function test_paying_creates_order_and_shows_confirmation_on_step_1(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create([
+            'slug' => 'essential',
+            'annual_price' => 999,
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertSet('step', 1)
+            ->assertSee('Payment received');
+
+        $this->assertDatabaseHas('orders', [
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid->value,
+        ]);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $user->id,
+            'event_type' => 'order.paid',
+        ]);
+    }
+
+    public function test_continuing_after_payment_advances_to_step_2(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 1)
+            ->call('goToStep', 2)
+            ->assertSet('step', 2);
+    }
+
+    public function test_registering_with_a_package_preselects_it_on_the_payment_step(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        $this->withoutVite()->actingAs($user)->get('/portal?package=essential')
+            ->assertOk()
+            ->assertSee('Payment Details');
+    }
+
+    public function test_falls_back_to_session_intended_package_when_no_query_string(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        session(['intended_package' => 'essential']);
+
+        $this->withoutVite()->actingAs($user)->get('/portal')
+            ->assertOk()
+            ->assertSee('Payment Details');
+
+        $this->assertNull(session('intended_package'));
+    }
+
+    public function test_selecting_a_new_package_after_an_existing_purchase_starts_a_fresh_order(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+        Package::factory()->create(['slug' => 'advanced', 'annual_price' => 2499, 'is_active' => true]);
+
+        $this->withoutVite()->actingAs($user)->get('/portal?package=advanced')
+            ->assertOk()
+            ->assertSee('Payment Details')
+            ->assertDontSee('Your Dashboard');
+    }
+
+    public function test_selecting_an_already_purchased_package_returns_to_its_existing_order(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        $this->withoutVite()->actingAs($user)->get('/portal?package=essential')
+            ->assertOk()
+            ->assertSee('Your Dashboard');
+    }
+
+    public function test_pay_requires_package_and_card_fields(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('pay')
+            ->assertHasErrors(['selectedPackageId', 'cardName', 'cardNumber', 'cardExpiry', 'cardCvc']);
+    }
+
+    // ── Cart-based multi-package checkout ───────────────────────────────────
+
+    public function test_paying_with_multiple_cart_items_creates_orders_sharing_a_batch_id(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $essential = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $professional = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
+
+        Cart::add($essential->id);
+        Cart::add($professional->id);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertSee('Payment received');
+
+        $orders = Order::where('user_id', $user->id)->get();
+        $this->assertCount(2, $orders);
+        $this->assertNotNull($orders->first()->checkout_batch_id);
+        $this->assertSame(1, $orders->pluck('checkout_batch_id')->unique()->count());
+        $this->assertSame(0, Cart::count());
+    }
+
+    public function test_removing_an_item_from_the_cart_excludes_it_from_checkout(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $essential = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $professional = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
+
+        Cart::add($essential->id);
+        Cart::add($professional->id);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('removeFromCart', $professional->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay');
+
+        $this->assertDatabaseHas('orders', ['user_id' => $user->id, 'package_id' => $essential->id]);
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id, 'package_id' => $professional->id]);
+    }
+
+    // ── Step 2: Practice Profile ────────────────────────────────────────────
+
+    public function test_saving_profile_locks_practice_and_advances_to_step_3(): void
+    {
+        $user = User::factory()->create();
+        $practice = Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('billableProviders', 3)
+            ->call('saveProfile')
+            ->assertSet('step', 3);
+
+        $this->assertDatabaseHas('practices', [
+            'id' => $practice->id,
+            'name' => 'Sunrise Family Medicine',
+            'is_profile_locked' => true,
+        ]);
+    }
+
+    public function test_saving_profile_with_a_logo_stores_it_on_the_practice(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $logo = UploadedFile::fake()->image('logo.png');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', $logo)
+            ->call('saveProfile')
+            ->assertSet('step', 3);
+
+        $practice = $user->fresh()->practice;
+        $this->assertNotNull($practice->logo_path);
+        Storage::disk('public')->assertExists($practice->logo_path);
+    }
+
+    public function test_save_profile_requires_practice_name(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', '')
+            ->call('saveProfile')
+            ->assertHasErrors(['practiceName']);
+    }
+
+    // ── Step 2: Questionnaire downloads ─────────────────────────────────────
+
+    public function test_essential_tier_client_sees_only_universal_questionnaires(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->assertSee('Employee Handbook Questionnaire')
+            ->assertSee('OSHA Manual Questionnaire')
+            ->assertDontSee('Revenue Cycle')
+            ->assertDontSee('Emergency Operations Questionnaire');
+    }
+
+    public function test_complete_tier_client_sees_every_questionnaire(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'complete', 'billing_type' => 'custom', 'annual_price' => null, 'monthly_price' => null]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->assertSee('Revenue Cycle & Billing Questionnaire')
+            ->assertSee('Emergency Operations Questionnaire');
+    }
+
+    // ── Step 2: OSHA Modal ──────────────────────────────────────────────────
+
+    public function test_osha_modal_opens_and_creates_location(): void
+    {
+        $user = User::factory()->create();
+        $practice = Practice::factory()->create(['user_id' => $user->id]);
+
+        $component = Livewire::actingAs($user)->test('portal.osha-location-modal', [
+            'practiceId' => $practice->id,
+        ]);
+
+        $component->dispatch('open-osha-modal')
+            ->assertSet('open', true);
+
+        $component->set('name', 'Main Office')
+            ->set('address', '123 Elm St')
+            ->call('save')
+            ->assertSet('open', false);
+
+        $this->assertDatabaseHas('osha_locations', [
+            'practice_id' => $practice->id,
+            'name' => 'Main Office',
+            'address' => '123 Elm St',
+        ]);
+    }
+
+    // ── Step 3: Intake Upload ───────────────────────────────────────────────
+
+    public function test_submitting_intake_creates_submission_and_upload(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        $practice = Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $file = UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('questionnaireFiles.practice_intake', $file)
+            ->call('submitIntake')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_submissions', [
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Submitted->value,
+        ]);
+
+        $this->assertDatabaseHas('intake_uploads', [
+            'original_filename' => 'intake.pdf',
+        ]);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $user->id,
+            'order_id' => $order->id,
+            'event_type' => 'submission.submitted',
+        ]);
+    }
+
+    public function test_step3_shows_an_upload_box_for_every_questionnaire_shown_in_step2(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 3)
+            ->assertSee('Practice Information Questionnaire')
+            ->assertSee('Employee Handbook Questionnaire')
+            ->assertSee('OSHA Manual Questionnaire')
+            ->assertDontSee('Revenue Cycle & Billing Questionnaire')
+            ->assertDontSee('Emergency Operations Questionnaire');
+    }
+
+    public function test_step3_shows_complete_tier_upload_boxes(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'complete', 'billing_type' => 'custom', 'annual_price' => null, 'monthly_price' => null]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 3)
+            ->assertSee('Revenue Cycle & Billing Questionnaire')
+            ->assertSee('Emergency Operations Questionnaire');
+    }
+
+    public function test_submitting_intake_stores_an_optional_questionnaire_upload(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $intakeFile = UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf');
+        $oshaFile = UploadedFile::fake()->create('osha.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('questionnaireFiles.practice_intake', $intakeFile)
+            ->set('questionnaireFiles.osha_questionnaire', $oshaFile)
+            ->call('submitIntake')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_uploads', [
+            'original_filename' => 'intake.pdf',
+            'upload_type' => 'practice_intake',
+        ]);
+        $this->assertDatabaseHas('intake_uploads', [
+            'original_filename' => 'osha.pdf',
+            'upload_type' => 'osha_questionnaire',
+        ]);
+    }
+
+    public function test_submit_intake_requires_a_file(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('submitIntake')
+            ->assertHasErrors(['questionnaireFiles.practice_intake']);
+    }
+
+    public function test_submitting_intake_once_creates_a_submission_for_every_order_in_the_batch(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => '{"practice_name":"Test Practice"}']]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $essential = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $professional = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
+
+        $batchId = (string) Str::ulid();
+        $orderA = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $essential->id,
+            'checkout_batch_id' => $batchId,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $orderB = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $professional->id,
+            'checkout_batch_id' => $batchId,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $file = UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('questionnaireFiles.practice_intake', $file)
+            ->call('submitIntake')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_submissions', ['order_id' => $orderA->id, 'status' => IntakeSubmissionStatus::Submitted->value]);
+        $this->assertDatabaseHas('intake_submissions', ['order_id' => $orderB->id, 'status' => IntakeSubmissionStatus::Submitted->value]);
+
+        $uploads = IntakeUpload::all();
+        $this->assertCount(2, $uploads);
+
+        // Every upload in the batch — not just the primary one — should end up completed
+        // with the same extracted data...
+        $this->assertTrue($uploads->every(fn ($u) => $u->ai_extraction_status === AiExtractionStatus::Completed));
+        $this->assertSame(1, $uploads->pluck('ai_extracted_data')->map(fn ($d) => json_encode($d))->unique()->count());
+
+        // ...but only ONE OpenAI API call was made for the shared document.
+        Http::assertSentCount(1);
+    }
+
+    // ── Step 4: Review Status ───────────────────────────────────────────────
+
+    public function test_check_approval_advances_to_step_5_when_approved(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->approved()->create(['order_id' => $order->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 4)
+            ->call('checkApproval')
+            ->assertSet('step', 5);
+    }
+
+    public function test_step_4_shows_every_order_in_the_batch_and_waits_for_all_to_be_approved(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $essential = Package::factory()->create(['slug' => 'essential', 'name' => 'Essential Compliance', 'annual_price' => 999, 'is_active' => true]);
+        $professional = Package::factory()->create(['slug' => 'professional', 'name' => 'Professional Compliance', 'annual_price' => 1299, 'is_active' => true]);
+
+        $batchId = (string) Str::ulid();
+        $orderA = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $essential->id,
+            'checkout_batch_id' => $batchId,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $orderB = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $professional->id,
+            'checkout_batch_id' => $batchId,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->approved()->create(['order_id' => $orderA->id]);
+        IntakeSubmission::factory()->create(['order_id' => $orderB->id, 'status' => IntakeSubmissionStatus::UnderReview]);
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->set('orderIds', [$orderA->id, $orderB->id])
+            ->set('step', 4)
+            ->assertSee('Essential Compliance')
+            ->assertSee('Professional Compliance')
+            ->assertSee('Under review');
+
+        // Not every order is approved yet — stays on step 4.
+        $component->call('checkApproval')->assertSet('step', 4);
+
+        IntakeSubmission::where('order_id', $orderB->id)->update(['status' => IntakeSubmissionStatus::Approved]);
+
+        $component->call('checkApproval')->assertSet('step', 5);
+    }
+
+    // ── Step 5: Dashboard ───────────────────────────────────────────────────
+
+    private function makeApprovedOrder(User $user): Order
+    {
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Approved,
+        ]);
+        IntakeSubmission::factory()->approved()->create(['order_id' => $order->id]);
+
+        return $order;
+    }
+
+    public function test_dashboard_shows_practice_info_bar_and_defaults_to_documents_tab(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id, 'name' => 'Sunrise Family Medicine']);
+        $this->makeApprovedOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Sunrise Family Medicine')
+            ->assertSee('Update Practice Info')
+            ->assertSee('Employee Handbook (Basic)')
+            ->assertSee('Generating');
+    }
+
+    public function test_dashboard_can_switch_between_tabs(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->set('dashboardTab', 'payments')
+            ->assertSee('Purchase History')
+            ->set('dashboardTab', 'history')
+            ->assertSee('Account Activity');
+    }
+
+    public function test_update_practice_info_button_enters_edit_mode_and_returns_to_dashboard(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id, 'address' => 'old address']);
+        $this->makeApprovedOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->call('editProfile')
+            ->assertSet('step', 2)
+            ->assertSet('editingProfile', true)
+            ->set('practiceAddress', 'new address')
+            ->call('saveProfile')
+            ->assertSet('step', 5)
+            ->assertSet('editingProfile', false);
+
+        $this->assertDatabaseHas('practices', ['user_id' => $user->id, 'address' => 'new address']);
+    }
+
+    public function test_regenerating_a_stale_document_dispatches_job_and_logs_activity(): void
+    {
+        Bus::fake();
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+        $document = GeneratedDocument::factory()->completed()->stale()->create(['order_id' => $order->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->call('regenerateDocument', $document->id);
+
+        Bus::assertDispatched(GenerateComplianceDocument::class);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.regenerate_requested']);
+    }
+
+    public function test_cannot_regenerate_another_users_document(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        $otherPackage = Package::factory()->create(['slug' => 'professional']);
+        $otherOrder = Order::factory()->create(['package_id' => $otherPackage->id]);
+        $otherDocument = GeneratedDocument::factory()->completed()->create(['order_id' => $otherOrder->id]);
+
+        $this->withoutExceptionHandling();
+        $this->expectException(HttpException::class);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->call('regenerateDocument', $otherDocument->id);
+    }
+
+    public function test_dashboard_can_switch_between_multiple_purchased_orders_documents(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $orderA = $this->makeApprovedOrder($user);
+
+        $professional = Package::factory()->create(['slug' => 'professional', 'name' => 'Professional Compliance', 'annual_price' => 1299, 'is_active' => true]);
+        $orderB = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $professional->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Approved,
+        ]);
+        IntakeSubmission::factory()->approved()->create(['order_id' => $orderB->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Professional Compliance')
+            ->call('switchOrder', $orderB->id)
+            ->assertSet('dashboardOrderId', $orderB->id);
+    }
+
+    public function test_cannot_switch_to_another_users_order(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        $otherPackage = Package::factory()->create(['slug' => 'advanced']);
+        $otherOrder = Order::factory()->create(['package_id' => $otherPackage->id]);
+
+        $this->withoutExceptionHandling();
+        $this->expectException(ModelNotFoundException::class);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->call('switchOrder', $otherOrder->id);
+    }
+
+    // ── Step navigation ─────────────────────────────────────────────────────
+
+    public function test_cannot_navigate_to_unreachable_step(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 1)
+            ->call('goToStep', 3)
+            ->assertSet('step', 1); // step 3 not reachable without payment + profile
+    }
+}

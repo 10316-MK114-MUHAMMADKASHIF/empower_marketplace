@@ -1,0 +1,15 @@
+@php $active ??= null; @endphp
+<div class="flex flex-wrap items-center gap-2 mb-4">
+    @foreach([
+        'dashboard' => ['admin.dashboard', 'Dashboard'],
+        'submissions' => ['admin.submissions', 'Submissions'],
+        'documents' => ['admin.documents', 'Documents'],
+        'packages' => ['admin.packages', 'Packages'],
+        'leads' => ['admin.leads', 'Leads'],
+    ] as $key => [$route, $label])
+        <a href="{{ route($route) }}" wire:navigate
+            class="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors {{ $active === $key ? 'bg-navy text-white' : 'text-empower-muted hover:bg-page' }}">
+            {{ $label }}
+        </a>
+    @endforeach
+</div>
