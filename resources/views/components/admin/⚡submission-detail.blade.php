@@ -106,7 +106,7 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ confirmAction: null }">
     <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to submissions</a>
 
     @php $submission = $this->submission; $practice = $submission->order?->user?->practice; @endphp
@@ -187,15 +187,38 @@ new class extends Component
             </div>
 
             <div class="flex flex-wrap gap-3">
-                <button wire:click="approve" wire:confirm="Approve this submission? Documents will be unlocked for the client."
+                <button type="button" x-on:click="confirmAction = 'approve'"
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">
                     Approve
                 </button>
-                <button wire:click="reject" wire:confirm="Reject this submission and ask the client to re-upload?"
+                <button type="button" x-on:click="confirmAction = 'reject'"
                     class="inline-flex items-center gap-1 rounded border border-red-300 px-5 py-2 text-sm font-bold text-red-700 hover:bg-red-50 transition-colors">
                     Reject
                 </button>
             </div>
         </div>
     @endif
+
+    {{-- Approve/Reject confirmation modal --}}
+    <div x-show="confirmAction !== null" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmAction = null">
+            <h3 class="text-base font-semibold text-navy mb-2"
+                x-text="confirmAction === 'approve' ? 'Approve this submission?' : 'Reject this submission?'"></h3>
+            <p class="text-sm text-empower-muted mb-5"
+                x-text="confirmAction === 'approve' ? 'Documents will be unlocked for the client.' : 'The client will be asked to re-upload based on your reviewer notes.'"></p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmAction = null"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="confirmAction === 'approve' ? $wire.approve() : $wire.reject(); confirmAction = null"
+                    x-bind:class="confirmAction === 'approve' ? 'bg-accent text-navy-dark hover:bg-accent-dark' : 'bg-red-600 text-white hover:bg-red-700'"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors">
+                    <span x-text="confirmAction === 'approve' ? 'Approve' : 'Reject'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
