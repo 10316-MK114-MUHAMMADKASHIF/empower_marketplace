@@ -1122,33 +1122,35 @@ new class extends Component
             @endif
 
             {{-- One upload box per questionnaire shown for download in Step 2 --}}
-            @foreach($this->applicableQuestionnaires as $questionnaire)
-                @php
-                    $uploadKey = $questionnaire['uploadType']->value;
-                    $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
-                @endphp
-                <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center mb-4">
-                    <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
-                    <p class="font-semibold text-sm text-[#12304f] mb-1">
-                        {{ $questionnaire['title'] }}
-                        @unless($questionnaire['required'])
-                            <span class="text-[#5d6e7f] font-normal">(optional)</span>
-                        @endunless
-                    </p>
-                    <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
-                    <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
-                        class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                    @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
-                    @if($uploadedFile)
-                        <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}">
-                            <span class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
-                                ✓ {{ $uploadedFile->getClientOriginalName() }}
-                            </span>
-                        </div>
-                        <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
-                    @endif
-                </div>
-            @endforeach
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                @foreach($this->applicableQuestionnaires as $questionnaire)
+                    @php
+                        $uploadKey = $questionnaire['uploadType']->value;
+                        $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
+                    @endphp
+                    <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
+                        <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
+                        <p class="font-semibold text-sm text-[#12304f] mb-1">
+                            {{ $questionnaire['title'] }}
+                            @unless($questionnaire['required'])
+                                <span class="text-[#5d6e7f] font-normal">(optional)</span>
+                            @endunless
+                        </p>
+                        <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
+                        <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
+                            class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                        @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @if($uploadedFile)
+                            <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}">
+                                <span class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                                    ✓ {{ $uploadedFile->getClientOriginalName() }}
+                                </span>
+                            </div>
+                            <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
 
             <div class="flex justify-end">
                 <button wire:click="submitIntake"
