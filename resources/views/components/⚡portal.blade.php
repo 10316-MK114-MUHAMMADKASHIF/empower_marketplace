@@ -1052,14 +1052,25 @@ new class extends Component
             {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 @foreach($this->applicableQuestionnaires as $questionnaire)
-                    <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col">
+                    @php $downloadKey = 'questionnaire-downloaded-'.$questionnaire['uploadType']->value; @endphp
+                    <div
+                        x-data="{ downloaded: localStorage.getItem('{{ $downloadKey }}') === '1' }"
+                        class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col"
+                    >
                         <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3 mx-auto">📄</div>
                         <p class="font-semibold text-sm text-[#12304f] mb-1">{{ $questionnaire['title'] }}</p>
                         <p class="text-xs text-[#5d6e7f] mb-4 flex-1">{{ $questionnaire['description'] }}</p>
                         <a href="{{ Questionnaires::url($questionnaire['file']) }}"
+                            @click="downloaded = true; localStorage.setItem('{{ $downloadKey }}', '1')"
                             class="inline-flex items-center justify-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0a2037] transition-colors">
                             &#8681; Download Form
                         </a>
+                        <p x-show="downloaded" x-cloak class="mt-2 text-xs font-semibold text-[#0f7a4f]">
+                            &#10003; Downloaded
+                        </p>
+                        <p x-show="!downloaded" x-cloak class="mt-2 text-xs text-[#5d6e7f]">
+                            Not downloaded yet
+                        </p>
                     </div>
                 @endforeach
             </div>
