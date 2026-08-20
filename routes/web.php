@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\IntakeUploadDownloadController;
+use App\Http\Controllers\Admin\SubmissionDocumentDownloadController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\ReceiptController;
@@ -45,6 +46,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/submissions', fn () => view('admin.submissions'))->name('submissions');
     Route::get('/submissions/{submission}', fn (IntakeSubmission $submission) => view('admin.submission-detail', compact('submission')))
         ->name('submissions.show');
+    Route::get('/submissions/{submission}/documents/{index}/download', [SubmissionDocumentDownloadController::class, 'show'])
+        ->whereNumber('index')
+        ->name('submissions.documents.download');
     Route::get('/documents', fn () => view('admin.documents'))->name('documents');
     Route::get('/leads', fn () => view('admin.leads'))->name('leads');
     Route::get('/packages', fn () => view('admin.packages'))->name('packages');
