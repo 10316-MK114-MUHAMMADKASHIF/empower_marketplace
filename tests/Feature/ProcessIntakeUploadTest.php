@@ -19,6 +19,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
 use Tests\TestCase;
 
 class ProcessIntakeUploadTest extends TestCase
@@ -79,6 +81,45 @@ class ProcessIntakeUploadTest extends TestCase
         $upload->refresh();
         $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
         $this->assertEquals('Cardiology', $upload->ai_extracted_data['specialty']);
+    }
+
+    // ── Docx text extraction ────────────────────────────────────────────────
+
+    public function test_extracts_text_from_table_based_docx_questionnaire(): void
+    {
+        Storage::fake('local');
+
+        $phpWord = new PhpWord;
+        $table = $phpWord->addSection()->addTable();
+        $table->addRow();
+        $table->addCell(3000)->addText('Legal Practice Name');
+        $table->addCell(6000)->addText('Sunrise Family Medicine');
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'docx').'.docx';
+        IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+        Storage::disk('local')->put('uploads/4/questionnaire.docx', file_get_contents($tempPath));
+        unlink($tempPath);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/4/questionnaire.docx',
+            'original_filename' => 'questionnaire.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(
+                $this->openaiResponse('{"practice_name":"Sunrise Family Medicine"}')
+            ),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        Http::assertSent(fn ($request) => str_contains($request['messages'][0]['content'], 'Sunrise Family Medicine'));
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $this->assertEquals('Sunrise Family Medicine', $upload->ai_extracted_data['practice_name']);
     }
 
     // ── Failure handling ──────────────────────────────────────────────────

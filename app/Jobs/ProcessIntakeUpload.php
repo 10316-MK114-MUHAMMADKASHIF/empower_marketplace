@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 
@@ -192,7 +193,13 @@ class ProcessIntakeUpload implements ShouldQueue
     {
         $text = '';
         foreach ($elements as $element) {
-            if (method_exists($element, 'getText')) {
+            if ($element instanceof Table) {
+                foreach ($element->getRows() as $row) {
+                    foreach ($row->getCells() as $cell) {
+                        $text .= $this->extractTextFromElements($cell->getElements());
+                    }
+                }
+            } elseif (method_exists($element, 'getText')) {
                 $text .= $element->getText().' ';
             } elseif (method_exists($element, 'getElements')) {
                 $text .= $this->extractTextFromElements($element->getElements());
