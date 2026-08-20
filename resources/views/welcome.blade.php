@@ -46,19 +46,19 @@
 <main>
 
     {{-- Hero --}}
-    <section id="home" class="bg-gradient-to-br from-[#0a2037] via-[#12304f] to-[#1a4a70] py-24 lg:py-32">
+    <section id="home" class="bg-gradient-to-br from-[#0a2037] via-[#12304f] to-[#1a4a70] py-16 lg:py-20">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="max-w-3xl">
+            <div class="w-full">
                 <span class="inline-block rounded-full border border-[#76c8c0]/40 bg-[#76c8c0]/10 px-4 py-1.5 text-xs font-semibold text-[#76c8c0] tracking-wide mb-5">
                     Proactive Compliance &middot; In Collaboration with Frier Levitt
                 </span>
-                <h1 class="text-4xl lg:text-5xl font-bold text-white mb-5 leading-tight">
+                <h1 class="text-3xl lg:text-4xl font-bold text-white mb-4 leading-tight">
                     Proactive Compliance<br>by Empower
                 </h1>
-                <p class="text-lg text-white/60 mb-8 leading-relaxed">
+                <p class="w-full text-base lg:text-lg text-white/60 mb-6 leading-relaxed">
                     A fully managed compliance program for healthcare practices — HIPAA policies, a Compliance &amp; Ethics Program, staff training, and ongoing monitoring, with an optional Kovel-protected legal review from Frier Levitt.
                 </p>
-                <div class="flex flex-wrap gap-3 mb-10">
+                <div class="flex flex-wrap gap-3 mb-8">
                     <a href="#pricing" class="rounded-lg bg-[#76c8c0] px-6 py-3 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors shadow-lg">Explore Packages</a>
                     <a href="#services" class="rounded-lg border border-white/25 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition-colors">View Services</a>
                 </div>
