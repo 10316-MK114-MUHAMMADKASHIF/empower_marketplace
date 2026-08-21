@@ -7,29 +7,24 @@ use Tests\TestCase;
 
 class QuestionnairesTest extends TestCase
 {
-    public function test_essential_tier_only_gets_universal_questionnaires(): void
+    public function test_every_tier_gets_all_four_questionnaires(): void
     {
-        $files = Questionnaires::forTiers(['essential'])->pluck('file');
+        foreach (['essential', 'professional', 'advanced', 'complete'] as $tier) {
+            $files = Questionnaires::forTiers([$tier])->pluck('file');
 
-        $this->assertTrue($files->contains('Client Practice Information for HIPAA and Compliance Manuals 2026.docx'));
-        $this->assertTrue($files->contains('Employee Handbook Questionnaire 20260528 DRAFT.docx'));
-        $this->assertTrue($files->contains('OSHA Manual Questionnaire DRAFT 20260706.docx'));
-        $this->assertFalse($files->contains('Revenue Cycle and Billing Compliance Manual Questionnaire DRAFT.docx'));
-        $this->assertFalse($files->contains('Template Emergency Operations Plan Questionnaire.docx'));
-    }
-
-    public function test_complete_tier_gets_every_questionnaire(): void
-    {
-        $files = Questionnaires::forTiers(['complete'])->pluck('file');
-
-        $this->assertCount(5, $files);
+            $this->assertCount(4, $files, "Tier {$tier} should see all 4 questionnaires.");
+            $this->assertTrue($files->contains('Compliance and Ethics Practice Workflow Questionnaire.docx'));
+            $this->assertTrue($files->contains('HIPAA Business Associate Practice Workflow Questionnaire.docx'));
+            $this->assertTrue($files->contains('HIPAA Privacy Practice Workflow Questionnaire.docx'));
+            $this->assertTrue($files->contains('HIPAA Security Practice Workflow Questionnaire.docx'));
+        }
     }
 
     public function test_url_points_into_the_manuals_directory(): void
     {
-        $url = Questionnaires::url('OSHA Manual Questionnaire DRAFT 20260706.docx');
+        $url = Questionnaires::url('HIPAA Security Practice Workflow Questionnaire.docx');
 
-        $this->assertStringContainsString('/Manuals/Questionnaire/', $url);
-        $this->assertStringContainsString('OSHA%20Manual%20Questionnaire', $url);
+        $this->assertStringContainsString('/Manuals/Questionnaires/', $url);
+        $this->assertStringContainsString('HIPAA%20Security%20Practice%20Workflow%20Questionnaire', $url);
     }
 }

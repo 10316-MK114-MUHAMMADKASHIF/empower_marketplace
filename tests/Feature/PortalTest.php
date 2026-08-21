@@ -594,44 +594,32 @@ class PortalTest extends TestCase
 
     // ── Step 2: Questionnaire downloads ─────────────────────────────────────
 
-    public function test_essential_tier_client_sees_only_universal_questionnaires(): void
+    public function test_every_tier_sees_all_four_questionnaires_in_step2(): void
     {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
-        Order::factory()->create([
-            'user_id' => $user->id,
-            'package_id' => $package->id,
-            'payment_status' => PaymentStatus::SimulatedPaid,
-            'status' => OrderStatus::Paid,
-        ]);
+        foreach (['essential', 'professional', 'advanced', 'complete'] as $slug) {
+            $user = User::factory()->create();
+            Practice::factory()->create(['user_id' => $user->id]);
+            $package = Package::factory()->create([
+                'slug' => $slug,
+                'annual_price' => $slug === 'complete' ? null : 999,
+                'billing_type' => $slug === 'complete' ? 'custom' : 'annual',
+                'is_active' => true,
+            ]);
+            Order::factory()->create([
+                'user_id' => $user->id,
+                'package_id' => $package->id,
+                'payment_status' => PaymentStatus::SimulatedPaid,
+                'status' => OrderStatus::Paid,
+            ]);
 
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->call('goToStep', 2)
-            ->assertSee('Employee Handbook Questionnaire')
-            ->assertSee('OSHA Manual Questionnaire')
-            ->assertDontSee('Revenue Cycle')
-            ->assertDontSee('Emergency Operations Questionnaire');
-    }
-
-    public function test_complete_tier_client_sees_every_questionnaire(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'complete', 'billing_type' => 'custom', 'annual_price' => null, 'monthly_price' => null]);
-        Order::factory()->create([
-            'user_id' => $user->id,
-            'package_id' => $package->id,
-            'payment_status' => PaymentStatus::SimulatedPaid,
-            'status' => OrderStatus::Paid,
-        ]);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->call('goToStep', 2)
-            ->assertSee('Revenue Cycle & Billing Questionnaire')
-            ->assertSee('Emergency Operations Questionnaire');
+            Livewire::actingAs($user)
+                ->test('portal')
+                ->call('goToStep', 2)
+                ->assertSee('Compliance & Ethics Questionnaire')
+                ->assertSee('HIPAA Business Associate Questionnaire')
+                ->assertSee('HIPAA Privacy Questionnaire')
+                ->assertSee('HIPAA Security Questionnaire');
+        }
     }
 
     // ── Step 2: OSHA Modal ──────────────────────────────────────────────────
@@ -682,7 +670,7 @@ class PortalTest extends TestCase
 
         Livewire::actingAs($user)
             ->test('portal')
-            ->set('questionnaireFiles.practice_intake', $file)
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $file)
             ->call('submitIntake')
             ->assertSet('step', 4);
 
@@ -717,30 +705,10 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->call('goToStep', 3)
-            ->assertSee('Practice Information Questionnaire')
-            ->assertSee('Employee Handbook Questionnaire')
-            ->assertSee('OSHA Manual Questionnaire')
-            ->assertDontSee('Revenue Cycle & Billing Questionnaire')
-            ->assertDontSee('Emergency Operations Questionnaire');
-    }
-
-    public function test_step3_shows_complete_tier_upload_boxes(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->locked()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'complete', 'billing_type' => 'custom', 'annual_price' => null, 'monthly_price' => null]);
-        Order::factory()->create([
-            'user_id' => $user->id,
-            'package_id' => $package->id,
-            'payment_status' => PaymentStatus::SimulatedPaid,
-            'status' => OrderStatus::Paid,
-        ]);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->call('goToStep', 3)
-            ->assertSee('Revenue Cycle & Billing Questionnaire')
-            ->assertSee('Emergency Operations Questionnaire');
+            ->assertSee('Compliance & Ethics Questionnaire')
+            ->assertSee('HIPAA Business Associate Questionnaire')
+            ->assertSee('HIPAA Privacy Questionnaire')
+            ->assertSee('HIPAA Security Questionnaire');
     }
 
     public function test_submitting_intake_stores_an_optional_questionnaire_upload(): void
@@ -759,23 +727,23 @@ class PortalTest extends TestCase
             'status' => OrderStatus::Paid,
         ]);
 
-        $intakeFile = UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf');
-        $oshaFile = UploadedFile::fake()->create('osha.pdf', 100, 'application/pdf');
+        $requiredFile = UploadedFile::fake()->create('compliance.pdf', 100, 'application/pdf');
+        $optionalFile = UploadedFile::fake()->create('security.pdf', 100, 'application/pdf');
 
         Livewire::actingAs($user)
             ->test('portal')
-            ->set('questionnaireFiles.practice_intake', $intakeFile)
-            ->set('questionnaireFiles.osha_questionnaire', $oshaFile)
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $requiredFile)
+            ->set('questionnaireFiles.hipaa_security_questionnaire', $optionalFile)
             ->call('submitIntake')
             ->assertSet('step', 4);
 
         $this->assertDatabaseHas('intake_uploads', [
-            'original_filename' => 'intake.pdf',
-            'upload_type' => 'practice_intake',
+            'original_filename' => 'compliance.pdf',
+            'upload_type' => 'compliance_ethics_questionnaire',
         ]);
         $this->assertDatabaseHas('intake_uploads', [
-            'original_filename' => 'osha.pdf',
-            'upload_type' => 'osha_questionnaire',
+            'original_filename' => 'security.pdf',
+            'upload_type' => 'hipaa_security_questionnaire',
         ]);
     }
 
@@ -794,7 +762,7 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->call('submitIntake')
-            ->assertHasErrors(['questionnaireFiles.practice_intake']);
+            ->assertHasErrors(['questionnaireFiles.compliance_ethics_questionnaire']);
     }
 
     public function test_submitting_intake_once_creates_a_submission_for_every_order_in_the_batch(): void
@@ -830,7 +798,7 @@ class PortalTest extends TestCase
 
         Livewire::actingAs($user)
             ->test('portal')
-            ->set('questionnaireFiles.practice_intake', $file)
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $file)
             ->call('submitIntake')
             ->assertSet('step', 4);
 

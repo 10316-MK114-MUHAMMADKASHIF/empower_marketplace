@@ -625,12 +625,14 @@ new class extends Component
     {
         abort_unless(auth()->check(), 403);
 
-        $requiredKey = IntakeUploadType::PracticeIntake->value;
+        foreach ($this->applicableQuestionnaires->where('required', true) as $questionnaire) {
+            $key = $questionnaire['uploadType']->value;
 
-        if (empty($this->questionnaireFiles[$requiredKey])) {
-            $this->addError("questionnaireFiles.{$requiredKey}", 'Please upload your Practice Intake Form.');
+            if (empty($this->questionnaireFiles[$key])) {
+                $this->addError("questionnaireFiles.{$key}", "Please upload your {$questionnaire['title']}.");
 
-            return;
+                return;
+            }
         }
 
         $this->validate([
@@ -640,7 +642,7 @@ new class extends Component
         $orders = $this->batchOrders;
 
         if ($orders->isEmpty()) {
-            $this->addError("questionnaireFiles.{$requiredKey}", 'No active order found for this submission.');
+            $this->addError('questionnaireFiles', 'No active order found for this submission.');
 
             return;
         }
@@ -1035,7 +1037,8 @@ new class extends Component
             </div>
         </div>
 
-        {{-- OSHA Locations --}}
+        {{--
+        OSHA Locations — commented out for now, re-enable by uncommenting this block.
         <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
             <div class="flex items-center justify-between mb-4">
                 <div>
@@ -1069,34 +1072,63 @@ new class extends Component
                 </div>
             @endif
         </div>
+        --}}
 
-        @unless($editingProfile)
-            {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                @foreach($this->applicableQuestionnaires as $questionnaire)
-                    @php $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$questionnaire['uploadType']->value; @endphp
-                    <div
-                        x-data="{ downloaded: localStorage.getItem('{{ $downloadKey }}') === '1' }"
-                        class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col"
-                    >
-                        <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3 mx-auto">📄</div>
-                        <p class="font-semibold text-sm text-[#12304f] mb-1">{{ $questionnaire['title'] }}</p>
-                        <p class="text-xs text-[#5d6e7f] mb-4 flex-1">{{ $questionnaire['description'] }}</p>
-                        <a href="{{ Questionnaires::url($questionnaire['file']) }}"
-                            @click="downloaded = true; localStorage.setItem('{{ $downloadKey }}', '1')"
-                            class="inline-flex items-center justify-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0a2037] transition-colors">
-                            &#8681; Download Form
-                        </a>
-                        <p x-show="downloaded" x-cloak class="mt-2 text-xs font-semibold text-[#0f7a4f]">
-                            &#10003; Downloaded
-                        </p>
-                        <p x-show="!downloaded" x-cloak class="mt-2 text-xs text-[#5d6e7f]">
-                            Not downloaded yet
-                        </p>
-                    </div>
-                @endforeach
-            </div>
-        @endunless
+        @php
+            $requiredDownloadKeys = $editingProfile ? [] : $this->applicableQuestionnaires
+                ->where('required', true)
+                ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
+                ->values()
+                ->all();
+        @endphp
+        <div x-data="{
+                requiredKeys: @js($requiredDownloadKeys),
+                downloadedMap: {},
+                init() {
+                    this.requiredKeys.forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                },
+                markDownloaded(key) {
+                    this.downloadedMap[key] = true
+                    localStorage.setItem(key, '1')
+                },
+                get allRequiredDownloaded() {
+                    return this.requiredKeys.every(k => this.downloadedMap[k])
+                }
+            }"
+            class="space-y-4"
+        >
+            @unless($editingProfile)
+                {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    @foreach($this->applicableQuestionnaires as $questionnaire)
+                        @php $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$questionnaire['uploadType']->value; @endphp
+                        <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col">
+                            <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3 mx-auto">📄</div>
+                            <p class="font-semibold text-sm text-[#12304f] mb-1">
+                                {{ $questionnaire['title'] }}
+                                @unless($questionnaire['required'])
+                                    <span class="text-[#5d6e7f] font-normal">(optional)</span>
+                                @endunless
+                            </p>
+                            <p class="text-xs text-[#5d6e7f] mb-4 flex-1">{{ $questionnaire['description'] }}</p>
+                            <a href="{{ Questionnaires::url($questionnaire['file']) }}"
+                                @click="markDownloaded('{{ $downloadKey }}')"
+                                class="inline-flex items-center justify-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0a2037] transition-colors">
+                                &#8681; Download Form
+                            </a>
+                            <p x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="mt-2 text-xs font-semibold text-[#0f7a4f]">
+                                &#10003; Downloaded
+                            </p>
+                            <p x-show="!downloadedMap['{{ $downloadKey }}']" x-cloak class="mt-2 text-xs text-[#5d6e7f]">
+                                Not downloaded yet
+                            </p>
+                        </div>
+                    @endforeach
+                </div>
+                <p x-show="!allRequiredDownloaded" x-cloak class="text-xs font-semibold text-[#9a6700]">
+                    Please download the required questionnaire(s) above before continuing.
+                </p>
+            @endunless
 
         <div class="flex justify-between">
             @if($editingProfile)
@@ -1111,11 +1143,14 @@ new class extends Component
                 </button>
             @endif
             <button wire:click="saveProfile"
-                class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
+                :disabled="!allRequiredDownloaded"
+                :class="!allRequiredDownloaded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#5bb2aa]'"
+                class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
                 <span wire:loading.remove>{{ $editingProfile ? 'Save Changes' : 'Submit Profile & Continue' }} &rarr;</span>
                 <span wire:loading>Saving…</span>
             </button>
+        </div>
         </div>
 
         <livewire:portal.osha-location-modal :practiceId="$this->practice?->id ?? 0" />
@@ -1143,35 +1178,57 @@ new class extends Component
                 </div>
             @endif
 
-            {{-- One upload box per questionnaire shown for download in Step 2 --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                @foreach($this->applicableQuestionnaires as $questionnaire)
-                    @php
-                        $uploadKey = $questionnaire['uploadType']->value;
-                        $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
-                    @endphp
-                    <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
-                        <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
-                        <p class="font-semibold text-sm text-[#12304f] mb-1">
-                            {{ $questionnaire['title'] }}
-                            @unless($questionnaire['required'])
-                                <span class="text-[#5d6e7f] font-normal">(optional)</span>
-                            @endunless
-                        </p>
-                        <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
-                        <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
-                            class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                        @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
-                        @if($uploadedFile)
-                            <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}">
-                                <span class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
-                                    ✓ {{ $uploadedFile->getClientOriginalName() }}
-                                </span>
-                            </div>
-                            <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
-                        @endif
-                    </div>
-                @endforeach
+            {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 --}}
+            @php
+                $downloadTrackingKeys = $this->applicableQuestionnaires
+                    ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
+                    ->values()
+                    ->all();
+            @endphp
+            <div x-data="{
+                    downloadedMap: {},
+                    init() {
+                        @js($downloadTrackingKeys).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                    },
+                    get anyDownloaded() {
+                        return Object.values(this.downloadedMap).some(v => v)
+                    }
+                }"
+            >
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    @foreach($this->applicableQuestionnaires as $questionnaire)
+                        @php
+                            $uploadKey = $questionnaire['uploadType']->value;
+                            $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$uploadKey;
+                            $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
+                        @endphp
+                        <div x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
+                            <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
+                            <p class="font-semibold text-sm text-[#12304f] mb-1">
+                                {{ $questionnaire['title'] }}
+                                @unless($questionnaire['required'])
+                                    <span class="text-[#5d6e7f] font-normal">(optional)</span>
+                                @endunless
+                            </p>
+                            <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
+                            <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
+                                class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                            @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                            @if($uploadedFile)
+                                <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}">
+                                    <span class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                                        ✓ {{ $uploadedFile->getClientOriginalName() }}
+                                    </span>
+                                </div>
+                                <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+                <p x-show="!anyDownloaded" x-cloak class="text-sm text-[#5d6e7f] italic mb-4">
+                    You haven't downloaded any questionnaires yet. Go back to Step 2 to download the ones you need to fill out.
+                </p>
+            </div>
             </div>
 
             <div class="flex justify-end">

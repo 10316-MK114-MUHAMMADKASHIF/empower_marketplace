@@ -156,7 +156,7 @@ class AdminPanelTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->set('orderIds', [$order->id])
-            ->set('questionnaireFiles.practice_intake', $file)
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $file)
             ->call('submitIntake')
             ->assertHasNoErrors();
 

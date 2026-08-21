@@ -7,50 +7,42 @@ use Illuminate\Support\Collection;
 
 class Questionnaires
 {
-    private const DIRECTORY = 'Manuals/Questionnaire';
+    private const DIRECTORY = 'Manuals/Questionnaires';
 
     /** @return array<int, array{file: string, title: string, description: string, tiers: ?array<int, string>, uploadType: IntakeUploadType, required: bool}> */
     private static function catalog(): array
     {
         return [
             [
-                'file' => 'Client Practice Information for HIPAA and Compliance Manuals 2026.docx',
-                'title' => 'Practice Information Questionnaire',
-                'description' => 'Core practice details used across all of your compliance documents.',
+                'file' => 'Compliance and Ethics Practice Workflow Questionnaire.docx',
+                'title' => 'Compliance & Ethics Questionnaire',
+                'description' => 'Practice workflow details used to build your Compliance & Ethics Manual.',
                 'tiers' => null,
-                'uploadType' => IntakeUploadType::PracticeIntake,
+                'uploadType' => IntakeUploadType::ComplianceEthicsQuestionnaire,
                 'required' => true,
             ],
             [
-                'file' => 'Employee Handbook Questionnaire 20260528 DRAFT.docx',
-                'title' => 'Employee Handbook Questionnaire',
-                'description' => 'Policies and details used to build your Employee Handbook.',
+                'file' => 'HIPAA Business Associate Practice Workflow Questionnaire.docx',
+                'title' => 'HIPAA Business Associate Questionnaire',
+                'description' => 'Practice workflow details used to build your HIPAA Business Associate Manual.',
                 'tiers' => null,
-                'uploadType' => IntakeUploadType::EmployeeHandbookQuestionnaire,
+                'uploadType' => IntakeUploadType::HipaaBusinessAssociateQuestionnaire,
                 'required' => false,
             ],
             [
-                'file' => 'OSHA Manual Questionnaire DRAFT 20260706.docx',
-                'title' => 'OSHA Manual Questionnaire',
-                'description' => 'Workplace safety details used to build your OSHA Safety Plan.',
+                'file' => 'HIPAA Privacy Practice Workflow Questionnaire.docx',
+                'title' => 'HIPAA Privacy Questionnaire',
+                'description' => 'Practice workflow details used to build your HIPAA Privacy Policy.',
                 'tiers' => null,
-                'uploadType' => IntakeUploadType::OshaQuestionnaire,
+                'uploadType' => IntakeUploadType::HipaaPrivacyQuestionnaire,
                 'required' => false,
             ],
             [
-                'file' => 'Revenue Cycle and Billing Compliance Manual Questionnaire DRAFT.docx',
-                'title' => 'Revenue Cycle & Billing Questionnaire',
-                'description' => 'Billing workflow details used to build your Revenue Cycle & Billing Compliance Manual.',
-                'tiers' => ['complete'],
-                'uploadType' => IntakeUploadType::RevenueCycleQuestionnaire,
-                'required' => false,
-            ],
-            [
-                'file' => 'Template Emergency Operations Plan Questionnaire.docx',
-                'title' => 'Emergency Operations Questionnaire',
-                'description' => 'Emergency contact and procedure details used to build your Emergency Operations Plan.',
-                'tiers' => ['complete'],
-                'uploadType' => IntakeUploadType::EmergencyOperationsQuestionnaire,
+                'file' => 'HIPAA Security Practice Workflow Questionnaire.docx',
+                'title' => 'HIPAA Security Questionnaire',
+                'description' => 'Practice workflow details used to build your HIPAA Security Manual.',
+                'tiers' => null,
+                'uploadType' => IntakeUploadType::HipaaSecurityQuestionnaire,
                 'required' => false,
             ],
         ];
