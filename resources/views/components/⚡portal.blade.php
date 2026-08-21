@@ -443,19 +443,39 @@ new class extends Component
         unset($this->cartPackages, $this->cartTotal);
     }
 
-    public function pay(): void
+    /** @return array<string, mixed> */
+    private function paymentRules(): array
     {
-        $cartIds = Cart::ids();
-        $usingCart = ! empty($cartIds);
-
         $rules = [
-            'cardName' => 'required|string|max:100',
-            'cardNumber' => 'required|string|min:4',
-            'cardExpiry' => 'required|string',
-            'cardCvc' => 'required|string|min:3',
+            'cardName' => 'required|string|max:255',
+            'cardNumber' => 'required|digits_between:13,19',
+            'cardExpiry' => [
+                'required',
+                'string',
+                function (string $attribute, $value, $fail) {
+                    if (! preg_match('/^(\d{2})\/(\d{2})$/', (string) $value, $matches)) {
+                        $fail('The card expiry field must be in MM/YY format.');
+
+                        return;
+                    }
+
+                    [, $month, $year] = $matches;
+
+                    if ($month < '01' || $month > '12') {
+                        $fail('The card expiry month must be between 01 and 12.');
+
+                        return;
+                    }
+
+                    if ((int) ('20'.$year) < (int) date('Y')) {
+                        $fail('The card has expired.');
+                    }
+                },
+            ],
+            'cardCvc' => 'required|digits_between:3,4',
         ];
 
-        if (! $usingCart) {
+        if (empty(Cart::ids())) {
             $rules['selectedPackageId'] = 'required|exists:packages,id';
         }
 
@@ -467,7 +487,38 @@ new class extends Component
             ]);
         }
 
-        $this->validate($rules);
+        return $rules;
+    }
+
+    public function updated(string $property): void
+    {
+        $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail', 'accountPassword'];
+
+        if (! in_array($property, $paymentFields, true)) {
+            return;
+        }
+
+        if ($property === 'cardNumber') {
+            $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
+        }
+
+        $rules = $this->paymentRules();
+
+        if (! array_key_exists($property, $rules)) {
+            return;
+        }
+
+        $this->validateOnly($property, [$property => $rules[$property]]);
+    }
+
+    public function pay(): void
+    {
+        $cartIds = Cart::ids();
+        $usingCart = ! empty($cartIds);
+
+        $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
+
+        $this->validate($this->paymentRules());
 
         $packageIds = $usingCart ? $cartIds : array_filter([$this->selectedPackageId]);
         $packages = Package::whereIn('id', $packageIds)->get();
@@ -862,19 +913,19 @@ new class extends Component
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span class="text-red-500">*</span></label>
-                                <input wire:model="accountName" type="text" placeholder="Jane Provider"
+                                <input wire:model.blur="accountName" type="text" placeholder="Jane Provider"
                                     class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span class="text-red-500">*</span></label>
-                                <input wire:model="accountEmail" type="email" placeholder="jane@practice.com"
+                                <input wire:model.blur="accountEmail" type="email" placeholder="jane@practice.com"
                                     class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Password <span class="text-red-500">*</span></label>
-                                <input wire:model="accountPassword" type="password" placeholder="Min. 8 characters"
+                                <input wire:model.blur="accountPassword" type="password" placeholder="Min. 8 characters"
                                     class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 @error('accountPassword') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
@@ -888,26 +939,26 @@ new class extends Component
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card</label>
-                            <input wire:model="cardName" type="text" placeholder="Jane Provider"
+                            <input wire:model.blur="cardName" type="text" placeholder="Jane Provider"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number</label>
-                            <input wire:model="cardNumber" type="text" placeholder="4242 4242 4242 4242"
+                            <input wire:model.blur="cardNumber" type="text" placeholder="4242 4242 4242 4242"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry</label>
-                            <input wire:model="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
-                                x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); $el.value = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
+                            <input wire:model.blur="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
+                                x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC</label>
-                            <input wire:model="cardCvc" type="text" placeholder="123"
+                            <input wire:model.blur="cardCvc" type="text" placeholder="123"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>

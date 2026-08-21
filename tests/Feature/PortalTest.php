@@ -301,6 +301,108 @@ class PortalTest extends TestCase
             ->assertHasErrors(['selectedPackageId', 'cardName', 'cardNumber', 'cardExpiry', 'cardCvc']);
     }
 
+    public function test_card_fields_validate_live_without_calling_pay(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardNumber', '123')
+            ->assertHasErrors(['cardNumber'])
+            ->set('cardNumber', '4242424242424242')
+            ->assertHasNoErrors(['cardNumber'])
+            ->set('cardExpiry', '13/20')
+            ->assertHasErrors(['cardExpiry']);
+    }
+
+    public function test_pay_rejects_a_card_number_with_the_wrong_digit_count(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasErrors(['cardNumber']);
+    }
+
+    public function test_pay_accepts_a_spaced_out_card_number(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasNoErrors(['cardNumber']);
+    }
+
+    public function test_pay_rejects_an_expiry_month_outside_01_to_12(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '13/27')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasErrors(['cardExpiry']);
+    }
+
+    public function test_pay_rejects_an_expired_card(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '01/20')
+            ->set('cardCvc', '123')
+            ->call('pay')
+            ->assertHasErrors(['cardExpiry']);
+    }
+
+    public function test_pay_rejects_a_cvc_that_is_too_short(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '12')
+            ->call('pay')
+            ->assertHasErrors(['cardCvc']);
+    }
+
     // ── Cart-based multi-package checkout ───────────────────────────────────
 
     public function test_paying_with_multiple_cart_items_creates_orders_sharing_a_batch_id(): void
