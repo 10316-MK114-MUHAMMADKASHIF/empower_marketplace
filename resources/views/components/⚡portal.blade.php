@@ -1356,6 +1356,7 @@ new class extends Component
                 @if(! empty($this->currentOrder?->package?->features))
                     <p class="text-xs text-[#5d6e7f] mt-3"><strong>Services included:</strong> {{ implode(' &middot; ', $this->currentOrder->package->features) }}</p>
                 @endif
+                <p class="text-xs text-[#5d6e7f] mt-2">For any queries, <a href="{{ route('contact') }}" wire:navigate class="font-semibold text-[#1a7aad] hover:underline">contact us</a>.</p>
             </div>
 
             {{-- Add-on promo --}}

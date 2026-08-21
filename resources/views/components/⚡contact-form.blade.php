@@ -30,6 +30,11 @@ new class extends Component
     public function mount(): void
     {
         $this->packageInterest = request()->query('package', '');
+
+        if ($user = auth()->user()) {
+            $this->name = $user->name;
+            $this->email = $user->email;
+        }
     }
 
     public function submit(): void

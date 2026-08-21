@@ -943,6 +943,19 @@ class PortalTest extends TestCase
             ->assertSee('Generating');
     }
 
+    public function test_documents_tab_shows_a_contact_us_link(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('For any queries')
+            ->assertSee(route('contact'), false);
+    }
+
     public function test_dashboard_can_switch_between_tabs(): void
     {
         $user = User::factory()->create();

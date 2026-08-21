@@ -16,6 +16,23 @@ class ContactFormTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_authenticated_users_name_and_email_are_prefilled(): void
+    {
+        $user = User::factory()->create(['name' => 'Jane Provider', 'email' => 'jane@practice.com']);
+
+        Livewire::actingAs($user)
+            ->test('contact-form')
+            ->assertSet('name', 'Jane Provider')
+            ->assertSet('email', 'jane@practice.com');
+    }
+
+    public function test_guests_name_and_email_are_left_blank(): void
+    {
+        Livewire::test('contact-form')
+            ->assertSet('name', '')
+            ->assertSet('email', '');
+    }
+
     public function test_contact_page_renders(): void
     {
         $this->withoutVite()
