@@ -152,7 +152,7 @@
                     <div class="text-sm text-[#5d6e7f] mt-1 mb-1">/ billable provider / year</div>
                     <div class="text-xs text-[#5d6e7f] mb-6">${{ number_format($packages['essential']->monthly_price ?? 0) }}/mo billed monthly</div>
                     <ul class="space-y-2.5 text-sm text-[#173045] mb-8 grow">
-                        @foreach(['Compliance & Ethics Program', 'HIPAA Policies', 'Training Platform', 'Employee Manual Review'] as $f)
+                        @foreach($packages['essential']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>
@@ -166,7 +166,7 @@
                     <div class="text-sm text-[#5d6e7f] mt-1 mb-1">/ billable provider / year</div>
                     <div class="text-xs text-[#5d6e7f] mb-6">${{ number_format($packages['professional']->monthly_price ?? 0) }}/mo billed monthly</div>
                     <ul class="space-y-2.5 text-sm text-[#173045] mb-8 grow">
-                        @foreach(['Everything in Essential', 'Exclusions Screening', 'Compliance Hotline', 'Manuals & Manual Updates', 'Safety Review', 'Quarterly Compliance Meeting', 'Employee Manual Updates'] as $f)
+                        @foreach($packages['professional']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>
@@ -183,7 +183,7 @@
                     <div class="text-sm text-white/60 mt-1 mb-1">/ billable provider / year</div>
                     <div class="text-xs text-white/50 mb-6">${{ number_format($packages['advanced']->monthly_price ?? 0) }}/mo billed monthly</div>
                     <ul class="space-y-2.5 text-sm text-white/85 mb-8 grow">
-                        @foreach(['Everything in Essential & Professional', 'Coding & Documentation Mini Audit (10 encounters/provider)', 'Security Risk Assessment (SRA)', 'Creation & Oversight of Compliance Department', 'Monthly Compliance Meeting', 'Employee Manual Creation'] as $f)
+                        @foreach($packages['advanced']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>
@@ -196,7 +196,7 @@
                     <div class="text-4xl font-extrabold text-[#12304f]">Call</div>
                     <div class="text-sm text-[#5d6e7f] mt-1 mb-6">for pricing</div>
                     <ul class="space-y-2.5 text-sm text-[#173045] mb-8 grow">
-                        @foreach(['Everything in Essential, Professional & Advanced', 'Empower, by CareCloud operates as your fully operational compliance department', 'End-to-end ownership & oversight of your compliance program'] as $f)
+                        @foreach($packages['complete']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>

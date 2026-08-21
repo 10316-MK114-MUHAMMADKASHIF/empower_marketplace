@@ -36,4 +36,19 @@ class WelcomePageTest extends TestCase
         $response->assertOk();
         $response->assertSee('Select Package');
     }
+
+    public function test_pricing_card_features_come_from_the_package_record(): void
+    {
+        Package::factory()->create([
+            'slug' => 'essential',
+            'is_active' => true,
+            'features' => ['A custom feature set by the admin', 'Another admin-defined feature'],
+        ]);
+
+        $response = $this->withoutVite()->get('/');
+
+        $response->assertOk();
+        $response->assertSee('A custom feature set by the admin');
+        $response->assertSee('Another admin-defined feature');
+    }
 }

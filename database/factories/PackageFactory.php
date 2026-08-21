@@ -24,7 +24,7 @@ class PackageFactory extends Factory
             'annual_price' => 999.00,
             'billing_type' => 'annual',
             'description' => fake()->sentence(),
-            'features' => ['Employee handbook', 'OSHA safety plan', 'Email support'],
+            'features' => ['Compliance & Ethics Program', 'HIPAA Policies', 'Training Platform', 'Employee Manual Review'],
             'included_document_types' => ['employee_handbook_basic', 'osha_safety_plan'],
             'is_active' => true,
             'sort_order' => 0,
