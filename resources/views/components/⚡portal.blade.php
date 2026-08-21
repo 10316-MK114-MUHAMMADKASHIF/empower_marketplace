@@ -10,6 +10,8 @@ use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
+use App\Mail\AdminIntakeSubmittedMail;
+use App\Mail\AdminPaymentReceivedMail;
 use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -22,6 +24,7 @@ use App\Support\Questionnaires;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
@@ -565,6 +568,10 @@ new class extends Component
                 order: $order,
             );
 
+            User::where('role', UserRole::Admin)->pluck('email')->each(
+                fn (string $adminEmail) => Mail::to($adminEmail)->send(new AdminPaymentReceivedMail($order))
+            );
+
             $orderIds[] = $order->id;
         }
 
@@ -722,6 +729,12 @@ new class extends Component
                 user: auth()->user(),
                 order: $order,
                 subject: $submission,
+            );
+
+            $submission->setRelation('order', $order);
+
+            User::where('role', UserRole::Admin)->pluck('email')->each(
+                fn (string $adminEmail) => Mail::to($adminEmail)->send(new AdminIntakeSubmittedMail($submission))
             );
         }
 

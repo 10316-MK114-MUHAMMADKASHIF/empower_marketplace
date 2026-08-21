@@ -8,6 +8,8 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
+use App\Mail\AdminIntakeSubmittedMail;
+use App\Mail\AdminPaymentReceivedMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -20,6 +22,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -218,6 +221,30 @@ class PortalTest extends TestCase
             'user_id' => $user->id,
             'event_type' => 'order.paid',
         ]);
+    }
+
+    public function test_paying_notifies_every_admin_by_email(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $otherAdmin = User::factory()->create(['role' => UserRole::Admin]);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay');
+
+        Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($admin->email));
+        Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
+        Mail::assertNotSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($user->email));
     }
 
     public function test_continuing_after_payment_advances_to_step_2(): void
@@ -688,6 +715,34 @@ class PortalTest extends TestCase
             'order_id' => $order->id,
             'event_type' => 'submission.submitted',
         ]);
+    }
+
+    public function test_submitting_intake_notifies_every_admin_by_email(): void
+    {
+        Mail::fake();
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]]),
+        ]);
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $file = UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $file)
+            ->call('submitIntake');
+
+        Mail::assertSent(AdminIntakeSubmittedMail::class, fn ($mail) => $mail->hasTo($admin->email));
     }
 
     public function test_revisiting_step3_after_submission_shows_existing_upload_and_does_not_duplicate_it(): void

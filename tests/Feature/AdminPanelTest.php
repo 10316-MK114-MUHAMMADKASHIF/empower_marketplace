@@ -7,6 +7,7 @@ use App\Enums\IntakeSubmissionStatus;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
+use App\Mail\ClientSubmissionStatusMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -19,6 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -108,6 +110,20 @@ class AdminPanelTest extends TestCase
         ]);
     }
 
+    public function test_approving_a_submission_emails_the_client(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('approve');
+
+        Mail::assertSent(ClientSubmissionStatusMail::class, fn ($mail) => $mail->hasTo($submission->order->user->email));
+    }
+
     public function test_admin_can_reject_a_submission_with_notes(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
@@ -121,6 +137,21 @@ class AdminPanelTest extends TestCase
         $submission->refresh();
         $this->assertSame(IntakeSubmissionStatus::Rejected, $submission->status);
         $this->assertSame('Please re-upload a signed copy.', $submission->reviewer_notes);
+    }
+
+    public function test_rejecting_a_submission_emails_the_client(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('reviewerNotes', 'Please re-upload a signed copy.')
+            ->call('reject');
+
+        Mail::assertSent(ClientSubmissionStatusMail::class, fn ($mail) => $mail->hasTo($submission->order->user->email));
     }
 
     public function test_rejecting_without_notes_fails_validation(): void

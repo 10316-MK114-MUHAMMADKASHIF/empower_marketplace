@@ -2,8 +2,10 @@
 
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\OrderStatus;
+use App\Mail\ClientSubmissionStatusMail;
 use App\Models\ActivityLog;
 use App\Models\IntakeSubmission;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -95,6 +97,8 @@ new class extends Component
             metadata: ['admin_documents_uploaded' => count($uploadedAdminDocuments)],
         );
 
+        Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
+
         unset($this->submission);
     }
 
@@ -161,6 +165,8 @@ new class extends Component
             subject: $submission,
             metadata: ['reviewer_notes' => $this->reviewerNotes],
         );
+
+        Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
 
         unset($this->submission);
     }
