@@ -136,6 +136,21 @@ new class extends Component
             ->first(fn ($s) => $s?->status === IntakeSubmissionStatus::Rejected);
     }
 
+    /** Questionnaires already uploaded for the current submission, keyed by upload type value. */
+    #[Computed]
+    public function existingUploadsByType(): Collection
+    {
+        $orders = $this->batchOrders->isNotEmpty() ? $this->batchOrders : $this->userOrders;
+
+        $submission = $orders->first()?->intakeSubmission;
+
+        if (! $submission) {
+            return collect();
+        }
+
+        return $submission->intakeUploads->keyBy(fn ($upload) => $upload->upload_type->value);
+    }
+
     /** The order whose documents are currently displayed on the Step 5 dashboard. */
     #[Computed]
     public function currentOrder(): ?Order
@@ -215,7 +230,7 @@ new class extends Component
     #[Computed]
     public function userOrders(): Collection
     {
-        return auth()->user()->orders()->with('package')->get();
+        return auth()->user()->orders()->with(['package', 'intakeSubmission.intakeUploads'])->get();
     }
 
     #[Computed]
@@ -628,7 +643,7 @@ new class extends Component
         foreach ($this->applicableQuestionnaires->where('required', true) as $questionnaire) {
             $key = $questionnaire['uploadType']->value;
 
-            if (empty($this->questionnaireFiles[$key])) {
+            if (empty($this->questionnaireFiles[$key]) && ! $this->existingUploadsByType->has($key)) {
                 $this->addError("questionnaireFiles.{$key}", "Please upload your {$questionnaire['title']}.");
 
                 return;
@@ -679,15 +694,22 @@ new class extends Component
             );
 
             foreach ($storedFiles as $key => $meta) {
-                $upload = IntakeUpload::create([
-                    'intake_submission_id' => $submission->id,
-                    'upload_type' => IntakeUploadType::from($key),
-                    'original_filename' => $meta['original_filename'],
-                    'storage_path' => $meta['path'],
-                    'mime_type' => $meta['mime_type'],
-                    'file_size' => $meta['file_size'],
-                    'ai_extraction_status' => AiExtractionStatus::Pending,
-                ]);
+                $upload = IntakeUpload::updateOrCreate(
+                    [
+                        'intake_submission_id' => $submission->id,
+                        'upload_type' => IntakeUploadType::from($key),
+                    ],
+                    [
+                        'original_filename' => $meta['original_filename'],
+                        'storage_path' => $meta['path'],
+                        'mime_type' => $meta['mime_type'],
+                        'file_size' => $meta['file_size'],
+                        'ai_extraction_status' => AiExtractionStatus::Pending,
+                        'ai_extracted_data' => null,
+                        'ai_error_message' => null,
+                        'processed_at' => null,
+                    ]
+                );
 
                 $primaryUploadsByType[$key] ??= $upload;
             }
@@ -1201,6 +1223,7 @@ new class extends Component
                             $uploadKey = $questionnaire['uploadType']->value;
                             $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$uploadKey;
                             $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
+                            $existingUpload = $this->existingUploadsByType->get($uploadKey);
                         @endphp
                         <div x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
                             <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
@@ -1211,6 +1234,14 @@ new class extends Component
                                 @endunless
                             </p>
                             <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
+                            @if($existingUpload && ! $uploadedFile)
+                                <p class="mt-1 mb-3 text-xs text-[#5d6e7f]">
+                                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                                        ✓ Already uploaded: {{ $existingUpload->original_filename }}
+                                    </span>
+                                    <br>Choose a new file below to replace it.
+                                </p>
+                            @endif
                             <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
                                 class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
                             @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror

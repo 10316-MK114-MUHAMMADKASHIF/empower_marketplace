@@ -690,6 +690,50 @@ class PortalTest extends TestCase
         ]);
     }
 
+    public function test_revisiting_step3_after_submission_shows_existing_upload_and_does_not_duplicate_it(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $file = UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $file)
+            ->call('submitIntake')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseCount('intake_uploads', 1);
+
+        // Simulate the user navigating back to Step 3 on a fresh page load.
+        $component = Livewire::actingAs($user)->test('portal')->call('goToStep', 3);
+        $component->assertSee('Already uploaded: intake.pdf');
+
+        // Resubmitting without choosing a new file must not create a second row.
+        $component->call('submitIntake')->assertHasNoErrors();
+        $this->assertDatabaseCount('intake_uploads', 1);
+
+        // Resubmitting with a replacement file updates the existing row instead of adding a new one.
+        $replacement = UploadedFile::fake()->create('intake-v2.pdf', 100, 'application/pdf');
+        $component->set('questionnaireFiles.compliance_ethics_questionnaire', $replacement)
+            ->call('submitIntake')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseCount('intake_uploads', 1);
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'intake-v2.pdf']);
+    }
+
     public function test_step3_shows_an_upload_box_for_every_questionnaire_shown_in_step2(): void
     {
         $user = User::factory()->create();
