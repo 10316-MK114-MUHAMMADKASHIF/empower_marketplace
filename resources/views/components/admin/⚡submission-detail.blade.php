@@ -6,12 +6,23 @@ use App\Models\ActivityLog;
 use App\Models\IntakeSubmission;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component
 {
+    use WithFileUploads;
+
     public int $submissionId;
 
     public string $reviewerNotes = '';
+
+    public $adminDocumentOne = null;
+
+    public $adminDocumentTwo = null;
+
+    public $adminDocumentThree = null;
+
+    public $adminDocumentFour = null;
 
     public function mount(IntakeSubmission $submission): void
     {
@@ -53,10 +64,21 @@ new class extends Component
 
     public function approve(): void
     {
+        $this->validate([
+            'adminDocumentOne' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'adminDocumentTwo' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'adminDocumentThree' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'adminDocumentFour' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+        ]);
+
         $submission = $this->submission;
+        $uploadedAdminDocuments = $this->storeAdminDocuments($submission);
+        $existingAdminDocuments = is_array($submission->admin_documents) ? $submission->admin_documents : [];
+        $adminDocuments = array_values(array_merge($existingAdminDocuments, $uploadedAdminDocuments));
 
         $submission->update([
             'status' => IntakeSubmissionStatus::Approved,
+            'admin_documents' => $adminDocuments !== [] ? $adminDocuments : null,
             'reviewer_notes' => null,
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
@@ -70,9 +92,48 @@ new class extends Component
             user: auth()->user(),
             order: $submission->order,
             subject: $submission,
+            metadata: ['admin_documents_uploaded' => count($uploadedAdminDocuments)],
         );
 
         unset($this->submission);
+    }
+
+    /**
+     * @return array<int, array{slot: string, original_filename: string, storage_path: string, mime_type: string|null, size: int|null, uploaded_at: string}>
+     */
+    protected function storeAdminDocuments(IntakeSubmission $submission): array
+    {
+        $uploadSlots = [
+            'adminDocumentOne' => 'Compliance and Ethics',
+            'adminDocumentTwo' => 'HIPAA Business Associate',
+            'adminDocumentThree' => 'HIPAA Privacy',
+            'adminDocumentFour' => 'HIPAA Security',
+        ];
+
+        $uploadedDocuments = [];
+
+        foreach ($uploadSlots as $property => $label) {
+            $file = $this->{$property};
+
+            if (! $file) {
+                continue;
+            }
+
+            $storagePath = $file->store("private/admin-review/{$submission->id}", 'local');
+
+            $uploadedDocuments[] = [
+                'slot' => $label,
+                'original_filename' => $file->getClientOriginalName(),
+                'storage_path' => $storagePath,
+                'mime_type' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'uploaded_at' => now()->toIso8601String(),
+            ];
+        }
+
+        $this->reset(['adminDocumentOne', 'adminDocumentTwo', 'adminDocumentThree', 'adminDocumentFour']);
+
+        return $uploadedDocuments;
     }
 
     public function reject(): void
@@ -164,6 +225,25 @@ new class extends Component
         @endforelse
     </div>
 
+    @if(!empty($submission->admin_documents))
+        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+            <h3 class="text-sm font-semibold text-navy mb-3">Admin Uploaded Documents</h3>
+            <div class="space-y-2.5">
+                @foreach($submission->admin_documents as $index => $document)
+                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-empower-border last:border-b-0">
+                        <div>
+                            <p class="text-sm font-semibold text-empower-text">{{ $document['original_filename'] ?? ($document['slot'] ?? 'Document') }}</p>
+                            @if(!empty($document['slot']))
+                                <p class="text-xs text-empower-muted">{{ $document['slot'] }}</p>
+                            @endif
+                        </div>
+                        <a href="{{ route('admin.submissions.documents.download', ['submission' => $submission->id, 'index' => $index]) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download</a>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     @if($submission->status === IntakeSubmissionStatus::Rejected && $submission->reviewer_notes)
         <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <p class="font-semibold mb-0.5">Reviewer notes sent to client:</p>
@@ -184,6 +264,37 @@ new class extends Component
                 <textarea wire:model="reviewerNotes" rows="3" placeholder="Explain what the practice needs to fix…"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition"></textarea>
                 @error('reviewerNotes') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="mb-5">
+                <p class="text-sm font-semibold text-[#31465b] mb-1.5">Admin Review Documents (optional)</p>
+                <p class="text-xs text-empower-muted mb-3">Upload up to 4 files to attach to this submission before approval.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-empower-muted mb-1">Compliance and Ethics</label>
+                        <input wire:model="adminDocumentOne" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                        @error('adminDocumentOne') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-empower-muted mb-1">HIPAA Business Associate</label>
+                        <input wire:model="adminDocumentTwo" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                        @error('adminDocumentTwo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-empower-muted mb-1">HIPAA Privacy</label>
+                        <input wire:model="adminDocumentThree" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                        @error('adminDocumentThree') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-empower-muted mb-1">HIPAA Security</label>
+                        <input wire:model="adminDocumentFour" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                        @error('adminDocumentFour') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
             </div>
 
             <div class="flex flex-wrap gap-3">

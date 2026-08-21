@@ -11,7 +11,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="min-h-screen bg-page font-sans antialiased">
+<body class="min-h-screen flex flex-col bg-page font-sans antialiased">
 
     <nav class="sticky top-0 z-50 bg-navy/96 backdrop-blur border-b border-white/8">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -58,7 +58,7 @@
         </div>
     </nav>
 
-    <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+    <main class="mx-auto w-full max-w-7xl flex-1 min-h-[calc(100dvh-4rem-5.5rem)] px-4 sm:px-6 lg:px-8 py-6">
         {{ $slot }}
     </main>
 
