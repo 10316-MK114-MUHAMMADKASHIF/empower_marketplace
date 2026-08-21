@@ -551,12 +551,14 @@ new class extends Component
     {
         abort_unless(auth()->check(), 403);
 
+        $isLocked = (bool) auth()->user()->practice?->is_profile_locked;
+
         $this->validate([
             'practiceName' => 'required|string|max:150',
-            'logoFile' => 'nullable|file|mimes:png,jpg,jpeg,svg|max:2048',
-            'practiceAddress' => 'nullable|string|max:255',
-            'npiNumber' => 'nullable|digits:10',
-            'specialty' => 'nullable|string|max:100',
+            'logoFile' => $isLocked ? 'nullable|file|mimes:png,jpg,jpeg,svg|max:2048' : 'required|file|mimes:png,jpg,jpeg,svg|max:2048',
+            'practiceAddress' => 'required|string|max:255',
+            'npiNumber' => 'required|digits:10',
+            'specialty' => 'required|string|max:100',
             'billableProviders' => 'required|integer|min:1|max:9999',
         ]);
 
@@ -957,6 +959,8 @@ new class extends Component
                         Practice Logo
                         @if($this->practice?->is_profile_locked)
                             <span class="ml-1 inline-flex items-center gap-0.5 text-[0.68rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒 Locked</span>
+                        @else
+                            <span class="text-red-500">*</span>
                         @endif
                     </label>
                     @unless($this->practice?->is_profile_locked)
@@ -971,7 +975,7 @@ new class extends Component
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
-                        Practice Name
+                        Practice Name <span class="text-red-500">*</span>
                         @if($this->practice?->is_profile_locked)
                             <span class="ml-1 inline-flex items-center gap-0.5 text-[0.68rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒 Locked</span>
                         @endif
@@ -983,14 +987,14 @@ new class extends Component
                 </div>
 
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span class="text-red-500">*</span></label>
                     <input wire:model="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
                         class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                     @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number <span class="text-red-500">*</span></label>
                     <input wire:model="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="1234567890"
                         x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
                         class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
@@ -998,7 +1002,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span class="text-red-500">*</span></label>
                     <select wire:model="specialty"
                         class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                         @foreach(['General Practice','Dermatology','Cardiology','Behavioral Health','Pediatrics','Orthopedics','Dental','Other'] as $s)
@@ -1009,7 +1013,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers <span class="text-red-500">*</span></label>
                     <input wire:model="billableProviders" type="number" min="1"
                         class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                     @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror

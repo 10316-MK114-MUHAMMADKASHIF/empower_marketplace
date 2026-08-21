@@ -369,6 +369,7 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
             ->set('billableProviders', 3)
             ->call('saveProfile')
             ->assertSet('step', 3);
@@ -423,6 +424,42 @@ class PortalTest extends TestCase
             ->set('practiceName', '')
             ->call('saveProfile')
             ->assertHasErrors(['practiceName']);
+    }
+
+    public function test_save_profile_requires_logo_address_npi_and_specialty_on_first_submission(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('practiceAddress', '')
+            ->set('npiNumber', '')
+            ->set('specialty', '')
+            ->call('saveProfile')
+            ->assertHasErrors(['logoFile', 'practiceAddress', 'npiNumber', 'specialty']);
+    }
+
+    public function test_save_profile_does_not_require_a_new_logo_once_profile_is_locked(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->call('editProfile')
+            ->call('saveProfile')
+            ->assertHasNoErrors(['logoFile']);
     }
 
     public function test_save_profile_validates_npi_number_and_specialty_length(): void
