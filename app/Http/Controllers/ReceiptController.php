@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use TCPDF;
 
 class ReceiptController extends Controller
 {
-    public function show(Request $request, Order $order): Response
+    public function show(Request $request, Order $order): View
     {
         if ($order->user_id !== $request->user()->id) {
             abort(403);
@@ -21,23 +20,9 @@ class ReceiptController extends Controller
 
         $order->loadMissing(['package', 'user.practice']);
 
-        $html = view('receipts.pdf', [
+        return view('receipts.show', [
             'order' => $order,
             'practice' => $order->user->practice,
-        ])->render();
-
-        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8');
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-        $pdf->setCreator(config('app.name'));
-        $pdf->AddPage();
-        $pdf->writeHTML($html, true, false, true, false, '');
-
-        $filename = "receipt-order-{$order->id}.pdf";
-
-        return response($pdf->Output('', 'S'), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 }
