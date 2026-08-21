@@ -13,7 +13,7 @@ class ReceiptDownloadTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_owner_can_download_receipt_as_plain_text(): void
+    public function test_owner_can_download_receipt_as_pdf(): void
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
@@ -23,8 +23,9 @@ class ReceiptDownloadTest extends TestCase
         $response = $this->withoutVite()->actingAs($user)->get(route('orders.receipt', $order));
 
         $response->assertOk();
-        $response->assertHeader('Content-Type', 'text/plain; charset=UTF-8');
-        $response->assertSee('Essential Compliance');
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $response->assertHeader('Content-Disposition', "attachment; filename=\"receipt-order-{$order->id}.pdf\"");
+        $this->assertStringStartsWith('%PDF', $response->getContent());
     }
 
     public function test_other_users_cannot_download_someone_elses_receipt(): void
