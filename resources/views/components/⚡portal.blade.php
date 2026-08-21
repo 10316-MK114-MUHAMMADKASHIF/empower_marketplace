@@ -1111,7 +1111,7 @@ new class extends Component
             {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 @foreach($this->applicableQuestionnaires as $questionnaire)
-                    @php $downloadKey = 'questionnaire-downloaded-'.$questionnaire['uploadType']->value; @endphp
+                    @php $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$questionnaire['uploadType']->value; @endphp
                     <div
                         x-data="{ downloaded: localStorage.getItem('{{ $downloadKey }}') === '1' }"
                         class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col"
