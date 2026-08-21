@@ -1342,12 +1342,6 @@ new class extends Component
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Download PDF
                                     </a>
-                                    @if($doc->docx_storage_path)
-                                        <a href="{{ route('documents.download', $doc) }}?format=docx"
-                                            class="text-xs font-bold rounded border border-[#dbe4ee] text-[#12304f] px-3 py-1.5 hover:bg-[#f4f7fb] transition-colors">
-                                            DOCX
-                                        </a>
-                                    @endif
                                 @elseif($doc?->status === DocumentStatus::Completed && $doc->docx_storage_path)
                                     <a href="{{ route('documents.download', $doc) }}?format=docx"
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
