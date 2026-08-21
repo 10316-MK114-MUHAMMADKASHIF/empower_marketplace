@@ -1,6 +1,11 @@
 <?php
 
+use App\Enums\UserRole;
+use App\Mail\LeadConfirmationMail;
+use App\Mail\NewLeadNotificationMail;
 use App\Models\Lead;
+use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
@@ -31,13 +36,19 @@ new class extends Component
     {
         $this->validate();
 
-        Lead::create([
+        $lead = Lead::create([
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
             'message' => $this->message,
             'package_interest' => $this->packageInterest ?: null,
         ]);
+
+        Mail::to($lead->email)->send(new LeadConfirmationMail($lead));
+
+        User::where('role', UserRole::Admin)->pluck('email')->each(
+            fn (string $adminEmail) => Mail::to($adminEmail)->send(new NewLeadNotificationMail($lead))
+        );
 
         $this->submitted = true;
     }
