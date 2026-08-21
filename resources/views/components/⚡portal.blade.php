@@ -18,7 +18,6 @@ use App\Models\Order;
 use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
-use App\Support\Cart;
 use App\Support\Questionnaires;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -95,15 +94,9 @@ new class extends Component
     }
 
     #[Computed]
-    public function cartPackages(): Collection
+    public function selectedPackage(): ?Package
     {
-        return Cart::packages();
-    }
-
-    #[Computed]
-    public function cartTotal(): float
-    {
-        return (float) $this->cartPackages->sum('annual_price');
+        return $this->selectedPackageId ? Package::find($this->selectedPackageId) : null;
     }
 
     /** Every order created by the checkout batch currently being walked through Steps 1/3/4. */
@@ -267,13 +260,6 @@ new class extends Component
         };
     }
 
-    private function seedCartIfEmpty(): void
-    {
-        if ($this->selectedPackageId && empty(Cart::ids())) {
-            Cart::add($this->selectedPackageId);
-        }
-    }
-
     public function mount(): void
     {
         $user = auth()->user();
@@ -291,7 +277,6 @@ new class extends Component
 
             if ($resolvedId) {
                 $this->selectedPackageId = $resolvedId;
-                $this->seedCartIfEmpty();
             } else {
                 $this->selectedPackageId = $this->defaultPackageId();
             }
@@ -321,7 +306,6 @@ new class extends Component
                 if (! $existingOrder) {
                     $this->step = 1;
                     $this->selectedPackageId = $requestedPackage->id;
-                    $this->seedCartIfEmpty();
 
                     return;
                 }
@@ -342,7 +326,6 @@ new class extends Component
 
                 if ($resolvedId) {
                     $this->selectedPackageId = $resolvedId;
-                    $this->seedCartIfEmpty();
                 } else {
                     $this->selectedPackageId = $this->defaultPackageId();
                 }
@@ -437,12 +420,6 @@ new class extends Component
         unset($this->generatedDocuments, $this->expectedDocuments);
     }
 
-    public function removeFromCart(int $packageId): void
-    {
-        Cart::remove($packageId);
-        unset($this->cartPackages, $this->cartTotal);
-    }
-
     /** @return array<string, mixed> */
     private function paymentRules(): array
     {
@@ -473,11 +450,8 @@ new class extends Component
                 },
             ],
             'cardCvc' => 'required|digits_between:3,4',
+            'selectedPackageId' => 'required|exists:packages,id',
         ];
-
-        if (empty(Cart::ids())) {
-            $rules['selectedPackageId'] = 'required|exists:packages,id';
-        }
 
         if (auth()->guest()) {
             $rules = array_merge($rules, [
@@ -513,15 +487,11 @@ new class extends Component
 
     public function pay(): void
     {
-        $cartIds = Cart::ids();
-        $usingCart = ! empty($cartIds);
-
         $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
 
         $this->validate($this->paymentRules());
 
-        $packageIds = $usingCart ? $cartIds : array_filter([$this->selectedPackageId]);
-        $packages = Package::whereIn('id', $packageIds)->get();
+        $packages = Package::whereIn('id', array_filter([$this->selectedPackageId]))->get();
 
         if ($packages->isEmpty()) {
             $this->addError('selectedPackageId', 'Please select at least one package.');
@@ -583,8 +553,6 @@ new class extends Component
             $orderIds[] = $order->id;
         }
 
-        Cart::clear();
-
         $this->orderIds = $orderIds;
         $this->dashboardOrderId = end($orderIds);
 
@@ -595,7 +563,7 @@ new class extends Component
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
 
-        unset($this->batchOrders, $this->completedMilestone, $this->practice, $this->cartPackages, $this->cartTotal, $this->userOrders);
+        unset($this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders);
     }
 
     public function saveProfile(): void
@@ -779,7 +747,7 @@ new class extends Component
 
     {{-- ── Portal preview hero ── --}}
     @php
-        $heroPackages = $milestone >= 1 ? $this->batchOrders->pluck('package')->filter()->values() : $this->cartPackages;
+        $heroPackages = $milestone >= 1 ? $this->batchOrders->pluck('package')->filter()->values() : collect([$this->selectedPackage])->filter()->values();
         $heroTotal = $heroPackages->sum('annual_price');
     @endphp
     <div class="rounded-[1.25rem] p-6 sm:p-7" style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
@@ -852,7 +820,7 @@ new class extends Component
     @if($step === 1)
         <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
             <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-            <h2 class="text-lg font-semibold text-navy mb-1">{{ $milestone >= 1 ? 'Payment' : 'Your Cart' }}</h2>
+            <h2 class="text-lg font-semibold text-navy mb-1">{{ $milestone >= 1 ? 'Payment' : 'Selected Package' }}</h2>
             <p class="text-sm text-empower-muted">
                 Complete payment first to unlock your practice intake form. Your documents are generated automatically once intake is submitted and reviewed.
             </p>
@@ -881,26 +849,21 @@ new class extends Component
             </div>
         @else
             <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <h3 class="text-sm font-semibold text-navy mb-3">Your Cart</h3>
-                @if($this->cartPackages->isEmpty())
-                    <p class="text-sm text-empower-muted italic mb-3">Your cart is empty.</p>
+                <h3 class="text-sm font-semibold text-navy mb-3">Selected Package</h3>
+                @if(! $this->selectedPackage)
+                    <p class="text-sm text-empower-muted italic mb-3">No package selected.</p>
                     <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">Browse packages &rarr;</a>
                 @else
-                    <div class="divide-y divide-[#eef2f6] mb-3">
-                        @foreach($this->cartPackages as $package)
-                            <div class="flex items-center justify-between gap-3 py-3">
-                                <div>
-                                    <p class="text-sm font-semibold text-[#173045]">{{ $package->name }}</p>
-                                    <p class="text-xs text-empower-muted">${{ number_format($package->annual_price) }} / year</p>
-                                </div>
-                                <button type="button" wire:click="removeFromCart({{ $package->id }})"
-                                    class="text-xs font-semibold text-red-600 hover:underline">Remove</button>
-                            </div>
-                        @endforeach
+                    <div class="flex items-center justify-between gap-3 py-3 border-b border-[#eef2f6] mb-3">
+                        <div>
+                            <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
+                            <p class="text-xs text-empower-muted">${{ number_format($this->selectedPackage->annual_price) }} / year</p>
+                        </div>
+                        <a href="{{ route('home') }}#pricing" class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
                     </div>
                     <div class="flex items-center justify-between pt-3 border-t border-[#eef2f6]">
                         <span class="text-sm font-semibold text-[#173045]">Total</span>
-                        <span class="text-lg font-extrabold text-navy">${{ number_format($this->cartTotal) }}</span>
+                        <span class="text-lg font-extrabold text-navy">${{ number_format($this->selectedPackage->annual_price) }}</span>
                     </div>
                 @endif
             </div>
@@ -968,7 +931,7 @@ new class extends Component
                         <button wire:click="pay"
                             class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
                             wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                            <span wire:loading.remove>Pay ${{ number_format($this->cartTotal) }} &rarr;</span>
+                            <span wire:loading.remove>Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }} &rarr;</span>
                             <span wire:loading>Processing…</span>
                         </button>
                     </div>

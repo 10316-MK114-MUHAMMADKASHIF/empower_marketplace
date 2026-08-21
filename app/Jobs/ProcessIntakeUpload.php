@@ -67,7 +67,7 @@ class ProcessIntakeUpload implements ShouldQueue
 
     /**
      * Other IntakeUpload rows pointing at the same stored file (created when one upload
-     * satisfies several orders from the same cart checkout) — no reason to re-run AI
+     * satisfies several orders from the same batch checkout) — no reason to re-run AI
      * extraction on an identical document once the primary upload has a result.
      */
     private function siblingUploads(): Collection

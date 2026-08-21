@@ -15,7 +15,6 @@ use App\Models\Order;
 use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
-use App\Support\Cart;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -401,57 +400,6 @@ class PortalTest extends TestCase
             ->set('cardCvc', '12')
             ->call('pay')
             ->assertHasErrors(['cardCvc']);
-    }
-
-    // ── Cart-based multi-package checkout ───────────────────────────────────
-
-    public function test_paying_with_multiple_cart_items_creates_orders_sharing_a_batch_id(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $essential = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
-        $professional = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
-
-        Cart::add($essential->id);
-        Cart::add($professional->id);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->set('cardName', 'Jane Provider')
-            ->set('cardNumber', '4242 4242 4242 4242')
-            ->set('cardExpiry', '12/27')
-            ->set('cardCvc', '123')
-            ->call('pay')
-            ->assertSee('Payment received');
-
-        $orders = Order::where('user_id', $user->id)->get();
-        $this->assertCount(2, $orders);
-        $this->assertNotNull($orders->first()->checkout_batch_id);
-        $this->assertSame(1, $orders->pluck('checkout_batch_id')->unique()->count());
-        $this->assertSame(0, Cart::count());
-    }
-
-    public function test_removing_an_item_from_the_cart_excludes_it_from_checkout(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $essential = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
-        $professional = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
-
-        Cart::add($essential->id);
-        Cart::add($professional->id);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->call('removeFromCart', $professional->id)
-            ->set('cardName', 'Jane Provider')
-            ->set('cardNumber', '4242 4242 4242 4242')
-            ->set('cardExpiry', '12/27')
-            ->set('cardCvc', '123')
-            ->call('pay');
-
-        $this->assertDatabaseHas('orders', ['user_id' => $user->id, 'package_id' => $essential->id]);
-        $this->assertDatabaseMissing('orders', ['user_id' => $user->id, 'package_id' => $professional->id]);
     }
 
     // ── Step 2: Practice Profile ────────────────────────────────────────────

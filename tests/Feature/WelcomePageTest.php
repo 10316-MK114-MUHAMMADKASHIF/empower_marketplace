@@ -16,17 +16,17 @@ class WelcomePageTest extends TestCase
         Package::factory()->create(['slug' => 'essential', 'is_active' => true]);
     }
 
-    public function test_guest_can_add_a_package_to_the_cart_from_the_pricing_page(): void
+    public function test_guest_can_see_a_select_package_link_on_the_pricing_page(): void
     {
         $this->seedActivePackage();
 
         $response = $this->withoutVite()->get('/');
 
         $response->assertOk();
-        $response->assertSee('Add to Cart');
+        $response->assertSee('Select Package');
     }
 
-    public function test_authenticated_user_can_add_a_package_to_the_cart_from_the_pricing_page(): void
+    public function test_authenticated_user_can_see_a_select_package_link_on_the_pricing_page(): void
     {
         $this->seedActivePackage();
         $user = User::factory()->create();
@@ -34,6 +34,6 @@ class WelcomePageTest extends TestCase
         $response = $this->withoutVite()->actingAs($user)->get('/');
 
         $response->assertOk();
-        $response->assertSee('Add to Cart');
+        $response->assertSee('Select Package');
     }
 }

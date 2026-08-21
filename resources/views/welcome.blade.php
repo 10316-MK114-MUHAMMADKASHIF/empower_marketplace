@@ -31,7 +31,6 @@
             </div>
 
             <div class="flex items-center gap-2">
-                <livewire:cart-badge />
                 @auth
                     <a href="{{ route('portal') }}" class="rounded-lg bg-[#76c8c0] px-4 py-2 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">My Portal</a>
                 @else
@@ -157,7 +156,7 @@
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>
-                    <livewire:add-to-cart-button :packageId="$packages['essential']->id ?? 0" variant="navy" :key="'atc-essential'" />
+                    <a href="{{ route('portal', ['package' => 'essential']) }}" class="block w-full rounded-xl bg-[#12304f] py-3 text-center text-sm font-semibold text-white hover:bg-[#0a2037] transition-colors">Select Package</a>
                 </div>
 
                 {{-- Professional --}}
@@ -171,7 +170,7 @@
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>
-                    <livewire:add-to-cart-button :packageId="$packages['professional']->id ?? 0" variant="navy" :key="'atc-professional'" />
+                    <a href="{{ route('portal', ['package' => 'professional']) }}" class="block w-full rounded-xl bg-[#12304f] py-3 text-center text-sm font-semibold text-white hover:bg-[#0a2037] transition-colors">Select Package</a>
                 </div>
 
                 {{-- Advanced (Popular) --}}
@@ -188,7 +187,7 @@
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#76c8c0]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{{ $f }}</li>
                         @endforeach
                     </ul>
-                    <livewire:add-to-cart-button :packageId="$packages['advanced']->id ?? 0" variant="accent" :key="'atc-advanced'" />
+                    <a href="{{ route('portal', ['package' => 'advanced']) }}" class="block w-full rounded-xl bg-[#76c8c0] py-3 text-center text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">Select Package</a>
                 </div>
 
                 {{-- Complete --}}

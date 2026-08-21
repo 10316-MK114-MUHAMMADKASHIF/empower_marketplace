@@ -50,7 +50,7 @@ storage/app/
 
 ## Portal Workflow (5 steps)
 
-1. **Payment** — Simulated only; marks `orders.payment_status = simulated_paid`
+1. **Payment** — Single package selection only (no cart/multi-package checkout — a client picks one package via `?package=slug` from the pricing page's "Select Package" link, or a default is chosen for them); simulated only, marks `orders.payment_status = simulated_paid`
 2. **Practice Profile** — Locks after submission (`practices.is_profile_locked = true`); includes OSHA locations CRUD
 3. **Intake Upload** — PDF/image/docx uploads + handbook questionnaire; dispatches `ProcessIntakeUpload` jobs
 4. **Review Status** — Polls `intake_submissions.status`; admin must approve before docs release

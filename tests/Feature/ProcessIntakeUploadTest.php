@@ -222,7 +222,7 @@ class ProcessIntakeUploadTest extends TestCase
         Queue::assertNotPushed(GenerateComplianceDocument::class);
     }
 
-    // ── Sibling propagation (one upload shared across a cart checkout) ─────
+    // ── Sibling propagation (one upload shared across a batch checkout) ─────
 
     public function test_propagates_extraction_to_sibling_uploads_sharing_the_same_file(): void
     {
