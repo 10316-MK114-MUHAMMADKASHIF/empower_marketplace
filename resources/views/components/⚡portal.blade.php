@@ -1142,7 +1142,10 @@ new class extends Component
                     Cancel
                 </button>
             @else
-                <span></span>
+                <button wire:click="goToStep(1)"
+                    class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                    &larr; Back
+                </button>
             @endif
             <button wire:click="saveProfile"
                 class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"

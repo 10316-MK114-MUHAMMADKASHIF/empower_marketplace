@@ -456,6 +456,25 @@ class PortalTest extends TestCase
 
     // ── Step 2: Practice Profile ────────────────────────────────────────────
 
+    public function test_back_button_returns_to_step_1(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->call('goToStep', 1)
+            ->assertSet('step', 1);
+    }
+
     public function test_saving_profile_locks_practice_and_advances_to_step_3(): void
     {
         $user = User::factory()->create();
