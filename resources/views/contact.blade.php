@@ -13,19 +13,32 @@
 </head>
 <body class="bg-[#f4f7fb] text-[#173045] antialiased font-sans">
 
-{{-- Minimal nav for quote page --}}
+{{-- Sticky Nav (same menu as home) --}}
 <nav class="sticky top-0 z-50 bg-[#12304f]/96 backdrop-blur border-b border-white/8">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
-            <a href="{{ route('home') }}#pricing" class="flex items-center gap-2.5">
+            <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                 <span class="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5">
                     <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[22px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-[#12304f] text-sm\'>EMPOWER</span>'">
                 </span>
                 <span class="hidden sm:block text-[0.6rem] font-extrabold tracking-widest uppercase text-[#9fb4ce]">Marketplace</span>
             </a>
-            <a href="{{ route('home') }}#pricing" class="rounded-lg border border-white/25 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 transition-colors">
-                Back to Packages
-            </a>
+
+            <div class="hidden md:flex items-center gap-7">
+                <a href="{{ route('home') }}#services" class="text-sm font-medium text-white/78 hover:text-white transition-colors">Services</a>
+                <a href="{{ route('home') }}#process" class="text-sm font-medium text-white/78 hover:text-white transition-colors">Process</a>
+                <a href="{{ route('home') }}#pricing" class="text-sm font-medium text-white/78 hover:text-white transition-colors">Pricing</a>
+                <a href="{{ route('contact') }}" class="text-sm font-medium text-white hover:text-white transition-colors">Contact</a>
+            </div>
+
+            <div class="flex items-center gap-2">
+                @auth
+                    <a href="{{ route('portal') }}" class="rounded-lg bg-[#76c8c0] px-4 py-2 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">My Portal</a>
+                @else
+                    <a href="{{ route('login') }}" class="text-sm font-medium text-white/78 hover:text-white transition-colors">Log in</a>
+                    <a href="{{ route('home') }}#pricing" class="rounded-lg bg-[#76c8c0] px-4 py-2 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">Get Started</a>
+                @endauth
+            </div>
         </div>
     </div>
 </nav>
