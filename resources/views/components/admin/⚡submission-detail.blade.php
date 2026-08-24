@@ -1,10 +1,15 @@
 <?php
 
+use App\Enums\DocumentDeliverySource;
+use App\Enums\DocumentStatus;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\OrderStatus;
+use App\Mail\ClientDocumentsApprovedMail;
 use App\Mail\ClientSubmissionStatusMail;
 use App\Models\ActivityLog;
+use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -18,13 +23,11 @@ new class extends Component
 
     public string $reviewerNotes = '';
 
-    public $adminDocumentOne = null;
+    /** Keyed by GeneratedDocument id. */
+    public array $customDocumentFiles = [];
 
-    public $adminDocumentTwo = null;
-
-    public $adminDocumentThree = null;
-
-    public $adminDocumentFour = null;
+    /** GeneratedDocument ids checked for bulk approval. */
+    public array $selectedDocumentIds = [];
 
     public function mount(IntakeSubmission $submission): void
     {
@@ -41,6 +44,27 @@ new class extends Component
             'intakeUploads',
             'reviewer',
         ])->findOrFail($this->submissionId);
+    }
+
+    /** Every generated document for this submission's order, paired with whether its
+     *  custom-upload slot should be shown (only when linked to a questionnaire the
+     *  client actually uploaded, or when it has no questionnaire link at all). */
+    #[Computed]
+    public function documentsForReview(): Collection
+    {
+        $submission = $this->submission;
+        $uploadedTypes = $submission->intakeUploads->map(fn ($u) => $u->upload_type)->all();
+
+        return GeneratedDocument::where('order_id', $submission->order_id)
+            ->with('reviewedBy')
+            ->orderBy('document_type')
+            ->get()
+            ->map(function (GeneratedDocument $document) use ($uploadedTypes) {
+                $linkedType = $document->document_type->linkedQuestionnaireType();
+                $document->showsCustomUploadSlot = $linkedType === null || in_array($linkedType, $uploadedTypes, true);
+
+                return $document;
+            });
     }
 
     public function startReview(): void
@@ -66,21 +90,10 @@ new class extends Component
 
     public function approve(): void
     {
-        $this->validate([
-            'adminDocumentOne' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-            'adminDocumentTwo' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-            'adminDocumentThree' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-            'adminDocumentFour' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-        ]);
-
         $submission = $this->submission;
-        $uploadedAdminDocuments = $this->storeAdminDocuments($submission);
-        $existingAdminDocuments = is_array($submission->admin_documents) ? $submission->admin_documents : [];
-        $adminDocuments = array_values(array_merge($existingAdminDocuments, $uploadedAdminDocuments));
 
         $submission->update([
             'status' => IntakeSubmissionStatus::Approved,
-            'admin_documents' => $adminDocuments !== [] ? $adminDocuments : null,
             'reviewer_notes' => null,
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
@@ -94,7 +107,6 @@ new class extends Component
             user: auth()->user(),
             order: $submission->order,
             subject: $submission,
-            metadata: ['admin_documents_uploaded' => count($uploadedAdminDocuments)],
         );
 
         Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
@@ -102,42 +114,93 @@ new class extends Component
         unset($this->submission);
     }
 
-    /**
-     * @return array<int, array{slot: string, original_filename: string, storage_path: string, mime_type: string|null, size: int|null, uploaded_at: string}>
-     */
-    protected function storeAdminDocuments(IntakeSubmission $submission): array
+    public function uploadCustomDocument(int $documentId): void
     {
-        $uploadSlots = [
-            'adminDocumentOne' => 'Compliance and Ethics',
-            'adminDocumentTwo' => 'HIPAA Business Associate',
-            'adminDocumentThree' => 'HIPAA Privacy',
-            'adminDocumentFour' => 'HIPAA Security',
-        ];
+        $submission = $this->submission;
 
-        $uploadedDocuments = [];
+        $document = GeneratedDocument::where('id', $documentId)
+            ->where('order_id', $submission->order_id)
+            ->firstOrFail();
 
-        foreach ($uploadSlots as $property => $label) {
-            $file = $this->{$property};
+        $this->validate([
+            "customDocumentFiles.{$documentId}" => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+        ]);
 
-            if (! $file) {
-                continue;
-            }
+        $file = $this->customDocumentFiles[$documentId];
+        $storagePath = $file->store("private/compliance/{$document->order_id}/custom", 'local');
 
-            $storagePath = $file->store("private/admin-review/{$submission->id}", 'local');
+        $document->update([
+            'custom_storage_path' => $storagePath,
+            'custom_original_filename' => $file->getClientOriginalName(),
+            'delivery_source' => DocumentDeliverySource::Custom,
+            'reviewed_at' => null,
+            'reviewed_by' => null,
+        ]);
 
-            $uploadedDocuments[] = [
-                'slot' => $label,
-                'original_filename' => $file->getClientOriginalName(),
-                'storage_path' => $storagePath,
-                'mime_type' => $file->getMimeType(),
-                'size' => $file->getSize(),
-                'uploaded_at' => now()->toIso8601String(),
-            ];
+        ActivityLog::record(
+            'document.custom_uploaded',
+            "Custom {$document->document_type->label()} uploaded for order #{$document->order_id}.",
+            user: auth()->user(),
+            order: $document->order,
+            subject: $document,
+        );
+
+        unset($this->customDocumentFiles[$documentId], $this->documentsForReview);
+    }
+
+    public function setDeliverySource(int $documentId, string $source): void
+    {
+        $submission = $this->submission;
+        $deliverySource = DocumentDeliverySource::from($source);
+
+        $document = GeneratedDocument::where('id', $documentId)
+            ->where('order_id', $submission->order_id)
+            ->firstOrFail();
+
+        if ($deliverySource === DocumentDeliverySource::Custom && ! $document->hasCustomDocument()) {
+            return;
         }
 
-        $this->reset(['adminDocumentOne', 'adminDocumentTwo', 'adminDocumentThree', 'adminDocumentFour']);
+        $document->update([
+            'delivery_source' => $deliverySource,
+            'reviewed_at' => null,
+            'reviewed_by' => null,
+        ]);
 
-        return $uploadedDocuments;
+        unset($this->documentsForReview);
+    }
+
+    public function approveSelectedDocuments(): void
+    {
+        $submission = $this->submission;
+
+        $documents = GeneratedDocument::whereIn('id', $this->selectedDocumentIds)
+            ->where('order_id', $submission->order_id)
+            ->get()
+            ->filter(fn (GeneratedDocument $document) => $document->canBeApproved());
+
+        if ($documents->isEmpty()) {
+            $this->selectedDocumentIds = [];
+
+            return;
+        }
+
+        foreach ($documents as $document) {
+            $document->update(['reviewed_at' => now(), 'reviewed_by' => auth()->id()]);
+        }
+
+        ActivityLog::record(
+            'documents.approved',
+            "{$documents->count()} document(s) approved for order #{$submission->order_id}.",
+            user: auth()->user(),
+            order: $submission->order,
+            metadata: ['document_types' => $documents->map(fn ($d) => $d->document_type->value)->all()],
+        );
+
+        Mail::to($submission->order->user->email)->send(new ClientDocumentsApprovedMail($submission->order, $documents));
+
+        $this->selectedDocumentIds = [];
+        unset($this->documentsForReview);
     }
 
     public function reject(): void
@@ -231,19 +294,85 @@ new class extends Component
         @endforelse
     </div>
 
-    @if(!empty($submission->admin_documents))
+    @if($this->documentsForReview->isNotEmpty())
         <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <h3 class="text-sm font-semibold text-navy mb-3">Admin Uploaded Documents</h3>
-            <div class="space-y-2.5">
-                @foreach($submission->admin_documents as $index => $document)
-                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-empower-border last:border-b-0">
-                        <div>
-                            <p class="text-sm font-semibold text-empower-text">{{ $document['original_filename'] ?? ($document['slot'] ?? 'Document') }}</p>
-                            @if(!empty($document['slot']))
-                                <p class="text-xs text-empower-muted">{{ $document['slot'] }}</p>
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
+                <h3 class="text-sm font-semibold text-navy">Document Review</h3>
+                @if($this->documentsForReview->contains(fn ($d) => $d->canBeApproved()))
+                    <button type="button" wire:click="approveSelectedDocuments" wire:confirm="Approve the selected document(s)? The client will be emailed once approved."
+                        @disabled(empty($this->selectedDocumentIds))
+                        class="inline-flex items-center gap-1 rounded bg-accent px-4 py-1.5 text-xs font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        Approve Selected
+                    </button>
+                @endif
+            </div>
+            <p class="text-xs text-empower-muted mb-4">Review each AI-generated document. If it's correct, select it and approve. If it's wrong, upload a corrected file below and choose which version to deliver.</p>
+
+            <div class="space-y-4">
+                @foreach($this->documentsForReview as $document)
+                    @php
+                        $badge = match(true) {
+                            $document->is_stale => ['Outdated', 'bg-[#fde2e2] text-[#a53b3b]'],
+                            $document->isApproved() => ['Approved', 'bg-[#dff7f0] text-[#0f7a4f]'],
+                            $document->status === DocumentStatus::Completed => ['Pending Review', 'bg-[#edf2f7] text-empower-muted'],
+                            $document->status === DocumentStatus::Failed => ['Failed', 'bg-[#fde2e2] text-[#a53b3b]'],
+                            default => ['Generating', 'bg-[#fff3cd] text-[#9a6700]'],
+                        };
+                    @endphp
+                    <div class="rounded-xl border border-empower-border p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+                            <div class="flex items-start gap-3">
+                                @if($document->canBeApproved())
+                                    <input type="checkbox" wire:model="selectedDocumentIds" value="{{ $document->id }}" class="mt-1 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                                @endif
+                                <div>
+                                    <p class="text-sm font-semibold text-empower-text">
+                                        {{ $document->document_type->label() }}{{ $document->oshaLocation ? ' — '.$document->oshaLocation->name : '' }}
+                                    </p>
+                                    @if($document->isApproved())
+                                        <p class="text-xs text-empower-muted">Approved by {{ $document->reviewedBy?->name ?? 'admin' }} &middot; {{ $document->reviewed_at->format('M j, Y') }}</p>
+                                    @elseif($document->status === DocumentStatus::Failed && $document->hasCustomDocument())
+                                        <p class="text-xs text-[#9a6700]">AI generation failed — a custom file will be delivered instead.</p>
+                                    @endif
+                                </div>
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.65rem] font-extrabold uppercase tracking-wider {{ $badge[1] }}">{{ $badge[0] }}</span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 text-xs mb-3">
+                            @if($document->pdf_storage_path || $document->docx_storage_path)
+                                <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'ai']) }}" class="font-bold text-[#1a7aad] hover:underline">Download AI-Generated File</a>
+                            @endif
+                            @if($document->hasCustomDocument())
+                                <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'custom']) }}" class="font-bold text-[#1a7aad] hover:underline">Download Custom File</a>
                             @endif
                         </div>
-                        <a href="{{ route('admin.submissions.documents.download', ['submission' => $submission->id, 'index' => $index]) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download</a>
+
+                        @if($document->hasCustomDocument())
+                            <div class="flex items-center gap-4 mb-3 text-xs">
+                                <span class="font-semibold text-empower-muted">Deliver to client:</span>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="radio" wire:change="setDeliverySource({{ $document->id }}, 'ai_generated')" @checked($document->delivery_source === DocumentDeliverySource::AiGenerated) name="delivery-{{ $document->id }}" class="text-accent focus:ring-accent">
+                                    AI-Generated
+                                </label>
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="radio" wire:change="setDeliverySource({{ $document->id }}, 'custom')" @checked($document->delivery_source === DocumentDeliverySource::Custom) name="delivery-{{ $document->id }}" class="text-accent focus:ring-accent">
+                                    Custom
+                                </label>
+                            </div>
+                        @endif
+
+                        @if($document->showsCustomUploadSlot)
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input wire:model="customDocumentFiles.{{ $document->id }}" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                    class="block text-xs text-[#5d6e7f] file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                                <button type="button" wire:click="uploadCustomDocument({{ $document->id }})"
+                                    class="text-xs font-bold text-[#1a7aad] hover:underline">
+                                    Upload {{ $document->hasCustomDocument() ? 'Replacement' : 'Custom File' }}
+                                </button>
+                            </div>
+                            @error("customDocumentFiles.{$document->id}") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -272,37 +401,6 @@ new class extends Component
                 @error('reviewerNotes') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
-            <div class="mb-5">
-                <p class="text-sm font-semibold text-[#31465b] mb-1.5">Admin Review Documents (optional)</p>
-                <p class="text-xs text-empower-muted mb-3">Upload up to 4 files to attach to this submission before approval.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-empower-muted mb-1">Compliance and Ethics</label>
-                        <input wire:model="adminDocumentOne" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                        @error('adminDocumentOne') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-empower-muted mb-1">HIPAA Business Associate</label>
-                        <input wire:model="adminDocumentTwo" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                        @error('adminDocumentTwo') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-empower-muted mb-1">HIPAA Privacy</label>
-                        <input wire:model="adminDocumentThree" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                        @error('adminDocumentThree') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-empower-muted mb-1">HIPAA Security</label>
-                        <input wire:model="adminDocumentFour" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                        @error('adminDocumentFour') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    </div>
-                </div>
-            </div>
-
             <div class="flex flex-wrap gap-3">
                 <button type="button" x-on:click="confirmAction = 'approve'"
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">
@@ -323,7 +421,7 @@ new class extends Component
             <h3 class="text-base font-semibold text-navy mb-2"
                 x-text="confirmAction === 'approve' ? 'Approve this submission?' : 'Reject this submission?'"></h3>
             <p class="text-sm text-empower-muted mb-5"
-                x-text="confirmAction === 'approve' ? 'Documents will be unlocked for the client.' : 'The client will be asked to re-upload based on your reviewer notes.'"></p>
+                x-text="confirmAction === 'approve' ? 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.' : 'The client will be asked to re-upload based on your reviewer notes.'"></p>
             <div class="flex justify-end gap-3">
                 <button type="button" x-on:click="confirmAction = null"
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">

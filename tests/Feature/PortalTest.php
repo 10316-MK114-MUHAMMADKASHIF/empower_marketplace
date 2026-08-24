@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AiExtractionStatus;
+use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
@@ -10,6 +11,7 @@ use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
+use App\Mail\WelcomeCredentialsMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -115,13 +117,14 @@ class PortalTest extends TestCase
 
     public function test_guest_paying_creates_account_practice_and_order(): void
     {
+        Mail::fake();
+
         $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
 
         Livewire::test('portal')
             ->set('selectedPackageId', $package->id)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'jane@practice.com')
-            ->set('accountPassword', 'secret123')
             ->set('cardName', 'Jane Provider')
             ->set('cardNumber', '4242 4242 4242 4242')
             ->set('cardExpiry', '12/27')
@@ -141,6 +144,39 @@ class PortalTest extends TestCase
         ]);
     }
 
+    public function test_guest_paying_emails_the_generated_password_and_it_works_for_login(): void
+    {
+        Mail::fake();
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountName', 'Jane Provider')
+            ->set('accountEmail', 'jane@practice.com')
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay');
+
+        $capturedPassword = null;
+
+        Mail::assertSent(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
+            $capturedPassword = $mail->password;
+
+            return $mail->hasTo('jane@practice.com') && strlen($mail->password) >= 16;
+        });
+
+        $user = User::where('email', 'jane@practice.com')->first();
+
+        Livewire::test('auth.login-form')
+            ->set('email', $user->email)
+            ->set('password', $capturedPassword)
+            ->call('login')
+            ->assertRedirect(route('portal'));
+    }
+
     public function test_guest_pay_requires_account_fields(): void
     {
         $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
@@ -152,11 +188,13 @@ class PortalTest extends TestCase
             ->set('cardExpiry', '12/27')
             ->set('cardCvc', '123')
             ->call('pay')
-            ->assertHasErrors(['accountName', 'accountEmail', 'accountPassword']);
+            ->assertHasErrors(['accountName', 'accountEmail']);
     }
 
     public function test_guest_pay_rejects_duplicate_email(): void
     {
+        Mail::fake();
+
         User::factory()->create(['email' => 'taken@example.com']);
         $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
 
@@ -164,13 +202,14 @@ class PortalTest extends TestCase
             ->set('selectedPackageId', $package->id)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'taken@example.com')
-            ->set('accountPassword', 'secret123')
             ->set('cardName', 'Jane Provider')
             ->set('cardNumber', '4242 4242 4242 4242')
             ->set('cardExpiry', '12/27')
             ->set('cardCvc', '123')
             ->call('pay')
             ->assertHasErrors(['accountEmail']);
+
+        Mail::assertNothingSent();
     }
 
     public function test_authenticated_user_paying_does_not_require_account_fields(): void
@@ -864,6 +903,48 @@ class PortalTest extends TestCase
             ->assertHasErrors(['questionnaireFiles.compliance_ethics_questionnaire']);
     }
 
+    public function test_every_downloaded_questionnaire_becomes_mandatory_to_upload_and_stale_errors_clear_after_fixing(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $complianceFile = UploadedFile::fake()->create('compliance.pdf', 100, 'application/pdf');
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->set('downloadedQuestionnaireKeys', ['compliance_ethics_questionnaire', 'hipaa_business_associate_questionnaire'])
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $complianceFile)
+            ->call('submitIntake');
+
+        // The optional HIPAA Business Associate questionnaire was downloaded, so it's now
+        // mandatory too — even though only Compliance & Ethics is required by default.
+        $component->assertHasErrors(['questionnaireFiles.hipaa_business_associate_questionnaire'])
+            ->assertSet('step', 3);
+
+        // Uploading the missing file and resubmitting must clear the stale error, not just
+        // leave it stuck on screen from the previous failed attempt.
+        $hipaaFile = UploadedFile::fake()->create('hipaa-ba.pdf', 100, 'application/pdf');
+
+        $component->set('questionnaireFiles.hipaa_business_associate_questionnaire', $hipaaFile)
+            ->call('submitIntake')
+            ->assertHasNoErrors()
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'compliance.pdf']);
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'hipaa-ba.pdf']);
+    }
+
     public function test_submitting_intake_once_creates_a_submission_for_every_order_in_the_batch(): void
     {
         Http::fake([
@@ -912,8 +993,10 @@ class PortalTest extends TestCase
         $this->assertTrue($uploads->every(fn ($u) => $u->ai_extraction_status === AiExtractionStatus::Completed));
         $this->assertSame(1, $uploads->pluck('ai_extracted_data')->map(fn ($d) => json_encode($d))->unique()->count());
 
-        // ...but only ONE OpenAI API call was made for the shared document.
-        Http::assertSentCount(1);
+        // ...but the shared document was only extracted (and verified) once, not once per
+        // order in the batch — two calls total: the extraction, then the verification pass
+        // that Compliance & Ethics questionnaires get since they have a structured schema.
+        Http::assertSentCount(2);
     }
 
     // ── Step 4: Review Status ───────────────────────────────────────────────
@@ -993,6 +1076,44 @@ class PortalTest extends TestCase
         IntakeSubmission::factory()->approved()->create(['order_id' => $order->id]);
 
         return $order;
+    }
+
+    public function test_completed_but_unapproved_document_shows_pending_review_with_no_download_link(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Pending Review')
+            ->assertDontSee('Download PDF')
+            ->assertDontSee('Ready');
+
+        $this->assertFalse($document->isReady());
+    }
+
+    public function test_approved_document_shows_ready_with_a_working_download_link(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+        GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Ready')
+            ->assertSee('Download PDF')
+            ->assertDontSee('Pending Review');
     }
 
     public function test_dashboard_shows_practice_info_bar_and_defaults_to_documents_tab(): void

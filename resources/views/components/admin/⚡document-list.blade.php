@@ -26,7 +26,7 @@ new class extends Component
     public function documents(): LengthAwarePaginator
     {
         return GeneratedDocument::query()
-            ->with(['order.package', 'order.user.practice', 'oshaLocation'])
+            ->with(['order.package', 'order.user.practice', 'order.intakeSubmission', 'oshaLocation'])
             ->when($this->status === 'stale', fn ($q) => $q->where('is_stale', true))
             ->when($this->status !== 'all' && $this->status !== 'stale', fn ($q) => $q->where('status', $this->status))
             ->latest('generated_at')
@@ -92,19 +92,29 @@ new class extends Component
                         <td class="px-5 py-3.5 text-empower-text">{{ $doc->order?->user?->practice?->name ?: '—' }}</td>
                         <td class="px-5 py-3.5">
                             @php
+                                $badgeLabel = match(true) {
+                                    $doc->is_stale => 'Stale',
+                                    $doc->isApproved() => 'Approved',
+                                    $doc->status === DocumentStatus::Completed => 'Pending Review',
+                                    default => $doc->status->value,
+                                };
                                 $badgeClasses = match(true) {
                                     $doc->is_stale => 'bg-[#fde2e2] text-[#a53b3b]',
-                                    $doc->status === DocumentStatus::Completed => 'bg-[#dff7f0] text-[#0f7a4f]',
+                                    $doc->isApproved() => 'bg-[#dff7f0] text-[#0f7a4f]',
+                                    $doc->status === DocumentStatus::Completed => 'bg-[#edf2f7] text-empower-muted',
                                     $doc->status === DocumentStatus::Failed => 'bg-[#fde2e2] text-[#a53b3b]',
                                     default => 'bg-[#fff3cd] text-[#9a6700]',
                                 };
                             @endphp
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider {{ $badgeClasses }}">
-                                {{ $doc->is_stale ? 'Stale' : $doc->status->value }}
+                                {{ $badgeLabel }}
                             </span>
                         </td>
                         <td class="px-5 py-3.5 text-empower-muted text-xs">{{ $doc->generated_at?->diffForHumans() ?? '—' }}</td>
                         <td class="px-5 py-3.5 text-right">
+                            @if($doc->order?->intakeSubmission)
+                                <a href="{{ route('admin.submissions.show', $doc->order->intakeSubmission) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline mr-3">Review</a>
+                            @endif
                             <button wire:click="regenerate({{ $doc->id }})" wire:confirm="Regenerate this document?"
                                 class="text-xs font-bold text-[#1a7aad] hover:underline">Regenerate</button>
                         </td>

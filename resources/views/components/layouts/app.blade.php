@@ -40,6 +40,7 @@
                             <div x-show="open" @click.outside="open = false" x-transition
                                 class="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black/5 py-1 z-50">
                                 <a href="{{ route('home') }}#pricing" class="block px-4 py-2 text-sm text-empower-text hover:bg-page">Back to Packages</a>
+                                <a href="{{ route('password.edit') }}" wire:navigate class="block px-4 py-2 text-sm text-empower-text hover:bg-page">Change Password</a>
                                 @if(auth()->user()->isAdmin())
                                     <a href="{{ route('admin.dashboard') }}" wire:navigate class="block px-4 py-2 text-sm text-empower-text hover:bg-page">Admin Panel</a>
                                 @endif

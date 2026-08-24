@@ -40,7 +40,6 @@ enum DocumentType: string
     {
         return match ($this) {
             self::RevenueCycleBillingManual,
-            self::ComplianceEthicsManual,
             self::EmergencyOperationsPlan,
             self::HipaaBusinessAssociateManual,
             self::HipaaSecurityManual => true,
@@ -88,5 +87,17 @@ enum DocumentType: string
     public function isPerLocation(): bool
     {
         return $this === self::OshaLocationReport;
+    }
+
+    /** The client questionnaire this document's content is sourced from, if any. */
+    public function linkedQuestionnaireType(): ?IntakeUploadType
+    {
+        return match ($this) {
+            self::ComplianceEthicsManual => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            self::HipaaBusinessAssociateManual => IntakeUploadType::HipaaBusinessAssociateQuestionnaire,
+            self::HipaaPrivacyPolicy => IntakeUploadType::HipaaPrivacyQuestionnaire,
+            self::HipaaSecurityManual => IntakeUploadType::HipaaSecurityQuestionnaire,
+            default => null,
+        };
     }
 }

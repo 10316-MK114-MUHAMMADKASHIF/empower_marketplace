@@ -12,6 +12,7 @@ use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
+use App\Mail\WelcomeCredentialsMail;
 use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -51,8 +52,6 @@ new class extends Component
 
     public string $accountEmail = '';
 
-    public string $accountPassword = '';
-
     public string $cardName = '';
 
     public string $cardNumber = '';
@@ -81,6 +80,11 @@ new class extends Component
 
     // Step 3 — one slot per questionnaire shown in Step 2, keyed by IntakeUploadType::value.
     public array $questionnaireFiles = [];
+
+    // Synced from client-side (localStorage) download tracking — every questionnaire the
+    // user has downloaded becomes mandatory to upload back, in addition to any statically
+    // required ones. Keyed by IntakeUploadType::value.
+    public array $downloadedQuestionnaireKeys = [];
 
     #[Computed]
     public function packages(): Collection
@@ -475,7 +479,6 @@ new class extends Component
             $rules = array_merge($rules, [
                 'accountName' => 'required|string|max:100',
                 'accountEmail' => 'required|email|max:150|unique:users,email',
-                'accountPassword' => 'required|string|min:8',
             ]);
         }
 
@@ -484,7 +487,7 @@ new class extends Component
 
     public function updated(string $property): void
     {
-        $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail', 'accountPassword'];
+        $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail'];
 
         if (! in_array($property, $paymentFields, true)) {
             return;
@@ -532,10 +535,12 @@ new class extends Component
         }
 
         if (auth()->guest()) {
+            $generatedPassword = Str::password(16);
+
             $user = User::create([
                 'name' => $this->accountName,
                 'email' => $this->accountEmail,
-                'password' => $this->accountPassword,
+                'password' => $generatedPassword,
                 'role' => UserRole::Client,
             ]);
 
@@ -543,6 +548,8 @@ new class extends Component
                 'user_id' => $user->id,
                 'name' => '',
             ]);
+
+            Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $generatedPassword));
 
             Auth::login($user);
         }
@@ -647,14 +654,24 @@ new class extends Component
     {
         abort_unless(auth()->check(), 403);
 
-        foreach ($this->applicableQuestionnaires->where('required', true) as $questionnaire) {
+        $this->resetErrorBag();
+
+        $missingRequiredFile = false;
+
+        // Every questionnaire the client downloaded (in addition to any statically required
+        // one) becomes mandatory to upload back — Step 3 only shows a box for downloaded ones.
+        foreach ($this->applicableQuestionnaires as $questionnaire) {
             $key = $questionnaire['uploadType']->value;
+            $isRequired = $questionnaire['required'] || in_array($key, $this->downloadedQuestionnaireKeys, true);
 
-            if (empty($this->questionnaireFiles[$key]) && ! $this->existingUploadsByType->has($key)) {
+            if ($isRequired && empty($this->questionnaireFiles[$key]) && ! $this->existingUploadsByType->has($key)) {
                 $this->addError("questionnaireFiles.{$key}", "Please upload your {$questionnaire['title']}.");
-
-                return;
+                $missingRequiredFile = true;
             }
+        }
+
+        if ($missingRequiredFile) {
+            return;
         }
 
         $this->validate([
@@ -923,13 +940,8 @@ new class extends Component
                                     class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
-                            <div class="sm:col-span-2">
-                                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Password <span class="text-red-500">*</span></label>
-                                <input wire:model.blur="accountPassword" type="password" placeholder="Min. 8 characters"
-                                    class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                @error('accountPassword') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                            </div>
                         </div>
+                        <p class="text-xs text-empower-muted mt-3">We'll email you a secure, auto-generated password to log in with.</p>
                     </div>
                 @endauth
 
@@ -1213,17 +1225,19 @@ new class extends Component
                 </div>
             @endif
 
-            {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 --}}
+            {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 —
+                 and every one shown here becomes mandatory to upload back. --}}
             @php
-                $downloadTrackingKeys = $this->applicableQuestionnaires
-                    ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
-                    ->values()
+                $downloadTrackingKeyMap = $this->applicableQuestionnaires
+                    ->mapWithKeys(fn ($q) => ['questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value => $q['uploadType']->value])
                     ->all();
             @endphp
             <div x-data="{
                     downloadedMap: {},
                     init() {
-                        @js($downloadTrackingKeys).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                        const keyMap = @js($downloadTrackingKeyMap)
+                        Object.keys(keyMap).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                        $wire.set('downloadedQuestionnaireKeys', Object.entries(keyMap).filter(([lsKey]) => this.downloadedMap[lsKey]).map(([, uploadKey]) => uploadKey))
                     },
                     get anyDownloaded() {
                         return Object.values(this.downloadedMap).some(v => v)
@@ -1242,9 +1256,6 @@ new class extends Component
                             <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
                             <p class="font-semibold text-sm text-[#12304f] mb-1">
                                 {{ $questionnaire['title'] }}
-                                @unless($questionnaire['required'])
-                                    <span class="text-[#5d6e7f] font-normal">(optional)</span>
-                                @endunless
                             </p>
                             <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
                             @if($existingUpload && ! $uploadedFile)
@@ -1416,10 +1427,12 @@ new class extends Component
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
                                     @elseif($doc->is_stale)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Outdated</span>
-                                    @elseif($doc->status === DocumentStatus::Completed)
+                                    @elseif($doc->isReady())
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Ready</span>
                                     @elseif($doc->status === DocumentStatus::Failed)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Failed</span>
+                                    @elseif($doc->status === DocumentStatus::Completed)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#edf2f7] text-[#5d6e7f]">Pending Review</span>
                                     @else
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
                                     @endif
@@ -1438,12 +1451,17 @@ new class extends Component
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Regenerate
                                     </button>
-                                @elseif($doc?->status === DocumentStatus::Completed && $doc->pdf_storage_path)
+                                @elseif($doc?->isReady() && $doc->delivery_source === \App\Enums\DocumentDeliverySource::Custom)
+                                    <a href="{{ route('documents.download', $doc) }}"
+                                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
+                                        Download
+                                    </a>
+                                @elseif($doc?->isReady() && $doc->pdf_storage_path)
                                     <a href="{{ route('documents.download', $doc) }}"
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Download PDF
                                     </a>
-                                @elseif($doc?->status === DocumentStatus::Completed && $doc->docx_storage_path)
+                                @elseif($doc?->isReady() && $doc->docx_storage_path)
                                     <a href="{{ route('documents.download', $doc) }}?format=docx"
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Download DOCX

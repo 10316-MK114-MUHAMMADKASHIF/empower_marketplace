@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'order_id', 'status', 'handbook_answers', 'admin_documents',
+    'order_id', 'status', 'handbook_answers',
     'reviewer_notes', 'reviewed_by', 'reviewed_at', 'submitted_at',
 ])]
 class IntakeSubmission extends Model
@@ -27,7 +27,6 @@ class IntakeSubmission extends Model
         return [
             'status' => IntakeSubmissionStatus::class,
             'handbook_answers' => 'array',
-            'admin_documents' => 'array',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',
         ];

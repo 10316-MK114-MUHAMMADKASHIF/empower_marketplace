@@ -1,7 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\GeneratedDocumentDownloadController;
 use App\Http\Controllers\Admin\IntakeUploadDownloadController;
-use App\Http\Controllers\Admin\SubmissionDocumentDownloadController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\ReceiptController;
@@ -27,6 +27,8 @@ Route::get('/register', function (Request $request) {
 
     return view('auth.register');
 })->name('register');
+Route::get('/forgot-password', fn () => view('auth.forgot-password'))->name('password.request');
+Route::get('/reset-password/{token}', fn (string $token) => view('auth.reset-password', ['token' => $token]))->name('password.reset');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
 // Client portal — guest-accessible: a first-time visitor creates their account as part of
@@ -38,6 +40,8 @@ Route::middleware('auth')->group(function () {
         ->name('documents.download');
     Route::get('/orders/{order}/receipt', [ReceiptController::class, 'show'])
         ->name('orders.receipt');
+    Route::get('/account/change-password', fn () => view('account.change-password'))
+        ->name('password.edit');
 });
 
 // Admin panel
@@ -46,10 +50,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/submissions', fn () => view('admin.submissions'))->name('submissions');
     Route::get('/submissions/{submission}', fn (IntakeSubmission $submission) => view('admin.submission-detail', compact('submission')))
         ->name('submissions.show');
-    Route::get('/submissions/{submission}/documents/{index}/download', [SubmissionDocumentDownloadController::class, 'show'])
-        ->whereNumber('index')
-        ->name('submissions.documents.download');
     Route::get('/documents', fn () => view('admin.documents'))->name('documents');
+    Route::get('/generated-documents/{document}/download', [GeneratedDocumentDownloadController::class, 'show'])
+        ->name('generated-documents.download');
     Route::get('/leads', fn () => view('admin.leads'))->name('leads');
     Route::get('/packages', fn () => view('admin.packages'))->name('packages');
     Route::get('/packages/create', fn () => view('admin.packages-form'))->name('packages.create');
