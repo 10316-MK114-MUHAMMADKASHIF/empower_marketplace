@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Mail\ResetPasswordMail;
+use App\Mail\WelcomeCredentialsMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -85,11 +86,11 @@ class AuthTest extends TestCase
 
     public function test_registration_creates_user_and_practice_and_logs_in(): void
     {
+        Mail::fake();
+
         Livewire::test('auth.register-form')
             ->set('name', 'Jane Provider')
             ->set('email', 'jane@practice.com')
-            ->set('password', 'secret123')
-            ->set('passwordConfirmation', 'secret123')
             ->call('register')
             ->assertRedirect(route('portal'));
 
@@ -99,59 +100,76 @@ class AuthTest extends TestCase
         $this->assertNotNull($user->practice);
     }
 
+    public function test_registration_emails_the_generated_password_and_it_works_for_login(): void
+    {
+        Mail::fake();
+
+        Livewire::test('auth.register-form')
+            ->set('name', 'Jane Provider')
+            ->set('email', 'jane@practice.com')
+            ->call('register');
+
+        $capturedPassword = null;
+
+        Mail::assertSent(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
+            $capturedPassword = $mail->password;
+
+            return $mail->hasTo('jane@practice.com') && strlen($mail->password) >= 16;
+        });
+
+        $user = User::where('email', 'jane@practice.com')->first();
+
+        Livewire::test('auth.login-form')
+            ->set('email', $user->email)
+            ->set('password', $capturedPassword)
+            ->call('login')
+            ->assertRedirect(route('portal'));
+    }
+
     public function test_registration_with_package_redirects_to_portal_with_package(): void
     {
+        Mail::fake();
+
         Livewire::test('auth.register-form', ['package' => 'essential'])
             ->set('name', 'Jane Provider')
             ->set('email', 'jane@practice.com')
-            ->set('password', 'secret123')
-            ->set('passwordConfirmation', 'secret123')
             ->call('register')
             ->assertRedirect(route('portal', ['package' => 'essential']));
     }
 
     public function test_registration_falls_back_to_session_intended_package(): void
     {
+        Mail::fake();
+
         session(['intended_package' => 'essential']);
 
         Livewire::test('auth.register-form')
             ->set('name', 'Jane Provider')
             ->set('email', 'jane@practice.com')
-            ->set('password', 'secret123')
-            ->set('passwordConfirmation', 'secret123')
             ->call('register')
             ->assertRedirect(route('portal', ['package' => 'essential']));
     }
 
     public function test_registration_fails_with_duplicate_email(): void
     {
+        Mail::fake();
+
         User::factory()->create(['email' => 'taken@example.com']);
 
         Livewire::test('auth.register-form')
             ->set('name', 'Jane Provider')
             ->set('email', 'taken@example.com')
-            ->set('password', 'secret123')
-            ->set('passwordConfirmation', 'secret123')
             ->call('register')
             ->assertHasErrors(['email']);
-    }
 
-    public function test_registration_fails_with_password_mismatch(): void
-    {
-        Livewire::test('auth.register-form')
-            ->set('name', 'Jane Provider')
-            ->set('email', 'jane@practice.com')
-            ->set('password', 'secret123')
-            ->set('passwordConfirmation', 'different')
-            ->call('register')
-            ->assertHasErrors(['passwordConfirmation']);
+        Mail::assertNothingSent();
     }
 
     public function test_registration_requires_all_fields(): void
     {
         Livewire::test('auth.register-form')
             ->call('register')
-            ->assertHasErrors(['name', 'email', 'password', 'passwordConfirmation']);
+            ->assertHasErrors(['name', 'email']);
     }
 
     // --- Forgot / reset password ---
