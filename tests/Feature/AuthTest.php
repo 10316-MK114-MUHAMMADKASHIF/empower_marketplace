@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Mail\AdminNewSignupMail;
 use App\Mail\ResetPasswordMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\User;
@@ -98,6 +99,23 @@ class AuthTest extends TestCase
 
         $user = User::where('email', 'jane@practice.com')->first();
         $this->assertNotNull($user->practice);
+    }
+
+    public function test_registration_notifies_every_admin_by_email(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $otherAdmin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::test('auth.register-form')
+            ->set('name', 'Jane Provider')
+            ->set('email', 'jane@practice.com')
+            ->call('register');
+
+        Mail::assertSent(AdminNewSignupMail::class, fn ($mail) => $mail->hasTo($admin->email));
+        Mail::assertSent(AdminNewSignupMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
+        Mail::assertNotSent(AdminNewSignupMail::class, fn ($mail) => $mail->hasTo('jane@practice.com'));
     }
 
     public function test_registration_emails_the_generated_password_and_it_works_for_login(): void

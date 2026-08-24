@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Mail\AdminNewSignupMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\Practice;
 use App\Models\User;
@@ -40,6 +41,10 @@ new class extends Component
         ]);
 
         Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $password));
+
+        User::where('role', UserRole::Admin)->pluck('email')->each(
+            fn (string $adminEmail) => Mail::to($adminEmail)->send(new AdminNewSignupMail($user))
+        );
 
         event(new Registered($user));
 
