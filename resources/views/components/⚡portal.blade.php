@@ -835,7 +835,7 @@ new class extends Component
         $heroPackages = $milestone >= 1 ? $this->batchOrders->pluck('package')->filter()->values() : collect([$this->selectedPackage])->filter()->values();
         $heroTotal = $heroPackages->sum('annual_price');
     @endphp
-    <div class="rounded-[1.25rem] p-6 sm:p-7" style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
+    <div class="rounded-[1.25rem] p-4 sm:p-4" style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
         <div class="flex flex-col lg:flex-row lg:items-center gap-5">
             <div class="flex-1">
                 <span class="inline-flex items-center rounded-full px-3 py-1 text-[0.7rem] font-extrabold tracking-[0.08em] uppercase bg-accent/16 text-[#dff7f3] mb-2">Portal preview</span>
@@ -903,26 +903,16 @@ new class extends Component
 
     {{-- ── Step 1: Payment ── --}}
     @if($step === 1)
-        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-            <h2 class="text-lg font-semibold text-navy mb-1">{{ $milestone >= 1 ? 'Payment' : 'Selected Package' }}</h2>
-            <p class="text-sm text-empower-muted">
-                Complete payment first to unlock your practice intake form. Your documents are generated automatically once intake is submitted and reviewed.
-            </p>
-            @if($milestone < 1)
-                <p class="text-sm text-empower-muted mt-2 mb-0">Your final invoice reflects the provider count you confirm during intake in the next step.</p>
-            @endif
-        </div>
-
+        <div class="space-y-3">
         @if($milestone >= 1)
-            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <div class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-4 py-3.5 mb-4">
+            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+                <div class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5 mb-3">
                     <span class="text-[#117a51]">&#10003;</span>
                     <p class="text-sm font-semibold text-[#0f7a4f]">Payment received. Continue to download your practice intake form.</p>
                 </div>
                 <div class="divide-y divide-[#eef2f6]">
                     @foreach($this->batchOrders as $order)
-                        <div class="flex items-center justify-between gap-3 px-3 py-3.5">
+                        <div class="flex items-center justify-between gap-3 px-2 py-2.5">
                             <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
                             <a href="{{ route('orders.receipt', $order) }}" target="_blank"
                                 class="inline-flex items-center gap-1.5 rounded border border-empower-border px-3 py-1.5 text-xs font-semibold text-navy hover:bg-page transition-colors">
@@ -933,20 +923,25 @@ new class extends Component
                 </div>
             </div>
         @else
-            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <h3 class="text-sm font-semibold text-navy mb-3">Selected Package</h3>
+            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+                <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
+                <p class="text-sm text-empower-muted">
+                    Complete payment first to unlock your practice intake form. Your documents are generated automatically once intake is submitted and reviewed.
+                </p>
+                <p class="text-sm text-empower-muted mt-1 mb-2">Your final invoice reflects the provider count you confirm during intake in the next step.</p>
                 @if(! $this->selectedPackage)
-                    <p class="text-sm text-empower-muted italic mb-3">No package selected.</p>
+                    <p class="text-sm text-empower-muted italic mb-2">No package selected.</p>
                     <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">Browse packages &rarr;</a>
                 @else
-                    <div class="flex items-center justify-between gap-3 py-3 border-b border-[#eef2f6] mb-3">
+                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
                         <div>
                             <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
                             <p class="text-xs text-empower-muted">${{ number_format($this->selectedPackage->annual_price) }} / year</p>
                         </div>
                         <a href="{{ route('home') }}#pricing" class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
                     </div>
-                    <div class="flex items-center justify-between pt-3 border-t border-[#eef2f6]">
+                    <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                         <span class="text-sm font-semibold text-[#173045]">Total</span>
                         <span class="text-lg font-extrabold text-navy">${{ number_format($this->selectedPackage->annual_price) }}</span>
                     </div>
@@ -955,10 +950,10 @@ new class extends Component
 
             @auth
             @else
-                    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
                         <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
-                        <p class="text-xs text-empower-muted mb-4">Create the account that will manage this practice's Empower portal.</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <p class="text-xs text-empower-muted mb-3">Create the account that will manage this practice's Empower portal.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div class="sm:col-span-2">
                                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span class="text-red-500">*</span></label>
                                 <input wire:model.blur="accountName" type="text" placeholder="Jane Provider"
@@ -972,14 +967,14 @@ new class extends Component
                                 @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>
-                        <p class="text-xs text-empower-muted mt-3">We'll email you a secure, auto-generated password to log in with.</p>
+                        <p class="text-xs text-empower-muted mt-2">We'll email you a secure, auto-generated password to log in with.</p>
                     </div>
                 @endauth
 
-                <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
                     <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
-                    <p class="text-xs text-empower-muted mb-4">Preview form only — no real payment is processed here.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <p class="text-xs text-empower-muted mb-3">Preview form only — no real payment is processed here.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card</label>
                             <input wire:model.blur="cardName" type="text" placeholder="Jane Provider"
@@ -1007,7 +1002,7 @@ new class extends Component
                         </div>
                     </div>
 
-                    <div class="mt-5 flex justify-end">
+                    <div class="mt-3 flex justify-end">
                         <button wire:click="pay"
                             class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
                             wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
@@ -1023,6 +1018,7 @@ new class extends Component
                 class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 Continue to Intake Form &rarr;
             </button>
+        </div>
         </div>
     @endif
 
