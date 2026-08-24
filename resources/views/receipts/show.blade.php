@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Receipt #{{ str_pad((string) $order->id, 6, '0', STR_PAD_LEFT) }} — {{ config('app.name') }}</title>
+    <link rel="icon" type="image/x-icon" href="{{ asset('images/favicon.ico') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         @media print {
@@ -21,7 +22,7 @@
         </button>
     </div>
 
-    <div class="receipt-card mx-auto max-w-2xl bg-white border border-gray-200 rounded-2xl shadow-lg p-10 print:p-0 print:max-w-none print:rounded-none">
+    <div class="receipt-card mx-auto max-w-2xl p-4 bg-white border border-gray-200 rounded-2xl shadow-lg p-10 print:p-0 print:max-w-none print:rounded-none">
 
         <div class="flex items-start justify-between">
             <div>

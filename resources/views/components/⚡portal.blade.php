@@ -891,7 +891,7 @@ new class extends Component
                 </div>
                 <div class="divide-y divide-[#eef2f6]">
                     @foreach($this->batchOrders as $order)
-                        <div class="flex items-center justify-between gap-3 py-2.5">
+                        <div class="flex items-center justify-between gap-3 px-3 py-3.5">
                             <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
                             <a href="{{ route('orders.receipt', $order) }}" target="_blank"
                                 class="inline-flex items-center gap-1.5 rounded border border-empower-border px-3 py-1.5 text-xs font-semibold text-navy hover:bg-page transition-colors">
