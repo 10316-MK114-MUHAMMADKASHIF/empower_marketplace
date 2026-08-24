@@ -27,6 +27,8 @@ Route::get('/register', function (Request $request) {
 
     return view('auth.register');
 })->name('register');
+Route::get('/forgot-password', fn () => view('auth.forgot-password'))->name('password.request');
+Route::get('/reset-password/{token}', fn (string $token) => view('auth.reset-password', ['token' => $token]))->name('password.reset');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
 // Client portal — guest-accessible: a first-time visitor creates their account as part of

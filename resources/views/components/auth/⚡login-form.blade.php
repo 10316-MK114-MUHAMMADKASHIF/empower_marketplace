@@ -44,7 +44,10 @@ new class extends Component
         </div>
 
         <div class="mb-4">
-            <label class="block text-sm font-medium text-[#173045] mb-1.5" for="lf-password">Password</label>
+            <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-sm font-medium text-[#173045]" for="lf-password">Password</label>
+                <a href="{{ route('password.request') }}" wire:navigate class="text-xs font-semibold text-[#1a7aad] hover:text-[#12304f] transition-colors">Forgot password?</a>
+            </div>
             <input wire:model="password" id="lf-password" type="password" autocomplete="current-password"
                 class="w-full rounded-xl border border-[#dbe4ee] bg-white px-4 py-2.5 text-sm text-[#173045] placeholder-[#5d6e7f]/60 focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition"
                 placeholder="••••••••">

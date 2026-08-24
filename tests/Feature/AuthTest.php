@@ -3,8 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Mail\ResetPasswordMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -148,6 +152,94 @@ class AuthTest extends TestCase
         Livewire::test('auth.register-form')
             ->call('register')
             ->assertHasErrors(['name', 'email', 'password', 'passwordConfirmation']);
+    }
+
+    // --- Forgot / reset password ---
+
+    public function test_forgot_password_page_renders(): void
+    {
+        $this->withoutVite()
+            ->get(route('password.request'))
+            ->assertOk()
+            ->assertSee('Forgot your password?');
+    }
+
+    public function test_forgot_password_sends_reset_link_for_existing_user(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+
+        Livewire::test('auth.forgot-password-form')
+            ->set('email', $user->email)
+            ->call('sendResetLink')
+            ->assertHasNoErrors();
+
+        Mail::assertSent(ResetPasswordMail::class, fn ($mail) => $mail->hasTo($user->email));
+        $this->assertDatabaseHas('password_reset_tokens', ['email' => $user->email]);
+    }
+
+    public function test_forgot_password_shows_error_for_unknown_email(): void
+    {
+        Mail::fake();
+
+        Livewire::test('auth.forgot-password-form')
+            ->set('email', 'nobody@example.com')
+            ->call('sendResetLink')
+            ->assertHasErrors(['email']);
+
+        Mail::assertNotSent(ResetPasswordMail::class);
+    }
+
+    public function test_reset_password_page_renders(): void
+    {
+        $this->withoutVite()
+            ->get(route('password.reset', ['token' => 'a-token']))
+            ->assertOk()
+            ->assertSee('Set a New Password');
+    }
+
+    public function test_reset_password_with_valid_token_updates_password_and_allows_login(): void
+    {
+        $user = User::factory()->create();
+        $token = Password::createToken($user);
+
+        Livewire::test('auth.reset-password-form', ['token' => $token, 'email' => $user->email])
+            ->set('password', 'new-secret-123')
+            ->set('password_confirmation', 'new-secret-123')
+            ->call('resetPassword')
+            ->assertHasNoErrors();
+
+        $this->assertTrue(Hash::check('new-secret-123', $user->fresh()->password));
+
+        Livewire::test('auth.login-form')
+            ->set('email', $user->email)
+            ->set('password', 'new-secret-123')
+            ->call('login')
+            ->assertRedirect(route('portal'));
+    }
+
+    public function test_reset_password_with_invalid_token_shows_error(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::test('auth.reset-password-form', ['token' => 'invalid-token', 'email' => $user->email])
+            ->set('password', 'new-secret-123')
+            ->set('password_confirmation', 'new-secret-123')
+            ->call('resetPassword')
+            ->assertHasErrors(['email']);
+    }
+
+    public function test_reset_password_requires_matching_confirmation(): void
+    {
+        $user = User::factory()->create();
+        $token = Password::createToken($user);
+
+        Livewire::test('auth.reset-password-form', ['token' => $token, 'email' => $user->email])
+            ->set('password', 'new-secret-123')
+            ->set('password_confirmation', 'different')
+            ->call('resetPassword')
+            ->assertHasErrors(['password']);
     }
 
     // --- Logout ---
