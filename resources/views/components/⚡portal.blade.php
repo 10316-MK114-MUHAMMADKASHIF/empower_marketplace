@@ -12,6 +12,7 @@ use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
+use App\Mail\WelcomeCredentialsMail;
 use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -50,8 +51,6 @@ new class extends Component
     public string $accountName = '';
 
     public string $accountEmail = '';
-
-    public string $accountPassword = '';
 
     public string $cardName = '';
 
@@ -480,7 +479,6 @@ new class extends Component
             $rules = array_merge($rules, [
                 'accountName' => 'required|string|max:100',
                 'accountEmail' => 'required|email|max:150|unique:users,email',
-                'accountPassword' => 'required|string|min:8',
             ]);
         }
 
@@ -489,7 +487,7 @@ new class extends Component
 
     public function updated(string $property): void
     {
-        $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail', 'accountPassword'];
+        $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail'];
 
         if (! in_array($property, $paymentFields, true)) {
             return;
@@ -537,10 +535,12 @@ new class extends Component
         }
 
         if (auth()->guest()) {
+            $generatedPassword = Str::password(16);
+
             $user = User::create([
                 'name' => $this->accountName,
                 'email' => $this->accountEmail,
-                'password' => $this->accountPassword,
+                'password' => $generatedPassword,
                 'role' => UserRole::Client,
             ]);
 
@@ -548,6 +548,8 @@ new class extends Component
                 'user_id' => $user->id,
                 'name' => '',
             ]);
+
+            Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $generatedPassword));
 
             Auth::login($user);
         }
@@ -938,13 +940,8 @@ new class extends Component
                                     class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
-                            <div class="sm:col-span-2">
-                                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Password <span class="text-red-500">*</span></label>
-                                <input wire:model.blur="accountPassword" type="password" placeholder="Min. 8 characters"
-                                    class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                @error('accountPassword') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                            </div>
                         </div>
+                        <p class="text-xs text-empower-muted mt-3">We'll email you a secure, auto-generated password to log in with.</p>
                     </div>
                 @endauth
 

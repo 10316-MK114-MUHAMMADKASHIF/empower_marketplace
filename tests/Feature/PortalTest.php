@@ -10,6 +10,7 @@ use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
+use App\Mail\WelcomeCredentialsMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -115,13 +116,14 @@ class PortalTest extends TestCase
 
     public function test_guest_paying_creates_account_practice_and_order(): void
     {
+        Mail::fake();
+
         $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
 
         Livewire::test('portal')
             ->set('selectedPackageId', $package->id)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'jane@practice.com')
-            ->set('accountPassword', 'secret123')
             ->set('cardName', 'Jane Provider')
             ->set('cardNumber', '4242 4242 4242 4242')
             ->set('cardExpiry', '12/27')
@@ -141,6 +143,39 @@ class PortalTest extends TestCase
         ]);
     }
 
+    public function test_guest_paying_emails_the_generated_password_and_it_works_for_login(): void
+    {
+        Mail::fake();
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountName', 'Jane Provider')
+            ->set('accountEmail', 'jane@practice.com')
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay');
+
+        $capturedPassword = null;
+
+        Mail::assertSent(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
+            $capturedPassword = $mail->password;
+
+            return $mail->hasTo('jane@practice.com') && strlen($mail->password) >= 16;
+        });
+
+        $user = User::where('email', 'jane@practice.com')->first();
+
+        Livewire::test('auth.login-form')
+            ->set('email', $user->email)
+            ->set('password', $capturedPassword)
+            ->call('login')
+            ->assertRedirect(route('portal'));
+    }
+
     public function test_guest_pay_requires_account_fields(): void
     {
         $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
@@ -152,11 +187,13 @@ class PortalTest extends TestCase
             ->set('cardExpiry', '12/27')
             ->set('cardCvc', '123')
             ->call('pay')
-            ->assertHasErrors(['accountName', 'accountEmail', 'accountPassword']);
+            ->assertHasErrors(['accountName', 'accountEmail']);
     }
 
     public function test_guest_pay_rejects_duplicate_email(): void
     {
+        Mail::fake();
+
         User::factory()->create(['email' => 'taken@example.com']);
         $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
 
@@ -164,13 +201,14 @@ class PortalTest extends TestCase
             ->set('selectedPackageId', $package->id)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'taken@example.com')
-            ->set('accountPassword', 'secret123')
             ->set('cardName', 'Jane Provider')
             ->set('cardNumber', '4242 4242 4242 4242')
             ->set('cardExpiry', '12/27')
             ->set('cardCvc', '123')
             ->call('pay')
             ->assertHasErrors(['accountEmail']);
+
+        Mail::assertNothingSent();
     }
 
     public function test_authenticated_user_paying_does_not_require_account_fields(): void
