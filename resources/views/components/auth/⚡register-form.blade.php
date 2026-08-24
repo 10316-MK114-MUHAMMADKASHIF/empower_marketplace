@@ -40,10 +40,20 @@ new class extends Component
             'name' => '',
         ]);
 
-        Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $password));
+        try {
+            Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $password));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         User::where('role', UserRole::Admin)->pluck('email')->each(
-            fn (string $adminEmail) => Mail::to($adminEmail)->send(new AdminNewSignupMail($user))
+            function (string $adminEmail) use ($user) {
+                try {
+                    Mail::to($adminEmail)->send(new AdminNewSignupMail($user));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
         );
 
         event(new Registered($user));

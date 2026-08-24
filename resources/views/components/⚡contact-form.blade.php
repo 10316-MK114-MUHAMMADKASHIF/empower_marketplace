@@ -49,10 +49,20 @@ new class extends Component
             'package_interest' => $this->packageInterest ?: null,
         ]);
 
-        Mail::to($lead->email)->send(new LeadConfirmationMail($lead));
+        try {
+            Mail::to($lead->email)->send(new LeadConfirmationMail($lead));
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         User::where('role', UserRole::Admin)->pluck('email')->each(
-            fn (string $adminEmail) => Mail::to($adminEmail)->send(new NewLeadNotificationMail($lead))
+            function (string $adminEmail) use ($lead) {
+                try {
+                    Mail::to($adminEmail)->send(new NewLeadNotificationMail($lead));
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
         );
 
         $this->submitted = true;

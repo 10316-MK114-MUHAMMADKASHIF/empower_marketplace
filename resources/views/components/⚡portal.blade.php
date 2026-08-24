@@ -564,7 +564,11 @@ new class extends Component
                 'name' => '',
             ]);
 
-            Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $generatedPassword));
+            try {
+                Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $generatedPassword));
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             Auth::login($user);
         }
@@ -591,7 +595,13 @@ new class extends Component
             );
 
             User::where('role', UserRole::Admin)->pluck('email')->each(
-                fn (string $adminEmail) => Mail::to($adminEmail)->send(new AdminPaymentReceivedMail($order))
+                function (string $adminEmail) use ($order) {
+                    try {
+                        Mail::to($adminEmail)->send(new AdminPaymentReceivedMail($order));
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                }
             );
 
             $orderIds[] = $order->id;
@@ -766,7 +776,13 @@ new class extends Component
             $submission->setRelation('order', $order);
 
             User::where('role', UserRole::Admin)->pluck('email')->each(
-                fn (string $adminEmail) => Mail::to($adminEmail)->send(new AdminIntakeSubmittedMail($submission))
+                function (string $adminEmail) use ($submission) {
+                    try {
+                        Mail::to($adminEmail)->send(new AdminIntakeSubmittedMail($submission));
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                }
             );
         }
 

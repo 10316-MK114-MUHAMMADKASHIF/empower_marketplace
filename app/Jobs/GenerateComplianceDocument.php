@@ -124,13 +124,19 @@ class GenerateComplianceDocument implements ShouldQueue
 
         $html = $this->convertDocxToHtml($docxPath);
 
+        $schema = ManualQuestionSets::forDocumentType($this->documentType);
+        $officer = $this->resolveOfficerInfo($schema, $viewData['aiData']);
+
         $ownerPassword = Str::random(32);
-        $pdfContent = $pdfGenerator->generate(
-            $html,
-            $ownerPassword,
-            $this->extractCoverTitle($html) ?? $this->documentType->label(),
-            $this->resolvePracticeLogoPath($viewData['practice']),
-        );
+        $pdfContent = $pdfGenerator->generate($html, $ownerPassword, [
+            'title' => $this->extractCoverTitle($html) ?? $this->documentType->label(),
+            'logoPath' => $this->resolvePracticeLogoPath($viewData['practice']),
+            'officerLabel' => $this->officerLabel(),
+            'officerName' => $officer['name'],
+            'officerEmail' => $officer['email'],
+            'officerPhone' => $officer['phone'],
+            'date' => $viewData['generatedAt']->format('F j, Y'),
+        ]);
 
         $pdfPath = "{$basePath}/{$slug}.pdf";
         Storage::disk('local')->put($pdfPath, $pdfContent);
@@ -311,5 +317,48 @@ class GenerateComplianceDocument implements ShouldQueue
         }
 
         return $logoPath;
+    }
+
+    /** The cover page's officer role label, matching each template's own wording exactly. */
+    private function officerLabel(): string
+    {
+        return match ($this->documentType) {
+            DocumentType::ComplianceEthicsManual => 'Compliance Officer',
+            DocumentType::HipaaSecurityManual => 'Security Officer',
+            DocumentType::HipaaPrivacyPolicy => 'Privacy Officer',
+            default => 'Officer',
+        };
+    }
+
+    /**
+     * Every schema names its officer fields with a "..._officer_name/email/phone"
+     * suffix (e.g. compliance_officer_name, ba_officer_email) — found by suffix
+     * rather than hardcoded per type since the prefix itself varies (cmp/ba/sec/prv).
+     *
+     * @param  array{prefix: string, count: int, extra_fields: array<string, string>}|null  $schema
+     * @param  array<string, mixed>  $aiData
+     * @return array{name: string, email: string, phone: string}
+     */
+    private function resolveOfficerInfo(?array $schema, array $aiData): array
+    {
+        if ($schema === null) {
+            return ['name' => '', 'email' => '', 'phone' => ''];
+        }
+
+        $find = function (string $suffix) use ($schema, $aiData): string {
+            foreach (array_keys($schema['extra_fields']) as $key) {
+                if (str_ends_with($key, $suffix)) {
+                    return (string) ($aiData[$key] ?? '[No response provided]');
+                }
+            }
+
+            return '';
+        };
+
+        return [
+            'name' => $find('_officer_name'),
+            'email' => $find('_officer_email'),
+            'phone' => $find('_officer_phone'),
+        ];
     }
 }

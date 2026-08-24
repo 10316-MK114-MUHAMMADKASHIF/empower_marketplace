@@ -262,6 +262,29 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'documents.approved']);
     }
 
+    public function test_bulk_approval_still_succeeds_when_the_notification_email_fails_to_send(): void
+    {
+        Mail::shouldReceive('to')->once()->andReturnSelf();
+        Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP rejected the recipient.'));
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('selectedDocumentIds', [$document->id])
+            ->call('approveSelectedDocuments');
+
+        $component->assertOk();
+        $this->assertNotNull($document->fresh()->reviewed_at);
+        $this->assertSame($admin->id, $document->fresh()->reviewed_by);
+        $this->assertStringContainsString('failed to send', $component->get('notice'));
+    }
+
     public function test_admin_cannot_approve_a_document_that_has_not_finished_generating(): void
     {
         Mail::fake();
@@ -336,6 +359,63 @@ class AdminPanelTest extends TestCase
         $this->assertNotNull($document->custom_storage_path);
         $this->assertSame('corrected.pdf', $document->custom_original_filename);
         $this->assertNull($document->reviewed_at);
+    }
+
+    public function test_admin_can_delete_a_custom_document_and_falls_back_to_ai_generated(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('private/compliance/1/custom/corrected.pdf', 'contents');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'custom_storage_path' => 'private/compliance/1/custom/corrected.pdf',
+            'custom_original_filename' => 'corrected.pdf',
+            'delivery_source' => 'custom',
+            'reviewed_at' => now(),
+            'reviewed_by' => $admin->id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteCustomDocument', $document->id);
+
+        $document->refresh();
+        $this->assertNull($document->custom_storage_path);
+        $this->assertNull($document->custom_original_filename);
+        $this->assertSame('ai_generated', $document->delivery_source->value);
+        $this->assertNull($document->reviewed_at);
+        Storage::disk('local')->assertMissing('private/compliance/1/custom/corrected.pdf');
+
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.custom_deleted']);
+    }
+
+    public function test_deleting_a_custom_document_that_is_not_the_active_delivery_source_keeps_the_prior_approval(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('private/compliance/1/custom/corrected.pdf', 'contents');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'custom_storage_path' => 'private/compliance/1/custom/corrected.pdf',
+            'custom_original_filename' => 'corrected.pdf',
+            'delivery_source' => 'ai_generated',
+        ]);
+        $reviewedAt = $document->reviewed_at;
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteCustomDocument', $document->id);
+
+        $document->refresh();
+        $this->assertNull($document->custom_storage_path);
+        $this->assertSame('ai_generated', $document->delivery_source->value);
+        $this->assertEquals($reviewedAt, $document->reviewed_at);
     }
 
     public function test_admin_can_switch_delivery_source_back_to_ai_generated(): void

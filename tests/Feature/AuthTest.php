@@ -101,6 +101,26 @@ class AuthTest extends TestCase
         $this->assertNotNull($user->practice);
     }
 
+    public function test_registration_completes_even_when_an_admin_notification_email_fails(): void
+    {
+        // Simulates a bad/reserved admin email address rejecting delivery at the SMTP
+        // level — this used to crash the whole registration request with a 500 before
+        // the new user's account had a chance to finish being logged in and redirected.
+        User::factory()->create(['role' => UserRole::Admin]);
+
+        Mail::shouldReceive('to')->andReturnSelf();
+        Mail::shouldReceive('send')->andThrow(new \RuntimeException('SMTP rejected the recipient.'));
+
+        Livewire::test('auth.register-form')
+            ->set('name', 'Jane Provider')
+            ->set('email', 'jane@practice.com')
+            ->call('register')
+            ->assertRedirect(route('portal'));
+
+        $this->assertDatabaseHas('users', ['email' => 'jane@practice.com']);
+        $this->assertAuthenticatedAs(User::where('email', 'jane@practice.com')->first());
+    }
+
     public function test_registration_notifies_every_admin_by_email(): void
     {
         Mail::fake();

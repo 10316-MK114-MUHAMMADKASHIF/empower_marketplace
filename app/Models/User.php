@@ -41,7 +41,11 @@ class User extends Authenticatable
 
     public function sendPasswordResetNotification($token): void
     {
-        Mail::to($this->email)->send(new ResetPasswordMail($this, $token));
+        try {
+            Mail::to($this->email)->send(new ResetPasswordMail($this, $token));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function practice(): HasOne

@@ -11,6 +11,7 @@ use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -22,6 +23,9 @@ new class extends Component
     public int $submissionId;
 
     public string $reviewerNotes = '';
+
+    /** Set when an action succeeded but its client notification email failed to send. */
+    public ?string $notice = null;
 
     /** Keyed by GeneratedDocument id. */
     public array $customDocumentFiles = [];
@@ -109,7 +113,12 @@ new class extends Component
             subject: $submission,
         );
 
-        Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
+        try {
+            Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->notice = 'Submission approved, but the client notification email failed to send.';
+        }
 
         unset($this->submission);
     }
@@ -137,6 +146,13 @@ new class extends Component
             'reviewed_by' => null,
         ]);
 
+        // Uploading a custom file is itself the admin's choice to skip the
+        // AI-generated version, so it should also mark the document selected
+        // for the next "Approve Selected" batch — no extra click required.
+        if (! in_array($documentId, $this->selectedDocumentIds, true)) {
+            $this->selectedDocumentIds[] = $documentId;
+        }
+
         ActivityLog::record(
             'document.custom_uploaded',
             "Custom {$document->document_type->label()} uploaded for order #{$document->order_id}.",
@@ -148,6 +164,52 @@ new class extends Component
         unset($this->customDocumentFiles[$documentId], $this->documentsForReview);
     }
 
+    public function deleteCustomDocument(int $documentId): void
+    {
+        $submission = $this->submission;
+
+        $document = GeneratedDocument::where('id', $documentId)
+            ->where('order_id', $submission->order_id)
+            ->firstOrFail();
+
+        if (! $document->hasCustomDocument()) {
+            return;
+        }
+
+        Storage::disk('local')->delete($document->custom_storage_path);
+
+        // If the custom file was the one set to deliver, falling back to the
+        // AI-generated version means any prior approval no longer reflects
+        // what will actually be sent — revoke it so it's reviewed again.
+        $wasActiveDeliverySource = $document->delivery_source === DocumentDeliverySource::Custom;
+
+        $document->update([
+            'custom_storage_path' => null,
+            'custom_original_filename' => null,
+            'delivery_source' => DocumentDeliverySource::AiGenerated,
+            'reviewed_at' => $wasActiveDeliverySource ? null : $document->reviewed_at,
+            'reviewed_by' => $wasActiveDeliverySource ? null : $document->reviewed_by,
+        ]);
+
+        $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
+
+        ActivityLog::record(
+            'document.custom_deleted',
+            "Custom {$document->document_type->label()} removed for order #{$document->order_id}.",
+            user: auth()->user(),
+            order: $document->order,
+            subject: $document,
+        );
+
+        unset($this->documentsForReview);
+    }
+
+    /**
+     * Fires when the admin checks the "AI-Generated File" or "Custom File" box
+     * for a document. Setting a delivery source now doubles as selecting the
+     * document for the next bulk approval — checking the already-selected
+     * source again deselects it, matching normal checkbox toggle behavior.
+     */
     public function setDeliverySource(int $documentId, string $source): void
     {
         $submission = $this->submission;
@@ -161,11 +223,21 @@ new class extends Component
             return;
         }
 
+        if (in_array($documentId, $this->selectedDocumentIds, true) && $document->delivery_source === $deliverySource) {
+            $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
+
+            return;
+        }
+
         $document->update([
             'delivery_source' => $deliverySource,
             'reviewed_at' => null,
             'reviewed_by' => null,
         ]);
+
+        if (! in_array($documentId, $this->selectedDocumentIds, true)) {
+            $this->selectedDocumentIds[] = $documentId;
+        }
 
         unset($this->documentsForReview);
     }
@@ -197,7 +269,12 @@ new class extends Component
             metadata: ['document_types' => $documents->map(fn ($d) => $d->document_type->value)->all()],
         );
 
-        Mail::to($submission->order->user->email)->send(new ClientDocumentsApprovedMail($submission->order, $documents));
+        try {
+            Mail::to($submission->order->user->email)->send(new ClientDocumentsApprovedMail($submission->order, $documents));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->notice = 'Document(s) approved, but the client notification email failed to send.';
+        }
 
         $this->selectedDocumentIds = [];
         unset($this->documentsForReview);
@@ -229,15 +306,27 @@ new class extends Component
             metadata: ['reviewer_notes' => $this->reviewerNotes],
         );
 
-        Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
+        try {
+            Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->notice = 'Submission rejected, but the client notification email failed to send.';
+        }
 
         unset($this->submission);
     }
 };
 ?>
 
-<div class="space-y-4" x-data="{ confirmAction: null }">
+<div class="space-y-4" x-data="{ confirmAction: null, confirmDocumentId: null }">
     <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to submissions</a>
+
+    @if($notice)
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start justify-between gap-3">
+            <span>{{ $notice }}</span>
+            <button type="button" wire:click="$set('notice', null)" class="text-amber-600 hover:text-amber-800 font-bold leading-none">&times;</button>
+        </div>
+    @endif
 
     @php $submission = $this->submission; $practice = $submission->order?->user?->practice; @endphp
 
@@ -299,7 +388,7 @@ new class extends Component
             <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
                 <h3 class="text-sm font-semibold text-navy">Document Review</h3>
                 @if($this->documentsForReview->contains(fn ($d) => $d->canBeApproved()))
-                    <button type="button" wire:click="approveSelectedDocuments" wire:confirm="Approve the selected document(s)? The client will be emailed once approved."
+                    <button type="button" x-on:click="confirmAction = 'approveDocuments'"
                         @disabled(empty($this->selectedDocumentIds))
                         class="inline-flex items-center gap-1 rounded bg-accent px-4 py-1.5 text-xs font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         Approve Selected
@@ -319,60 +408,81 @@ new class extends Component
                             default => ['Generating', 'bg-[#fff3cd] text-[#9a6700]'],
                         };
                     @endphp
+                    @php
+                        // A document can only be checked into a box while it's awaiting a decision —
+                        // once approved or marked outdated, the boxes go read-only (see below).
+                        $reviewable = ! $document->isApproved() && ! $document->is_stale;
+                        $aiSelected = $reviewable && in_array($document->id, $this->selectedDocumentIds, true) && $document->delivery_source === DocumentDeliverySource::AiGenerated;
+                        $customSelected = $reviewable && in_array($document->id, $this->selectedDocumentIds, true) && $document->delivery_source === DocumentDeliverySource::Custom;
+                    @endphp
                     <div class="rounded-xl border border-empower-border p-4">
                         <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
-                            <div class="flex items-start gap-3">
-                                @if($document->canBeApproved())
-                                    <input type="checkbox" wire:model.live="selectedDocumentIds" value="{{ $document->id }}" class="mt-1 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                            <div>
+                                <p class="text-sm font-semibold text-empower-text">
+                                    {{ $document->document_type->label() }}{{ $document->oshaLocation ? ' — '.$document->oshaLocation->name : '' }}
+                                </p>
+                                @if($document->isApproved())
+                                    <p class="text-xs text-empower-muted">Approved by {{ $document->reviewedBy?->name ?? 'admin' }} &middot; {{ $document->reviewed_at->format('M j, Y') }} &middot; delivered the {{ $document->delivery_source === DocumentDeliverySource::Custom ? 'custom' : 'AI-generated' }} file</p>
+                                @elseif($document->status === DocumentStatus::Failed && $document->hasCustomDocument())
+                                    <p class="text-xs text-[#9a6700]">AI generation failed — a custom file will be delivered instead.</p>
                                 @endif
-                                <div>
-                                    <p class="text-sm font-semibold text-empower-text">
-                                        {{ $document->document_type->label() }}{{ $document->oshaLocation ? ' — '.$document->oshaLocation->name : '' }}
-                                    </p>
-                                    @if($document->isApproved())
-                                        <p class="text-xs text-empower-muted">Approved by {{ $document->reviewedBy?->name ?? 'admin' }} &middot; {{ $document->reviewed_at->format('M j, Y') }}</p>
-                                    @elseif($document->status === DocumentStatus::Failed && $document->hasCustomDocument())
-                                        <p class="text-xs text-[#9a6700]">AI generation failed — a custom file will be delivered instead.</p>
-                                    @endif
-                                </div>
                             </div>
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.65rem] font-extrabold uppercase tracking-wider {{ $badge[1] }}">{{ $badge[0] }}</span>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-3 text-xs mb-3">
-                            @if($document->pdf_storage_path || $document->docx_storage_path)
-                                <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'ai']) }}" class="font-bold text-[#1a7aad] hover:underline">Download AI-Generated File</a>
-                            @endif
-                            @if($document->hasCustomDocument())
-                                <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'custom']) }}" class="font-bold text-[#1a7aad] hover:underline">Download Custom File</a>
-                            @endif
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="rounded-lg border {{ $aiSelected ? 'border-accent ring-1 ring-accent' : 'border-empower-border' }} bg-[#f8fafc] p-3">
+                                @if($reviewable && ($document->pdf_storage_path || $document->docx_storage_path))
+                                    <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                        <input type="checkbox" wire:click="setDeliverySource({{ $document->id }}, 'ai_generated')" @checked($aiSelected) class="h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                                        <span class="text-[0.65rem] font-extrabold uppercase tracking-wider text-empower-muted">AI-Generated File</span>
+                                    </label>
+                                @else
+                                    <p class="text-[0.65rem] font-extrabold uppercase tracking-wider text-empower-muted mb-2">AI-Generated File</p>
+                                @endif
+                                @if($document->pdf_storage_path || $document->docx_storage_path)
+                                    <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'ai']) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download AI-Generated File</a>
+                                @else
+                                    <p class="text-xs text-empower-muted">Not yet generated.</p>
+                                @endif
+                            </div>
+
+                            <div class="rounded-lg border {{ $customSelected ? 'border-accent ring-1 ring-accent' : 'border-empower-border' }} bg-[#f8fafc] p-3">
+                                @if($reviewable && $document->hasCustomDocument())
+                                    <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                        <input type="checkbox" wire:click="setDeliverySource({{ $document->id }}, 'custom')" @checked($customSelected) class="h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                                        <span class="text-[0.65rem] font-extrabold uppercase tracking-wider text-empower-muted">Custom File</span>
+                                    </label>
+                                @else
+                                    <p class="text-[0.65rem] font-extrabold uppercase tracking-wider text-empower-muted mb-2">Custom File</p>
+                                @endif
+                                @if($document->hasCustomDocument())
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'custom']) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download Custom File</a>
+                                        @if($reviewable)
+                                            <button type="button" x-on:click="confirmAction = 'deleteCustom'; confirmDocumentId = {{ $document->id }}"
+                                                class="text-xs font-bold text-red-600 hover:underline">
+                                                Remove
+                                            </button>
+                                        @endif
+                                    </div>
+                                @endif
+
+                                @if($document->showsCustomUploadSlot)
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <input wire:model="customDocumentFiles.{{ $document->id }}" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                            class="block text-xs text-[#5d6e7f] file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                                        <button type="button" wire:click="uploadCustomDocument({{ $document->id }})"
+                                            class="text-xs font-bold text-[#1a7aad] hover:underline">
+                                            Upload {{ $document->hasCustomDocument() ? 'Replacement' : 'Custom File' }}
+                                        </button>
+                                    </div>
+                                    @error("customDocumentFiles.{$document->id}") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                                @elseif(! $document->hasCustomDocument())
+                                    <p class="text-xs text-empower-muted">No custom file uploaded.</p>
+                                @endif
+                            </div>
                         </div>
-
-                        @if($document->hasCustomDocument())
-                            <div class="flex items-center gap-4 mb-3 text-xs">
-                                <span class="font-semibold text-empower-muted">Deliver to client:</span>
-                                <label class="flex items-center gap-1.5 cursor-pointer">
-                                    <input type="radio" wire:change="setDeliverySource({{ $document->id }}, 'ai_generated')" @checked($document->delivery_source === DocumentDeliverySource::AiGenerated) name="delivery-{{ $document->id }}" class="text-accent focus:ring-accent">
-                                    AI-Generated
-                                </label>
-                                <label class="flex items-center gap-1.5 cursor-pointer">
-                                    <input type="radio" wire:change="setDeliverySource({{ $document->id }}, 'custom')" @checked($document->delivery_source === DocumentDeliverySource::Custom) name="delivery-{{ $document->id }}" class="text-accent focus:ring-accent">
-                                    Custom
-                                </label>
-                            </div>
-                        @endif
-
-                        @if($document->showsCustomUploadSlot)
-                            <div class="flex flex-wrap items-center gap-2">
-                                <input wire:model="customDocumentFiles.{{ $document->id }}" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                    class="block text-xs text-[#5d6e7f] file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                                <button type="button" wire:click="uploadCustomDocument({{ $document->id }})"
-                                    class="text-xs font-bold text-[#1a7aad] hover:underline">
-                                    Upload {{ $document->hasCustomDocument() ? 'Replacement' : 'Custom File' }}
-                                </button>
-                            </div>
-                            @error("customDocumentFiles.{$document->id}") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        @endif
                     </div>
                 @endforeach
             </div>
@@ -414,24 +524,24 @@ new class extends Component
         </div>
     @endif
 
-    {{-- Approve/Reject confirmation modal --}}
+    {{-- Approve/Reject/Approve-selected/Delete-custom confirmation modal --}}
     <div x-show="confirmAction !== null" x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
         <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmAction = null">
             <h3 class="text-base font-semibold text-navy mb-2"
-                x-text="confirmAction === 'approve' ? 'Approve this submission?' : 'Reject this submission?'"></h3>
+                x-text="confirmAction === 'approve' ? 'Approve this submission?' : confirmAction === 'reject' ? 'Reject this submission?' : confirmAction === 'deleteCustom' ? 'Remove this custom file?' : 'Approve the selected document(s)?'"></h3>
             <p class="text-sm text-empower-muted mb-5"
-                x-text="confirmAction === 'approve' ? 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.' : 'The client will be asked to re-upload based on your reviewer notes.'"></p>
+                x-text="confirmAction === 'approve' ? 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.' : confirmAction === 'reject' ? 'The client will be asked to re-upload based on your reviewer notes.' : confirmAction === 'deleteCustom' ? 'This cannot be undone. The AI-generated file will be delivered instead unless a new custom file is uploaded.' : 'The client will be emailed once approved.'"></p>
             <div class="flex justify-end gap-3">
                 <button type="button" x-on:click="confirmAction = null"
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
                 <button type="button"
-                    x-on:click="confirmAction === 'approve' ? $wire.approve() : $wire.reject(); confirmAction = null"
-                    x-bind:class="confirmAction === 'approve' ? 'bg-accent text-navy-dark hover:bg-accent-dark' : 'bg-red-600 text-white hover:bg-red-700'"
+                    x-on:click="confirmAction === 'approve' ? $wire.approve() : confirmAction === 'reject' ? $wire.reject() : confirmAction === 'deleteCustom' ? $wire.deleteCustomDocument(confirmDocumentId) : $wire.approveSelectedDocuments(); confirmAction = null"
+                    x-bind:class="confirmAction === 'reject' || confirmAction === 'deleteCustom' ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-accent text-navy-dark hover:bg-accent-dark'"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors">
-                    <span x-text="confirmAction === 'approve' ? 'Approve' : 'Reject'"></span>
+                    <span x-text="confirmAction === 'reject' ? 'Reject' : confirmAction === 'deleteCustom' ? 'Remove' : 'Approve'"></span>
                 </button>
             </div>
         </div>
