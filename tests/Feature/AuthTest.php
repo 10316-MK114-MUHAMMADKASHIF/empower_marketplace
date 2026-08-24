@@ -242,6 +242,69 @@ class AuthTest extends TestCase
             ->assertHasErrors(['password']);
     }
 
+    // --- Change password (authenticated) ---
+
+    public function test_change_password_page_requires_authentication(): void
+    {
+        $this->withoutVite()
+            ->get(route('password.edit'))
+            ->assertRedirect(route('login'));
+    }
+
+    public function test_change_password_page_renders(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withoutVite()
+            ->actingAs($user)
+            ->get(route('password.edit'))
+            ->assertOk()
+            ->assertSee('Change Password');
+    }
+
+    public function test_authenticated_user_can_change_password(): void
+    {
+        $user = User::factory()->create(['password' => 'old-secret-1']);
+
+        Livewire::actingAs($user)
+            ->test('auth.change-password-form')
+            ->set('currentPassword', 'old-secret-1')
+            ->set('password', 'new-secret-2')
+            ->set('password_confirmation', 'new-secret-2')
+            ->call('updatePassword')
+            ->assertHasNoErrors();
+
+        $this->assertTrue(Hash::check('new-secret-2', $user->fresh()->password));
+    }
+
+    public function test_changing_password_requires_correct_current_password(): void
+    {
+        $user = User::factory()->create(['password' => 'old-secret-1']);
+
+        Livewire::actingAs($user)
+            ->test('auth.change-password-form')
+            ->set('currentPassword', 'wrong-password')
+            ->set('password', 'new-secret-2')
+            ->set('password_confirmation', 'new-secret-2')
+            ->call('updatePassword')
+            ->assertHasErrors(['currentPassword']);
+
+        $this->assertTrue(Hash::check('old-secret-1', $user->fresh()->password));
+    }
+
+    public function test_changing_password_requires_matching_confirmation(): void
+    {
+        $user = User::factory()->create(['password' => 'old-secret-1']);
+
+        Livewire::actingAs($user)
+            ->test('auth.change-password-form')
+            ->set('currentPassword', 'old-secret-1')
+            ->set('password', 'new-secret-2')
+            ->set('password_confirmation', 'different')
+            ->call('updatePassword')
+            ->assertHasErrors(['password']);
+    }
+
     // --- Logout ---
 
     public function test_authenticated_user_can_logout(): void

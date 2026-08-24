@@ -40,6 +40,8 @@ Route::middleware('auth')->group(function () {
         ->name('documents.download');
     Route::get('/orders/{order}/receipt', [ReceiptController::class, 'show'])
         ->name('orders.receipt');
+    Route::get('/account/change-password', fn () => view('account.change-password'))
+        ->name('password.edit');
 });
 
 // Admin panel
