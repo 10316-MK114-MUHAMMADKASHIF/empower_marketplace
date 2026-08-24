@@ -245,7 +245,7 @@ class ProcessIntakeUploadTest extends TestCase
 
     // ── Document generation dispatch ──────────────────────────────────────
 
-    public function test_dispatches_generate_jobs_after_all_uploads_processed(): void
+    public function test_an_upload_with_no_matching_manual_dispatches_no_generation(): void
     {
         Queue::fake([GenerateComplianceDocument::class]);
         Storage::fake('local');
@@ -262,10 +262,14 @@ class ProcessIntakeUploadTest extends TestCase
         ]);
         $submission = IntakeSubmission::factory()->submitted()->create(['order_id' => $order->id]);
 
+        // PracticeIntake is a retired, generic upload type with no matching manual —
+        // generation is driven entirely by which of the 4 real questionnaires were
+        // uploaded, never by package tier.
         $upload = IntakeUpload::factory()->create([
             'intake_submission_id' => $submission->id,
             'storage_path' => 'uploads/4/intake.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::PracticeIntake,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -275,13 +279,49 @@ class ProcessIntakeUploadTest extends TestCase
 
         ProcessIntakeUpload::dispatchSync($upload);
 
-        // Essential tier = EmployeeHandbookBasic + OshaSafetyPlan → 2 jobs
-        Queue::assertPushed(GenerateComplianceDocument::class, 2);
+        Queue::assertNotPushed(GenerateComplianceDocument::class);
+    }
+
+    public function test_uploading_a_linked_questionnaire_also_dispatches_its_matching_manual(): void
+    {
+        Queue::fake([GenerateComplianceDocument::class]);
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/4b/compliance.pdf', 'fake');
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $submission = IntakeSubmission::factory()->submitted()->create(['order_id' => $order->id]);
+
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'storage_path' => 'uploads/4b/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        // Exactly the Compliance & Ethics Manual dispatches, since that's the one
+        // questionnaire uploaded — regardless of package tier. The other 3 linked
+        // manuals don't dispatch, since they weren't uploaded.
+        Queue::assertPushed(GenerateComplianceDocument::class, 1);
         Queue::assertPushed(GenerateComplianceDocument::class, function ($job) {
-            return $job->documentType === DocumentType::EmployeeHandbookBasic;
+            return $job->documentType === DocumentType::ComplianceEthicsManual;
         });
-        Queue::assertPushed(GenerateComplianceDocument::class, function ($job) {
-            return $job->documentType === DocumentType::OshaSafetyPlan;
+        Queue::assertNotPushed(GenerateComplianceDocument::class, function ($job) {
+            return $job->documentType === DocumentType::HipaaBusinessAssociateManual;
         });
     }
 
@@ -339,14 +379,14 @@ class ProcessIntakeUploadTest extends TestCase
             'intake_submission_id' => $submissionA->id,
             'storage_path' => 'uploads/batch/shared.pdf',
             'mime_type' => 'application/pdf',
-            'upload_type' => IntakeUploadType::PracticeIntake,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
         $siblingUpload = IntakeUpload::factory()->create([
             'intake_submission_id' => $submissionB->id,
             'storage_path' => 'uploads/batch/shared.pdf',
             'mime_type' => 'application/pdf',
-            'upload_type' => IntakeUploadType::PracticeIntake,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -365,12 +405,13 @@ class ProcessIntakeUploadTest extends TestCase
         $this->assertEquals(AiExtractionStatus::Completed, $siblingUpload->ai_extraction_status);
         $this->assertEquals('Shared Practice', $siblingUpload->ai_extracted_data['practice_name']);
 
-        // Only one OpenAI API call for the shared document — a type with no structured
-        // schema (like PracticeIntake) skips the verification pass entirely.
-        Http::assertSentCount(1);
+        // Two OpenAI calls total for the shared document (extraction + verification pass,
+        // since Compliance & Ethics has a structured schema) — not once per order.
+        Http::assertSentCount(2);
 
-        // Both orders' compliance documents should be generated (essential tier = 2 docs each).
-        Queue::assertPushed(GenerateComplianceDocument::class, 4);
+        // Both orders get their own Compliance & Ethics Manual generated, since both
+        // share the uploaded questionnaire.
+        Queue::assertPushed(GenerateComplianceDocument::class, 2);
     }
 
     public function test_marks_sibling_uploads_failed_when_primary_extraction_fails(): void
@@ -406,7 +447,7 @@ class ProcessIntakeUploadTest extends TestCase
         $this->assertEquals(AiExtractionStatus::Failed, $siblingUpload->fresh()->ai_extraction_status);
     }
 
-    public function test_dispatches_per_location_jobs_for_advanced_tier(): void
+    public function test_configured_osha_locations_do_not_multiply_a_non_per_location_linked_manual(): void
     {
         Queue::fake([GenerateComplianceDocument::class]);
         Storage::fake('local');
@@ -428,6 +469,7 @@ class ProcessIntakeUploadTest extends TestCase
             'intake_submission_id' => $submission->id,
             'storage_path' => 'uploads/6/intake.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -437,10 +479,11 @@ class ProcessIntakeUploadTest extends TestCase
 
         ProcessIntakeUpload::dispatchSync($upload);
 
-        // Advanced = 4 non-location docs + OshaLocationReport × 2 locations = 6 jobs
-        Queue::assertPushed(GenerateComplianceDocument::class, 6);
+        // Exactly one Compliance & Ethics Manual job, regardless of package tier or how
+        // many OSHA locations the practice has configured — it isn't a per-location type.
+        Queue::assertPushed(GenerateComplianceDocument::class, 1);
         Queue::assertPushed(GenerateComplianceDocument::class, function ($job) {
-            return $job->documentType === DocumentType::OshaLocationReport && $job->oshaLocation !== null;
+            return $job->documentType === DocumentType::ComplianceEthicsManual && $job->oshaLocation === null;
         });
     }
 }

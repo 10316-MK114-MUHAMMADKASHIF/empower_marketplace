@@ -323,7 +323,7 @@ new class extends Component
                         <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
                             <div class="flex items-start gap-3">
                                 @if($document->canBeApproved())
-                                    <input type="checkbox" wire:model="selectedDocumentIds" value="{{ $document->id }}" class="mt-1 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                                    <input type="checkbox" wire:model.live="selectedDocumentIds" value="{{ $document->id }}" class="mt-1 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
                                 @endif
                                 <div>
                                     <p class="text-sm font-semibold text-empower-text">

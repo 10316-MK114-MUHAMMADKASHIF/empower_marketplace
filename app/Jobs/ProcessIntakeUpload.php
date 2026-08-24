@@ -312,14 +312,26 @@ PROMPT;
         return is_array($decoded) ? $decoded : ['raw_text' => trim($content)];
     }
 
+    /**
+     * Generation is driven entirely by which questionnaires the client actually
+     * uploaded — not by package tier. Each uploaded questionnaire type triggers
+     * generation of its one matching manual; an upload with no matching manual
+     * (e.g. a retired/generic intake type) triggers nothing.
+     */
     private function dispatchDocumentGeneration(IntakeSubmission $submission): void
     {
-        $order = $submission->order()->with('package', 'user.practice.oshaLocations')->first();
-        $tier = $order->package->tier();
-        $docTypes = DocumentType::forTier($tier);
+        $order = $submission->order()->with('user.practice.oshaLocations')->first();
         $oshaLocations = $order->user->practice?->oshaLocations ?? collect();
 
-        foreach ($docTypes as $docType) {
+        $uploadedQuestionnaireTypes = $submission->intakeUploads->map(fn ($u) => $u->upload_type)->unique();
+
+        foreach ($uploadedQuestionnaireTypes as $uploadType) {
+            $docType = DocumentType::forQuestionnaireType($uploadType);
+
+            if ($docType === null) {
+                continue;
+            }
+
             if ($docType->isPerLocation()) {
                 foreach ($oshaLocations as $location) {
                     GenerateComplianceDocument::dispatch($order, $docType, $location);

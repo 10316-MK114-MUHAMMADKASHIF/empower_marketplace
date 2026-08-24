@@ -4,16 +4,22 @@ namespace App\Enums;
 
 enum DocumentType: string
 {
+    // Retired 2026-08-24 — no longer auto-generated; there is no questionnaire in the
+    // catalog that feeds these, so nothing can trigger their generation anymore. Kept as
+    // valid backing values so historical GeneratedDocument rows remain readable.
     case EmployeeHandbookBasic = 'employee_handbook_basic';
     case EmployeeHandbookFull = 'employee_handbook_full';
     case OshaSafetyPlan = 'osha_safety_plan';
     case HrPolicyManual = 'hr_policy_manual';
-    case HipaaPrivacyPolicy = 'hipaa_privacy_policy';
     case OshaLocationReport = 'osha_location_report';
     case CustomComplianceDocument = 'custom_compliance_document';
     case RevenueCycleBillingManual = 'revenue_cycle_billing_manual';
-    case ComplianceEthicsManual = 'compliance_ethics_manual';
     case EmergencyOperationsPlan = 'emergency_operations_plan';
+
+    // Active — each one generates only when its matching questionnaire is uploaded,
+    // regardless of package tier. See linkedQuestionnaireType()/forQuestionnaireType().
+    case HipaaPrivacyPolicy = 'hipaa_privacy_policy';
+    case ComplianceEthicsManual = 'compliance_ethics_manual';
     case HipaaBusinessAssociateManual = 'hipaa_business_associate_manual';
     case HipaaSecurityManual = 'hipaa_security_manual';
 
@@ -47,40 +53,16 @@ enum DocumentType: string
         };
     }
 
-    /** @return array<int, self> */
-    public static function forTier(PackageTier $tier): array
+    /** The DocumentType whose manual is built from this questionnaire, if any. */
+    public static function forQuestionnaireType(IntakeUploadType $uploadType): ?self
     {
-        return match ($tier) {
-            PackageTier::Essential => [
-                self::EmployeeHandbookBasic,
-                self::OshaSafetyPlan,
-            ],
-            PackageTier::Professional => [
-                self::EmployeeHandbookFull,
-                self::OshaSafetyPlan,
-                self::HrPolicyManual,
-            ],
-            PackageTier::Advanced => [
-                self::EmployeeHandbookFull,
-                self::OshaSafetyPlan,
-                self::HrPolicyManual,
-                self::HipaaPrivacyPolicy,
-                self::OshaLocationReport,
-            ],
-            PackageTier::Complete => [
-                self::EmployeeHandbookFull,
-                self::OshaSafetyPlan,
-                self::HrPolicyManual,
-                self::HipaaPrivacyPolicy,
-                self::OshaLocationReport,
-                self::CustomComplianceDocument,
-                self::RevenueCycleBillingManual,
-                self::ComplianceEthicsManual,
-                self::EmergencyOperationsPlan,
-                self::HipaaBusinessAssociateManual,
-                self::HipaaSecurityManual,
-            ],
-        };
+        foreach (self::cases() as $documentType) {
+            if ($documentType->linkedQuestionnaireType() === $uploadType) {
+                return $documentType;
+            }
+        }
+
+        return null;
     }
 
     /** Whether this document is generated once per OSHA location */

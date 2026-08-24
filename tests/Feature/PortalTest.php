@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
+use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
@@ -1083,9 +1084,13 @@ class PortalTest extends TestCase
         $user = User::factory()->create();
         Practice::factory()->locked()->create(['user_id' => $user->id]);
         $order = $this->makeApprovedOrder($user);
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
         $document = GeneratedDocument::factory()->completed()->create([
             'order_id' => $order->id,
-            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'document_type' => DocumentType::ComplianceEthicsManual,
         ]);
 
         Livewire::actingAs($user)
@@ -1103,9 +1108,13 @@ class PortalTest extends TestCase
         $user = User::factory()->create();
         Practice::factory()->locked()->create(['user_id' => $user->id]);
         $order = $this->makeApprovedOrder($user);
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
         GeneratedDocument::factory()->completed()->approved()->create([
             'order_id' => $order->id,
-            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'document_type' => DocumentType::ComplianceEthicsManual,
         ]);
 
         Livewire::actingAs($user)
@@ -1116,18 +1125,54 @@ class PortalTest extends TestCase
             ->assertDontSee('Pending Review');
     }
 
+    public function test_dashboard_shows_no_expected_documents_when_nothing_was_uploaded(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $this->makeApprovedOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertDontSee('Compliance & Ethics Manual')
+            ->assertDontSee('HIPAA Business Associate Manual');
+    }
+
+    public function test_dashboard_shows_only_the_manual_matching_the_uploaded_questionnaire(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Compliance & Ethics Manual')
+            ->assertDontSee('HIPAA Business Associate Manual');
+    }
+
     public function test_dashboard_shows_practice_info_bar_and_defaults_to_documents_tab(): void
     {
         $user = User::factory()->create();
         Practice::factory()->locked()->create(['user_id' => $user->id, 'name' => 'Sunrise Family Medicine']);
-        $this->makeApprovedOrder($user);
+        $order = $this->makeApprovedOrder($user);
+
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
 
         Livewire::actingAs($user)
             ->test('portal')
             ->set('step', 5)
             ->assertSee('Sunrise Family Medicine')
             ->assertSee('Update Practice Info')
-            ->assertSee('Employee Handbook (Basic)')
+            ->assertSee('Compliance & Ethics Manual')
             ->assertSee('Generating');
     }
 

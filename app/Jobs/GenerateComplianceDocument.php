@@ -7,6 +7,7 @@ use App\Enums\DocumentType;
 use App\Models\GeneratedDocument;
 use App\Models\Order;
 use App\Models\OshaLocation;
+use App\Models\Practice;
 use App\Services\CompliancePdfGenerator;
 use App\Support\ManualQuestionSets;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -124,7 +125,12 @@ class GenerateComplianceDocument implements ShouldQueue
         $html = $this->convertDocxToHtml($docxPath);
 
         $ownerPassword = Str::random(32);
-        $pdfContent = $pdfGenerator->generate($html, $ownerPassword);
+        $pdfContent = $pdfGenerator->generate(
+            $html,
+            $ownerPassword,
+            $this->extractCoverTitle($html) ?? $this->documentType->label(),
+            $this->resolvePracticeLogoPath($viewData['practice']),
+        );
 
         $pdfPath = "{$basePath}/{$slug}.pdf";
         Storage::disk('local')->put($pdfPath, $pdfContent);
@@ -247,8 +253,63 @@ class GenerateComplianceDocument implements ShouldQueue
         }
 
         $processor->setValues($values);
+        $this->setPracticeLogo($processor, $practice);
         $processor->saveAs($absoluteOutput);
 
         return $docxPath;
+    }
+
+    /**
+     * Swaps the ${practice_logo} macro (present only on the questionnaire-linked
+     * manual covers) for the practice's uploaded logo. PhpWord can only embed
+     * raster formats it can read dimensions from (png/jpg/gif) — an uploaded
+     * SVG, or no logo at all, leaves the macro blank rather than broken.
+     */
+    private function setPracticeLogo(TemplateProcessor $processor, ?Practice $practice): void
+    {
+        $logoPath = $this->resolvePracticeLogoPath($practice);
+
+        if ($logoPath === null) {
+            $processor->setValue('practice_logo', '');
+
+            return;
+        }
+
+        $processor->setImageValue('practice_logo', [
+            'path' => $logoPath,
+            'width' => 200,
+            'height' => 200,
+            'ratio' => true,
+        ]);
+    }
+
+    /**
+     * The manual's own cover-page title (e.g. "Compliance & Ethics Program"), used
+     * as the running header text so it matches the source template verbatim rather
+     * than our internal DocumentType label wording.
+     */
+    private function extractCoverTitle(string $html): ?string
+    {
+        if (! preg_match('/<span style="font-size: 12pt;">(.*?)<\/span>/s', $html, $matches)) {
+            return null;
+        }
+
+        $title = trim(html_entity_decode(strip_tags($matches[1]), ENT_QUOTES));
+
+        return $title !== '' ? $title : null;
+    }
+
+    /** Absolute path to the practice's uploaded logo, or null if there isn't one usable. */
+    private function resolvePracticeLogoPath(?Practice $practice): ?string
+    {
+        $logoPath = $practice?->logo_path
+            ? Storage::disk('public')->path($practice->logo_path)
+            : null;
+
+        if (! $logoPath || ! file_exists($logoPath) || strtolower(pathinfo($logoPath, PATHINFO_EXTENSION)) === 'svg') {
+            return null;
+        }
+
+        return $logoPath;
     }
 }

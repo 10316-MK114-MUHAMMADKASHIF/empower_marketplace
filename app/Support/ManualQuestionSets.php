@@ -61,13 +61,9 @@ class ManualQuestionSets
     /** @return array{prefix: string, count: int, extra_fields: array<string, string>}|null */
     public static function forQuestionnaireType(IntakeUploadType $uploadType): ?array
     {
-        foreach (DocumentType::cases() as $documentType) {
-            if ($documentType->linkedQuestionnaireType() === $uploadType) {
-                return self::forDocumentType($documentType);
-            }
-        }
+        $documentType = DocumentType::forQuestionnaireType($uploadType);
 
-        return null;
+        return $documentType ? self::forDocumentType($documentType) : null;
     }
 
     /**

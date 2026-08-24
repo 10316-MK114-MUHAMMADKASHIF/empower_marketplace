@@ -200,6 +200,11 @@ new class extends Component
     }
 
     /** Every document the active package entitles this practice to, paired with its generated row (if any). */
+    /**
+     * One row per questionnaire the client actually uploaded — not per package tier —
+     * paired with its generated document (if any). A questionnaire with no matching
+     * manual (a retired/generic intake type) produces no row.
+     */
     #[Computed]
     public function expectedDocuments(): Collection
     {
@@ -212,7 +217,17 @@ new class extends Component
         $locations = $this->oshaLocations;
         $rows = collect();
 
-        foreach (DocumentType::forTier($order->package->tier()) as $docType) {
+        $uploadedQuestionnaireTypes = $order->intakeSubmission?->intakeUploads
+            ->map(fn ($u) => $u->upload_type)
+            ->unique() ?? collect();
+
+        foreach ($uploadedQuestionnaireTypes as $uploadType) {
+            $docType = DocumentType::forQuestionnaireType($uploadType);
+
+            if ($docType === null) {
+                continue;
+            }
+
             if ($docType->isPerLocation()) {
                 if ($locations->isEmpty()) {
                     $rows->push(['type' => $docType, 'location' => null, 'document' => $docs->first(fn ($d) => $d->document_type === $docType && ! $d->osha_location_id)]);
@@ -1132,14 +1147,14 @@ new class extends Component
                 requiredKeys: @js($requiredDownloadKeys),
                 downloadedMap: {},
                 init() {
-                    this.requiredKeys.forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                    this.requiredKeys.forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' });
                 },
                 markDownloaded(key) {
-                    this.downloadedMap[key] = true
-                    localStorage.setItem(key, '1')
+                    this.downloadedMap[key] = true;
+                    localStorage.setItem(key, '1');
                 },
                 get allRequiredDownloaded() {
-                    return this.requiredKeys.every(k => this.downloadedMap[k])
+                    return this.requiredKeys.every(k => this.downloadedMap[k]);
                 }
             }"
             class="space-y-4"
@@ -1235,9 +1250,9 @@ new class extends Component
             <div x-data="{
                     downloadedMap: {},
                     init() {
-                        const keyMap = @js($downloadTrackingKeyMap)
-                        Object.keys(keyMap).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
-                        $wire.set('downloadedQuestionnaireKeys', Object.entries(keyMap).filter(([lsKey]) => this.downloadedMap[lsKey]).map(([, uploadKey]) => uploadKey))
+                        const keyMap = @js($downloadTrackingKeyMap);
+                        Object.keys(keyMap).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' });
+                        $wire.set('downloadedQuestionnaireKeys', Object.entries(keyMap).filter(([lsKey]) => this.downloadedMap[lsKey]).map(([, uploadKey]) => uploadKey));
                     },
                     get anyDownloaded() {
                         return Object.values(this.downloadedMap).some(v => v)
@@ -1283,7 +1298,6 @@ new class extends Component
                 <p x-show="!anyDownloaded" x-cloak class="text-sm text-[#5d6e7f] italic mb-4">
                     You haven't downloaded any questionnaires yet. Go back to Step 2 to download the ones you need to fill out.
                 </p>
-            </div>
             </div>
 
             <div class="flex justify-end">
