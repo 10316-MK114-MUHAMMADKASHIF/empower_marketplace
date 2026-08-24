@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AiExtractionStatus;
+use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
@@ -992,8 +993,10 @@ class PortalTest extends TestCase
         $this->assertTrue($uploads->every(fn ($u) => $u->ai_extraction_status === AiExtractionStatus::Completed));
         $this->assertSame(1, $uploads->pluck('ai_extracted_data')->map(fn ($d) => json_encode($d))->unique()->count());
 
-        // ...but only ONE OpenAI API call was made for the shared document.
-        Http::assertSentCount(1);
+        // ...but the shared document was only extracted (and verified) once, not once per
+        // order in the batch — two calls total: the extraction, then the verification pass
+        // that Compliance & Ethics questionnaires get since they have a structured schema.
+        Http::assertSentCount(2);
     }
 
     // ── Step 4: Review Status ───────────────────────────────────────────────
@@ -1073,6 +1076,44 @@ class PortalTest extends TestCase
         IntakeSubmission::factory()->approved()->create(['order_id' => $order->id]);
 
         return $order;
+    }
+
+    public function test_completed_but_unapproved_document_shows_pending_review_with_no_download_link(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Pending Review')
+            ->assertDontSee('Download PDF')
+            ->assertDontSee('Ready');
+
+        $this->assertFalse($document->isReady());
+    }
+
+    public function test_approved_document_shows_ready_with_a_working_download_link(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+        GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Ready')
+            ->assertSee('Download PDF')
+            ->assertDontSee('Pending Review');
     }
 
     public function test_dashboard_shows_practice_info_bar_and_defaults_to_documents_tab(): void

@@ -6,6 +6,7 @@ use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
+use App\Support\ManualQuestionSets;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\PendingRequest;
@@ -31,6 +32,14 @@ class ProcessIntakeUpload implements ShouldQueue
             $data = $this->isDocx()
                 ? $this->extractFromDocx()
                 : $this->extractWithVision();
+
+            $schema = $this->upload->upload_type
+                ? ManualQuestionSets::forQuestionnaireType($this->upload->upload_type)
+                : null;
+
+            if ($schema !== null) {
+                $data = $this->verifyAndCorrect($data, $schema);
+            }
 
             $this->upload->update([
                 'ai_extraction_status' => AiExtractionStatus::Completed,
@@ -211,6 +220,14 @@ class ProcessIntakeUpload implements ShouldQueue
 
     private function buildPrompt(): string
     {
+        $schema = $this->upload->upload_type
+            ? ManualQuestionSets::forQuestionnaireType($this->upload->upload_type)
+            : null;
+
+        if ($schema !== null) {
+            return $this->buildStructuredPrompt($schema);
+        }
+
         $type = $this->upload->upload_type?->promptLabel() ?? 'practice intake';
 
         return <<<PROMPT
@@ -219,6 +236,70 @@ Include fields such as: practice_name, address, npi_number, specialty, provider_
 services_offered, safety_programs, hazardous_materials, training_requirements, and any other
 compliance-relevant data found in the document.
 Return only valid JSON with no additional text or markdown formatting.
+PROMPT;
+    }
+
+    /** @param array{prefix: string, count: int, extra_fields: array<string, string>} $schema */
+    private function buildStructuredPrompt(array $schema): string
+    {
+        $label = $this->upload->upload_type->promptLabel();
+        $codePrefix = strtoupper($schema['prefix']);
+        $count = $schema['count'];
+
+        $extraFieldLines = '';
+        foreach ($schema['extra_fields'] as $key => $description) {
+            $extraFieldLines .= "- \"{$key}\": {$description}\n";
+        }
+
+        return <<<PROMPT
+This document is a {$label}. It contains {$count} numbered questions, coded {$codePrefix}-01 through {$codePrefix}-{$count}, each followed by the practice's typed-in answer, plus a practice information section.
+
+Extract exactly the following as a JSON object with exactly these keys and no others:
+- One key per question, named "{$schema['prefix']}_NN_answer" (e.g. "{$schema['prefix']}_01_answer") for each of the {$count} questions, containing the practice's answer text for that question. If a question was left unanswered (still shows placeholder instructional text such as "Click or tap here to enter text."), use an empty string for that key.
+{$extraFieldLines}
+Return only valid JSON with no additional text or markdown formatting.
+PROMPT;
+    }
+
+    /** @param array{prefix: string, count: int, extra_fields: array<string, string>} $schema */
+    private function verifyAndCorrect(array $data, array $schema): array
+    {
+        $response = $this->openai()->post($this->openaiUrl(), [
+            'model' => config('services.openai.model'),
+            'response_format' => ['type' => 'json_object'],
+            'messages' => [[
+                'role' => 'user',
+                'content' => $this->buildVerificationPrompt($data),
+            ]],
+        ]);
+
+        if ($response->failed()) {
+            Log::warning('AI verification pass failed, using unverified extraction', [
+                'upload_id' => $this->upload->id,
+            ]);
+
+            return $data;
+        }
+
+        $corrected = $this->parseJson($response->json('choices.0.message.content', ''));
+
+        // Guard against a malformed verification response silently wiping out a good extraction.
+        return $corrected !== [] ? $corrected : $data;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function buildVerificationPrompt(array $data): string
+    {
+        $json = json_encode($data, JSON_PRETTY_PRINT);
+
+        return <<<PROMPT
+You are reviewing extracted answers from a compliance questionnaire. For each answer below, without changing its substantive meaning:
+- If it is empty, or is unanswered placeholder text such as "Click or tap here to enter text.", replace it with exactly "[No response provided]".
+- Otherwise, lightly correct spelling and grammar and remove stray extraction artifacts, but do not add, remove, or alter any substantive information.
+
+Return the corrected answers as a JSON object with exactly the same keys as given below, and no additional text or markdown formatting.
+
+{$json}
 PROMPT;
     }
 

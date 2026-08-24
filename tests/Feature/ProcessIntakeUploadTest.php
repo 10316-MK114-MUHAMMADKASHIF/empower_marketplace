@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
+use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Jobs\GenerateComplianceDocument;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ProcessIntakeUploadTest extends TestCase
@@ -120,6 +122,100 @@ class ProcessIntakeUploadTest extends TestCase
         $upload->refresh();
         $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
         $this->assertEquals('Sunrise Family Medicine', $upload->ai_extracted_data['practice_name']);
+    }
+
+    // ── Structured extraction & AI verification pass (questionnaire-linked types) ──
+
+    /** @return array<string, array{0: IntakeUploadType, 1: string}> */
+    public static function questionnaireLinkedTypes(): array
+    {
+        return [
+            'Compliance & Ethics' => [IntakeUploadType::ComplianceEthicsQuestionnaire, 'cmp_01_answer'],
+            'HIPAA Business Associate' => [IntakeUploadType::HipaaBusinessAssociateQuestionnaire, 'ba_01_answer'],
+            'HIPAA Privacy' => [IntakeUploadType::HipaaPrivacyQuestionnaire, 'prv_01_answer'],
+            'HIPAA Security' => [IntakeUploadType::HipaaSecurityQuestionnaire, 'sec_01_answer'],
+        ];
+    }
+
+    #[DataProvider('questionnaireLinkedTypes')]
+    public function test_questionnaire_linked_upload_uses_a_structured_extraction_prompt(
+        IntakeUploadType $uploadType,
+        string $expectedField,
+    ): void {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/7/questionnaire.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/7/questionnaire.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => $uploadType,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        Http::assertSent(function ($request) use ($expectedField) {
+            $content = $request['messages'][0]['content'];
+            $text = is_array($content) ? ($content[1]['text'] ?? '') : $content;
+
+            return str_contains($text, $expectedField);
+        });
+    }
+
+    public function test_compliance_ethics_extraction_runs_a_verification_pass_and_saves_its_output(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/8/compliance.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/8/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::sequence()
+                ->push($this->openaiResponse('{"cmp_01_answer":"raw noisy answer"}'))
+                ->push($this->openaiResponse('{"cmp_01_answer":"Cleaned answer."}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        Http::assertSentCount(2);
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $this->assertSame('Cleaned answer.', $upload->ai_extracted_data['cmp_01_answer']);
+    }
+
+    public function test_verification_pass_failure_falls_back_to_the_raw_extraction(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/9/compliance.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/9/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::sequence()
+                ->push($this->openaiResponse('{"cmp_01_answer":"raw answer"}'))
+                ->push(['error' => 'overloaded'], 529),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $this->assertSame('raw answer', $upload->ai_extracted_data['cmp_01_answer']);
     }
 
     // ── Failure handling ──────────────────────────────────────────────────
@@ -243,12 +339,14 @@ class ProcessIntakeUploadTest extends TestCase
             'intake_submission_id' => $submissionA->id,
             'storage_path' => 'uploads/batch/shared.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::PracticeIntake,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
         $siblingUpload = IntakeUpload::factory()->create([
             'intake_submission_id' => $submissionB->id,
             'storage_path' => 'uploads/batch/shared.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::PracticeIntake,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -267,7 +365,8 @@ class ProcessIntakeUploadTest extends TestCase
         $this->assertEquals(AiExtractionStatus::Completed, $siblingUpload->ai_extraction_status);
         $this->assertEquals('Shared Practice', $siblingUpload->ai_extracted_data['practice_name']);
 
-        // Only one OpenAI API call for the shared document.
+        // Only one OpenAI API call for the shared document — a type with no structured
+        // schema (like PracticeIntake) skips the verification pass entirely.
         Http::assertSentCount(1);
 
         // Both orders' compliance documents should be generated (essential tier = 2 docs each).

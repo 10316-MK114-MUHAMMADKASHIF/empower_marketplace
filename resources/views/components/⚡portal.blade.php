@@ -1427,10 +1427,12 @@ new class extends Component
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
                                     @elseif($doc->is_stale)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Outdated</span>
-                                    @elseif($doc->status === DocumentStatus::Completed)
+                                    @elseif($doc->isReady())
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Ready</span>
                                     @elseif($doc->status === DocumentStatus::Failed)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Failed</span>
+                                    @elseif($doc->status === DocumentStatus::Completed)
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#edf2f7] text-[#5d6e7f]">Pending Review</span>
                                     @else
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
                                     @endif
@@ -1449,12 +1451,17 @@ new class extends Component
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Regenerate
                                     </button>
-                                @elseif($doc?->status === DocumentStatus::Completed && $doc->pdf_storage_path)
+                                @elseif($doc?->isReady() && $doc->delivery_source === \App\Enums\DocumentDeliverySource::Custom)
+                                    <a href="{{ route('documents.download', $doc) }}"
+                                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
+                                        Download
+                                    </a>
+                                @elseif($doc?->isReady() && $doc->pdf_storage_path)
                                     <a href="{{ route('documents.download', $doc) }}"
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Download PDF
                                     </a>
-                                @elseif($doc?->status === DocumentStatus::Completed && $doc->docx_storage_path)
+                                @elseif($doc?->isReady() && $doc->docx_storage_path)
                                     <a href="{{ route('documents.download', $doc) }}?format=docx"
                                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                                         Download DOCX

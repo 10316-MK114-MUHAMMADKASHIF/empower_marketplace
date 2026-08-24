@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
+use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
+use App\Mail\ClientDocumentsApprovedMail;
 use App\Mail\ClientSubmissionStatusMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -227,6 +229,138 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseHas('activity_logs', [
             'event_type' => 'document.regenerate_requested',
         ]);
+    }
+
+    // ── Document review (per-document approval) ──────────────────────────────
+
+    public function test_admin_can_bulk_approve_selected_documents_and_client_is_emailed(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $docOne = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        $docTwo = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::OshaSafetyPlan,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('selectedDocumentIds', [$docOne->id, $docTwo->id])
+            ->call('approveSelectedDocuments');
+
+        $this->assertNotNull($docOne->fresh()->reviewed_at);
+        $this->assertNotNull($docTwo->fresh()->reviewed_at);
+        $this->assertSame($admin->id, $docOne->fresh()->reviewed_by);
+
+        Mail::assertSent(ClientDocumentsApprovedMail::class, fn ($mail) => $mail->hasTo($submission->order->user->email));
+
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'documents.approved']);
+    }
+
+    public function test_admin_cannot_approve_a_document_that_has_not_finished_generating(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'status' => 'generating',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('selectedDocumentIds', [$document->id])
+            ->call('approveSelectedDocuments');
+
+        $this->assertNull($document->fresh()->reviewed_at);
+        Mail::assertNotSent(ClientDocumentsApprovedMail::class);
+    }
+
+    public function test_custom_upload_slot_only_shows_for_a_questionnaire_the_client_actually_uploaded(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
+
+        $uploadedDoc = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::ComplianceEthicsManual,
+        ]);
+        $notUploadedDoc = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::HipaaBusinessAssociateManual,
+        ]);
+        $noQuestionnaireLinkDoc = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        $component = Livewire::actingAs($admin)->test('admin.submission-detail', ['submission' => $submission]);
+        $documents = $component->instance()->documentsForReview();
+
+        $this->assertTrue($documents->firstWhere('id', $uploadedDoc->id)->showsCustomUploadSlot);
+        $this->assertFalse($documents->firstWhere('id', $notUploadedDoc->id)->showsCustomUploadSlot);
+        $this->assertTrue($documents->firstWhere('id', $noQuestionnaireLinkDoc->id)->showsCustomUploadSlot);
+    }
+
+    public function test_uploading_a_custom_document_switches_delivery_source_and_revokes_prior_approval(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+
+        $file = UploadedFile::fake()->create('corrected.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set("customDocumentFiles.{$document->id}", $file)
+            ->call('uploadCustomDocument', $document->id);
+
+        $document->refresh();
+        $this->assertSame('custom', $document->delivery_source->value);
+        $this->assertNotNull($document->custom_storage_path);
+        $this->assertSame('corrected.pdf', $document->custom_original_filename);
+        $this->assertNull($document->reviewed_at);
+    }
+
+    public function test_admin_can_switch_delivery_source_back_to_ai_generated(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'custom_storage_path' => 'private/compliance/1/custom/corrected.pdf',
+            'custom_original_filename' => 'corrected.pdf',
+            'delivery_source' => 'custom',
+            'reviewed_at' => now(),
+            'reviewed_by' => $admin->id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('setDeliverySource', $document->id, 'ai_generated');
+
+        $document->refresh();
+        $this->assertSame('ai_generated', $document->delivery_source->value);
+        $this->assertNull($document->reviewed_at);
     }
 
     // ── Leads ───────────────────────────────────────────────────────────────
