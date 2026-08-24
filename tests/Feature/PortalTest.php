@@ -864,6 +864,48 @@ class PortalTest extends TestCase
             ->assertHasErrors(['questionnaireFiles.compliance_ethics_questionnaire']);
     }
 
+    public function test_every_downloaded_questionnaire_becomes_mandatory_to_upload_and_stale_errors_clear_after_fixing(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $complianceFile = UploadedFile::fake()->create('compliance.pdf', 100, 'application/pdf');
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->set('downloadedQuestionnaireKeys', ['compliance_ethics_questionnaire', 'hipaa_business_associate_questionnaire'])
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $complianceFile)
+            ->call('submitIntake');
+
+        // The optional HIPAA Business Associate questionnaire was downloaded, so it's now
+        // mandatory too — even though only Compliance & Ethics is required by default.
+        $component->assertHasErrors(['questionnaireFiles.hipaa_business_associate_questionnaire'])
+            ->assertSet('step', 3);
+
+        // Uploading the missing file and resubmitting must clear the stale error, not just
+        // leave it stuck on screen from the previous failed attempt.
+        $hipaaFile = UploadedFile::fake()->create('hipaa-ba.pdf', 100, 'application/pdf');
+
+        $component->set('questionnaireFiles.hipaa_business_associate_questionnaire', $hipaaFile)
+            ->call('submitIntake')
+            ->assertHasNoErrors()
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'compliance.pdf']);
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'hipaa-ba.pdf']);
+    }
+
     public function test_submitting_intake_once_creates_a_submission_for_every_order_in_the_batch(): void
     {
         Http::fake([

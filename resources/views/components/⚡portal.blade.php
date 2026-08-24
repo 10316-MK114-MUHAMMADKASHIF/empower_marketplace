@@ -82,6 +82,11 @@ new class extends Component
     // Step 3 — one slot per questionnaire shown in Step 2, keyed by IntakeUploadType::value.
     public array $questionnaireFiles = [];
 
+    // Synced from client-side (localStorage) download tracking — every questionnaire the
+    // user has downloaded becomes mandatory to upload back, in addition to any statically
+    // required ones. Keyed by IntakeUploadType::value.
+    public array $downloadedQuestionnaireKeys = [];
+
     #[Computed]
     public function packages(): Collection
     {
@@ -647,14 +652,24 @@ new class extends Component
     {
         abort_unless(auth()->check(), 403);
 
-        foreach ($this->applicableQuestionnaires->where('required', true) as $questionnaire) {
+        $this->resetErrorBag();
+
+        $missingRequiredFile = false;
+
+        // Every questionnaire the client downloaded (in addition to any statically required
+        // one) becomes mandatory to upload back — Step 3 only shows a box for downloaded ones.
+        foreach ($this->applicableQuestionnaires as $questionnaire) {
             $key = $questionnaire['uploadType']->value;
+            $isRequired = $questionnaire['required'] || in_array($key, $this->downloadedQuestionnaireKeys, true);
 
-            if (empty($this->questionnaireFiles[$key]) && ! $this->existingUploadsByType->has($key)) {
+            if ($isRequired && empty($this->questionnaireFiles[$key]) && ! $this->existingUploadsByType->has($key)) {
                 $this->addError("questionnaireFiles.{$key}", "Please upload your {$questionnaire['title']}.");
-
-                return;
+                $missingRequiredFile = true;
             }
+        }
+
+        if ($missingRequiredFile) {
+            return;
         }
 
         $this->validate([
@@ -1213,17 +1228,19 @@ new class extends Component
                 </div>
             @endif
 
-            {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 --}}
+            {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 —
+                 and every one shown here becomes mandatory to upload back. --}}
             @php
-                $downloadTrackingKeys = $this->applicableQuestionnaires
-                    ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
-                    ->values()
+                $downloadTrackingKeyMap = $this->applicableQuestionnaires
+                    ->mapWithKeys(fn ($q) => ['questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value => $q['uploadType']->value])
                     ->all();
             @endphp
             <div x-data="{
                     downloadedMap: {},
                     init() {
-                        @js($downloadTrackingKeys).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                        const keyMap = @js($downloadTrackingKeyMap)
+                        Object.keys(keyMap).forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' })
+                        $wire.set('downloadedQuestionnaireKeys', Object.entries(keyMap).filter(([lsKey]) => this.downloadedMap[lsKey]).map(([, uploadKey]) => uploadKey))
                     },
                     get anyDownloaded() {
                         return Object.values(this.downloadedMap).some(v => v)
@@ -1242,9 +1259,6 @@ new class extends Component
                             <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
                             <p class="font-semibold text-sm text-[#12304f] mb-1">
                                 {{ $questionnaire['title'] }}
-                                @unless($questionnaire['required'])
-                                    <span class="text-[#5d6e7f] font-normal">(optional)</span>
-                                @endunless
                             </p>
                             <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
                             @if($existingUpload && ! $uploadedFile)
