@@ -40,7 +40,7 @@ new class extends Component
             })
             ->when($this->role !== '', fn ($q) => $q->where('role', $this->role))
             ->latest()
-            ->paginate(20);
+            ->paginate(10);
     }
 };
 ?>

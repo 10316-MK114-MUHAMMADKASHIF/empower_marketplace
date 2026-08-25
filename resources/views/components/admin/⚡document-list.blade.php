@@ -30,7 +30,7 @@ new class extends Component
             ->when($this->status === 'stale', fn ($q) => $q->where('is_stale', true))
             ->when($this->status !== 'all' && $this->status !== 'stale', fn ($q) => $q->where('status', $this->status))
             ->latest('generated_at')
-            ->paginate(20);
+            ->paginate(10);
     }
 
     public function regenerate(int $documentId): void

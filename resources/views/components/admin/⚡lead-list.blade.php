@@ -51,7 +51,7 @@ new class extends Component
                 $q->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
             })
             ->latest()
-            ->paginate(20);
+            ->paginate(10);
     }
 };
 ?>

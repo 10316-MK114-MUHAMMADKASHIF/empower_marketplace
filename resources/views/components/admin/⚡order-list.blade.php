@@ -39,7 +39,7 @@ new class extends Component
             })
             ->when($this->status !== '', fn ($q) => $q->where('status', $this->status))
             ->latest()
-            ->paginate(20);
+            ->paginate(10);
     }
 };
 ?>

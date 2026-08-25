@@ -29,7 +29,7 @@ new class extends Component
                 $q->where(fn ($q) => $q->where('event_type', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%"));
             })
             ->latest()
-            ->paginate(30);
+            ->paginate(10);
     }
 };
 ?>

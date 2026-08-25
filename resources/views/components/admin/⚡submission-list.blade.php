@@ -40,7 +40,7 @@ new class extends Component
                     ->orWhereHas('order.user', fn ($q) => $q->where('email', 'like', "%{$search}%"));
             })
             ->latest('submitted_at')
-            ->paginate(15);
+            ->paginate(10);
     }
 
     #[Computed]
