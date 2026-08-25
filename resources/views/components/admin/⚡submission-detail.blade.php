@@ -92,6 +92,35 @@ new class extends Component
         unset($this->submission);
     }
 
+    /** Undoes an accidental rejection — clears the reviewer notes and puts it back under review. */
+    public function reopen(): void
+    {
+        $submission = $this->submission;
+
+        if ($submission->status !== IntakeSubmissionStatus::Rejected) {
+            return;
+        }
+
+        $submission->update([
+            'status' => IntakeSubmissionStatus::UnderReview,
+            'reviewer_notes' => null,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+        ]);
+
+        ActivityLog::record(
+            'submission.reopened',
+            "Submission for order #{$submission->order_id} reopened for review after being rejected.",
+            user: auth()->user(),
+            order: $submission->order,
+            subject: $submission,
+        );
+
+        $this->reviewerNotes = '';
+
+        unset($this->submission);
+    }
+
     public function approve(): void
     {
         $submission = $this->submission;
@@ -489,10 +518,17 @@ new class extends Component
         </div>
     @endif
 
-    @if($submission->status === IntakeSubmissionStatus::Rejected && $submission->reviewer_notes)
+    @if($submission->status === IntakeSubmissionStatus::Rejected)
         <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <p class="font-semibold mb-0.5">Reviewer notes sent to client:</p>
-            <p>{{ $submission->reviewer_notes }}</p>
+            @if($submission->reviewer_notes)
+                <p class="font-semibold mb-0.5">Reviewer notes sent to client:</p>
+                <p class="mb-3">{{ $submission->reviewer_notes }}</p>
+            @endif
+            <p class="text-xs text-red-600 mb-2">Rejected by mistake? Reopening clears the reviewer notes and puts it back under review.</p>
+            <button type="button" x-on:click="confirmAction = 'reopen'"
+                class="inline-flex items-center gap-1 rounded border border-red-300 bg-white px-4 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition-colors">
+                Reopen for Review
+            </button>
         </div>
     @endif
 
@@ -517,31 +553,33 @@ new class extends Component
                     Approve
                 </button>
                 <button type="button" x-on:click="confirmAction = 'reject'"
-                    class="inline-flex items-center gap-1 rounded border border-red-300 px-5 py-2 text-sm font-bold text-red-700 hover:bg-red-50 transition-colors">
+                    :disabled="!$wire.reviewerNotes || !$wire.reviewerNotes.trim()"
+                    :class="(!$wire.reviewerNotes || !$wire.reviewerNotes.trim()) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-50'"
+                    class="inline-flex items-center gap-1 rounded border border-red-300 px-5 py-2 text-sm font-bold text-red-700 transition-colors">
                     Reject
                 </button>
             </div>
         </div>
     @endif
 
-    {{-- Approve/Reject/Approve-selected/Delete-custom confirmation modal --}}
+    {{-- Approve/Reject/Approve-selected/Delete-custom/Reopen confirmation modal --}}
     <div x-show="confirmAction !== null" x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
         <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmAction = null">
             <h3 class="text-base font-semibold text-navy mb-2"
-                x-text="confirmAction === 'approve' ? 'Approve this submission?' : confirmAction === 'reject' ? 'Reject this submission?' : confirmAction === 'deleteCustom' ? 'Remove this custom file?' : 'Approve the selected document(s)?'"></h3>
+                x-text="confirmAction === 'approve' ? 'Approve this submission?' : confirmAction === 'reject' ? 'Reject this submission?' : confirmAction === 'deleteCustom' ? 'Remove this custom file?' : confirmAction === 'reopen' ? 'Reopen this submission for review?' : 'Approve the selected document(s)?'"></h3>
             <p class="text-sm text-empower-muted mb-5"
-                x-text="confirmAction === 'approve' ? 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.' : confirmAction === 'reject' ? 'The client will be asked to re-upload based on your reviewer notes.' : confirmAction === 'deleteCustom' ? 'This cannot be undone. The AI-generated file will be delivered instead unless a new custom file is uploaded.' : 'The client will be emailed once approved.'"></p>
+                x-text="confirmAction === 'approve' ? 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.' : confirmAction === 'reject' ? 'The client will be asked to re-upload based on your reviewer notes.' : confirmAction === 'deleteCustom' ? 'This cannot be undone. The AI-generated file will be delivered instead unless a new custom file is uploaded.' : confirmAction === 'reopen' ? 'This clears the rejection and reviewer notes, and puts the submission back under review.' : 'The client will be emailed once approved.'"></p>
             <div class="flex justify-end gap-3">
                 <button type="button" x-on:click="confirmAction = null"
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
                 <button type="button"
-                    x-on:click="confirmAction === 'approve' ? $wire.approve() : confirmAction === 'reject' ? $wire.reject() : confirmAction === 'deleteCustom' ? $wire.deleteCustomDocument(confirmDocumentId) : $wire.approveSelectedDocuments(); confirmAction = null"
+                    x-on:click="(confirmAction === 'approve' ? $wire.approve() : confirmAction === 'reject' ? $wire.reject() : confirmAction === 'deleteCustom' ? $wire.deleteCustomDocument(confirmDocumentId) : confirmAction === 'reopen' ? $wire.reopen() : $wire.approveSelectedDocuments()).then(() => confirmAction = null).catch(() => {})"
                     x-bind:class="confirmAction === 'reject' || confirmAction === 'deleteCustom' ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-accent text-navy-dark hover:bg-accent-dark'"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors">
-                    <span x-text="confirmAction === 'reject' ? 'Reject' : confirmAction === 'deleteCustom' ? 'Remove' : 'Approve'"></span>
+                    <span x-text="confirmAction === 'reject' ? 'Reject' : confirmAction === 'deleteCustom' ? 'Remove' : confirmAction === 'reopen' ? 'Reopen' : 'Approve'"></span>
                 </button>
             </div>
         </div>

@@ -131,7 +131,7 @@ class AdminPanelTest extends TestCase
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $submission = $this->makeSubmission();
 
-        Livewire::actingAs($admin)
+        $component = Livewire::actingAs($admin)
             ->test('admin.submission-detail', ['submission' => $submission])
             ->set('reviewerNotes', 'Please re-upload a signed copy.')
             ->call('reject');
@@ -139,6 +139,47 @@ class AdminPanelTest extends TestCase
         $submission->refresh();
         $this->assertSame(IntakeSubmissionStatus::Rejected, $submission->status);
         $this->assertSame('Please re-upload a signed copy.', $submission->reviewer_notes);
+
+        $component->assertDontSee('Review Decision');
+        $component->assertSee('Reopen for Review');
+    }
+
+    public function test_admin_can_reopen_a_rejected_submission(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('reviewerNotes', 'Please re-upload a signed copy.')
+            ->call('reject');
+
+        $submission->refresh();
+        $this->assertSame(IntakeSubmissionStatus::Rejected, $submission->status);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('reopen')
+            ->assertSet('reviewerNotes', '');
+
+        $submission->refresh();
+        $this->assertSame(IntakeSubmissionStatus::UnderReview, $submission->status);
+        $this->assertNull($submission->reviewer_notes);
+        $this->assertNull($submission->reviewed_by);
+        $this->assertNull($submission->reviewed_at);
+    }
+
+    public function test_reopening_a_submission_that_was_never_rejected_does_nothing(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::UnderReview);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('reopen');
+
+        $submission->refresh();
+        $this->assertSame(IntakeSubmissionStatus::UnderReview, $submission->status);
     }
 
     public function test_rejecting_a_submission_emails_the_client(): void
