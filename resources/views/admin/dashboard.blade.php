@@ -21,7 +21,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Pending Review', $pendingReview, route('admin.submissions')],
-                ['Total Orders', $totalOrders, null],
+                ['Total Orders', $totalOrders, route('admin.orders')],
                 ['Stale Documents', $staleDocuments, route('admin.documents')],
                 ['New Leads', $newLeads, route('admin.leads')],
             ] as [$label, $value, $link])

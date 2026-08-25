@@ -72,7 +72,8 @@ class AdminPanelTest extends TestCase
 
         $this->withoutVite()->actingAs($admin)->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Pending Review');
+            ->assertSee('Pending Review')
+            ->assertSee(route('admin.orders'), false);
     }
 
     // ── Submissions ─────────────────────────────────────────────────────────
