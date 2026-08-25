@@ -675,6 +675,13 @@ new class extends Component
         $this->step = 3;
     }
 
+    /** Clears a just-picked (not yet submitted) file so the client can choose a different one. */
+    public function removeQuestionnaireFile(string $uploadKey): void
+    {
+        unset($this->questionnaireFiles[$uploadKey]);
+        $this->resetErrorBag("questionnaireFiles.{$uploadKey}");
+    }
+
     public function submitIntake(): void
     {
         abort_unless(auth()->check(), 403);
@@ -1305,10 +1312,13 @@ new class extends Component
                                 class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
                             @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
                             @if($uploadedFile)
-                                <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}">
-                                    <span class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                                <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
                                         ✓ {{ $uploadedFile->getClientOriginalName() }}
                                     </span>
+                                    <button type="button" wire:click="removeQuestionnaireFile('{{ $uploadKey }}')" class="text-xs font-bold text-red-600 hover:underline">
+                                        Remove
+                                    </button>
                                 </div>
                                 <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
                             @endif

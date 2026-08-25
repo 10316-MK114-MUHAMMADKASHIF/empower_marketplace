@@ -829,6 +829,45 @@ class PortalTest extends TestCase
         $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'intake-v2.pdf']);
     }
 
+    public function test_removing_a_just_picked_file_lets_the_client_choose_a_different_one(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $wrongFile = UploadedFile::fake()->create('wrong.pdf', 100, 'application/pdf');
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 3)
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', $wrongFile);
+
+        $component->assertSee('wrong.pdf');
+
+        $component->call('removeQuestionnaireFile', 'compliance_ethics_questionnaire');
+
+        $component->assertDontSee('wrong.pdf');
+        $this->assertNull($component->get('questionnaireFiles')['compliance_ethics_questionnaire'] ?? null);
+
+        // The slot is empty again, so submitting without picking a replacement is rejected.
+        $component->call('submitIntake')
+            ->assertHasErrors(['questionnaireFiles.compliance_ethics_questionnaire']);
+
+        $rightFile = UploadedFile::fake()->create('right.pdf', 100, 'application/pdf');
+        $component->set('questionnaireFiles.compliance_ethics_questionnaire', $rightFile)
+            ->call('submitIntake')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'right.pdf']);
+        $this->assertDatabaseMissing('intake_uploads', ['original_filename' => 'wrong.pdf']);
+    }
+
     public function test_step3_shows_an_upload_box_for_every_questionnaire_shown_in_step2(): void
     {
         $user = User::factory()->create();
