@@ -24,6 +24,13 @@ new class extends Component
             return;
         }
 
+        if (! Auth::user()->is_active) {
+            Auth::logout();
+            $this->addError('email', 'This account has been deactivated.');
+
+            return;
+        }
+
         session()->regenerate();
 
         $destination = Auth::user()->isAdmin() ? route('admin.dashboard') : route('portal');

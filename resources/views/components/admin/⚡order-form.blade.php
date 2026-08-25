@@ -1,0 +1,135 @@
+<?php
+
+use App\Enums\OrderStatus;
+use App\Models\ActivityLog;
+use App\Models\Order;
+use Livewire\Component;
+
+new class extends Component
+{
+    public int $orderId;
+
+    public string $clientName = '';
+
+    public string $clientEmail = '';
+
+    public string $packageName = '';
+
+    public string $status = '';
+
+    public ?string $amountPaid = null;
+
+    public string $paymentReference = '';
+
+    public string $notes = '';
+
+    public function mount(Order $order): void
+    {
+        $order->loadMissing('user', 'package');
+
+        $this->orderId = $order->id;
+        $this->clientName = $order->user->name;
+        $this->clientEmail = $order->user->email;
+        $this->packageName = $order->package->name;
+        $this->status = $order->status->value;
+        $this->amountPaid = $order->amount_paid !== null ? (string) $order->amount_paid : null;
+        $this->paymentReference = $order->payment_reference ?? '';
+        $this->notes = $order->notes ?? '';
+    }
+
+    public function save(): void
+    {
+        $this->validate([
+            'status' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, OrderStatus::cases())),
+            'amountPaid' => 'nullable|numeric|min:0',
+            'paymentReference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:2000',
+        ]);
+
+        $order = Order::findOrFail($this->orderId);
+
+        $order->update([
+            'status' => $this->status,
+            'amount_paid' => $this->amountPaid !== null && $this->amountPaid !== '' ? $this->amountPaid : null,
+            'payment_reference' => $this->paymentReference ?: null,
+            'notes' => $this->notes ?: null,
+        ]);
+
+        ActivityLog::record(
+            'order.updated',
+            "Order #{$order->id} for {$this->clientName} was updated by an admin.",
+            user: auth()->user(),
+            order: $order,
+        );
+
+        $this->redirect(route('admin.orders'), navigate: true);
+    }
+
+    public function delete(): void
+    {
+        $order = Order::findOrFail($this->orderId);
+        $order->deleteCascadingFiles();
+        $order->delete();
+
+        ActivityLog::record('order.deleted', "Order #{$this->orderId} for {$this->clientName} was deleted by an admin.", user: auth()->user());
+
+        $this->redirect(route('admin.orders'), navigate: true);
+    }
+};
+?>
+
+<div class="space-y-4">
+    <a href="{{ route('admin.orders') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to orders</a>
+
+    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <h2 class="text-lg font-semibold text-navy mb-1">Order #{{ $orderId }}</h2>
+        <p class="text-sm text-empower-muted mb-4">{{ $clientName }} ({{ $clientEmail }}) — {{ $packageName }}</p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Status</label>
+                <select wire:model="status"
+                    class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @foreach(OrderStatus::cases() as $case)
+                        <option value="{{ $case->value }}">{{ ucwords(str_replace('_', ' ', $case->value)) }}</option>
+                    @endforeach
+                </select>
+                @error('status') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Amount Paid ($)</label>
+                <input wire:model="amountPaid" type="number" step="0.01" min="0"
+                    class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                @error('amountPaid') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Payment Reference</label>
+                <input wire:model="paymentReference" type="text"
+                    class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                @error('paymentReference') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Notes</label>
+                <textarea wire:model="notes" rows="3"
+                    class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition resize-none"></textarea>
+                @error('notes') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+        </div>
+
+        <div class="mt-5 flex items-center justify-between">
+            <button wire:click="delete"
+                wire:confirm="Delete order #{{ $orderId }} for {{ $clientName }}? This permanently deletes its intake submission, uploads, and generated documents. This cannot be undone."
+                class="text-sm font-bold text-red-600 hover:underline">Delete Order</button>
+
+            <button wire:click="save"
+                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
+                <span wire:loading.remove>Save Changes &rarr;</span>
+                <span wire:loading>Saving…</span>
+            </button>
+        </div>
+    </div>
+</div>

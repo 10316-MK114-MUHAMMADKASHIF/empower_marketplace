@@ -33,6 +33,7 @@ new class extends Component
             'email' => $this->email,
             'password' => $password,
             'role' => UserRole::Client,
+            'is_active' => true,
         ]);
 
         Practice::create([

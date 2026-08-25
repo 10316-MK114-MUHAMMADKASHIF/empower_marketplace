@@ -6,7 +6,10 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\ReceiptController;
 use App\Models\IntakeSubmission;
+use App\Models\Lead;
+use App\Models\Order;
 use App\Models\Package;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -54,10 +57,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/generated-documents/{document}/download', [GeneratedDocumentDownloadController::class, 'show'])
         ->name('generated-documents.download');
     Route::get('/leads', fn () => view('admin.leads'))->name('leads');
+    Route::get('/leads/create', fn () => view('admin.leads-form'))->name('leads.create');
+    Route::get('/leads/{lead}/edit', fn (Lead $lead) => view('admin.leads-form', compact('lead')))
+        ->name('leads.edit');
     Route::get('/packages', fn () => view('admin.packages'))->name('packages');
     Route::get('/packages/create', fn () => view('admin.packages-form'))->name('packages.create');
     Route::get('/packages/{package}/edit', fn (Package $package) => view('admin.packages-form', compact('package')))
         ->name('packages.edit');
     Route::get('/intake-uploads/{upload}/download', [IntakeUploadDownloadController::class, 'show'])
         ->name('uploads.download');
+    Route::get('/users', fn () => view('admin.users'))->name('users');
+    Route::get('/users/create', fn () => view('admin.users-form'))->name('users.create');
+    Route::get('/users/{user}/edit', fn (User $user) => view('admin.users-form', compact('user')))
+        ->name('users.edit');
+    Route::get('/orders', fn () => view('admin.orders'))->name('orders');
+    Route::get('/orders/{order}/edit', fn (Order $order) => view('admin.orders-form', compact('order')))
+        ->name('orders.edit');
+    Route::get('/activity-log', fn () => view('admin.activity-log'))->name('activity-log');
 });

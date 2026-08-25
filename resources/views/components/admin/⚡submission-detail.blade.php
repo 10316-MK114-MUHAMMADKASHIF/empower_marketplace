@@ -9,6 +9,7 @@ use App\Mail\ClientSubmissionStatusMail;
 use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
+use App\Models\IntakeUpload;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -32,6 +33,10 @@ new class extends Component
 
     /** GeneratedDocument ids checked for bulk approval. */
     public array $selectedDocumentIds = [];
+
+    public bool $editingAnswers = false;
+
+    public string $answersJson = '';
 
     public function mount(IntakeSubmission $submission): void
     {
@@ -90,6 +95,138 @@ new class extends Component
         );
 
         unset($this->submission);
+    }
+
+    public function toggleEditAnswers(): void
+    {
+        $this->editingAnswers = ! $this->editingAnswers;
+
+        if ($this->editingAnswers) {
+            $this->answersJson = json_encode($this->submission->handbook_answers ?? [], JSON_PRETTY_PRINT);
+        }
+    }
+
+    public function saveAnswers(): void
+    {
+        $decoded = json_decode($this->answersJson, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
+            $this->addError('answersJson', 'Enter valid JSON (an object or array).');
+
+            return;
+        }
+
+        $submission = $this->submission;
+        $submission->update(['handbook_answers' => $decoded]);
+
+        GeneratedDocument::where('order_id', $submission->order_id)
+            ->where('is_stale', false)
+            ->update(['is_stale' => true, 'stale_reason' => 'handbook_answers_updated']);
+
+        ActivityLog::record(
+            'submission.answers_updated',
+            "Intake answers for order #{$submission->order_id} were edited by an admin.",
+            user: auth()->user(),
+            order: $submission->order,
+            subject: $submission,
+        );
+
+        $this->editingAnswers = false;
+        unset($this->submission, $this->documentsForReview);
+    }
+
+    public function deleteIntakeUpload(int $uploadId): void
+    {
+        $submission = $this->submission;
+
+        $upload = IntakeUpload::where('id', $uploadId)
+            ->where('intake_submission_id', $submission->id)
+            ->firstOrFail();
+
+        if ($upload->storage_path) {
+            Storage::disk('local')->delete($upload->storage_path);
+        }
+
+        $filename = $upload->original_filename;
+        $upload->delete();
+
+        ActivityLog::record(
+            'upload.deleted',
+            "{$filename} was deleted from order #{$submission->order_id} by an admin.",
+            user: auth()->user(),
+            order: $submission->order,
+        );
+
+        unset($this->submission);
+    }
+
+    public function deleteSubmission(): void
+    {
+        $submission = $this->submission;
+        $orderId = $submission->order_id;
+
+        foreach ($submission->intakeUploads as $upload) {
+            if ($upload->storage_path) {
+                Storage::disk('local')->delete($upload->storage_path);
+            }
+        }
+
+        $submission->delete();
+
+        ActivityLog::record('submission.deleted', "Intake submission for order #{$orderId} was deleted by an admin.", user: auth()->user());
+
+        $this->redirect(route('admin.submissions'), navigate: true);
+    }
+
+    public function revokeApproval(int $documentId): void
+    {
+        $submission = $this->submission;
+
+        $document = GeneratedDocument::where('id', $documentId)
+            ->where('order_id', $submission->order_id)
+            ->firstOrFail();
+
+        if (! $document->isApproved()) {
+            return;
+        }
+
+        $document->update(['reviewed_at' => null, 'reviewed_by' => null]);
+
+        $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
+
+        ActivityLog::record(
+            'document.approval_revoked',
+            "Approval for {$document->document_type->label()} was revoked for order #{$document->order_id}.",
+            user: auth()->user(),
+            order: $document->order,
+            subject: $document,
+        );
+
+        unset($this->documentsForReview);
+    }
+
+    public function deleteGeneratedDocument(int $documentId): void
+    {
+        $submission = $this->submission;
+
+        $document = GeneratedDocument::where('id', $documentId)
+            ->where('order_id', $submission->order_id)
+            ->firstOrFail();
+
+        foreach ([$document->pdf_storage_path, $document->docx_storage_path, $document->custom_storage_path] as $path) {
+            if ($path) {
+                Storage::disk('local')->delete($path);
+            }
+        }
+
+        $label = $document->document_type->label();
+        $document->delete();
+
+        $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
+
+        ActivityLog::record('document.deleted', "{$label} was deleted from order #{$submission->order_id} by an admin.", user: auth()->user(), order: $submission->order);
+
+        unset($this->documentsForReview);
     }
 
     /** Undoes an accidental rejection — clears the reviewer notes and puts it back under review. */
@@ -347,8 +484,26 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4" x-data="{ confirmAction: null, confirmDocumentId: null }">
-    <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to submissions</a>
+<div class="space-y-4" x-data="{
+    confirmAction: null,
+    confirmDocumentId: null,
+    confirmUploadId: null,
+    modalText: {
+        approve: { title: 'Approve this submission?', body: 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.', label: 'Approve', danger: false },
+        reject: { title: 'Reject this submission?', body: 'The client will be asked to re-upload based on your reviewer notes.', label: 'Reject', danger: true },
+        deleteCustom: { title: 'Remove this custom file?', body: 'This cannot be undone. The AI-generated file will be delivered instead unless a new custom file is uploaded.', label: 'Remove', danger: true },
+        reopen: { title: 'Reopen this submission for review?', body: 'This clears the rejection and reviewer notes, and puts the submission back under review.', label: 'Reopen', danger: false },
+        approveDocuments: { title: 'Approve the selected document(s)?', body: 'The client will be emailed once approved.', label: 'Approve', danger: false },
+        revokeApproval: { title: 'Revoke approval for this document?', body: 'It goes back to pending review and the client will no longer be able to download it until it is approved again.', label: 'Revoke', danger: true },
+        deleteDocument: { title: 'Delete this document?', body: 'This permanently deletes the generated document and any custom file uploaded for it. This cannot be undone.', label: 'Delete', danger: true },
+        deleteUpload: { title: 'Delete this uploaded file?', body: 'This permanently deletes the file the client uploaded. This cannot be undone.', label: 'Delete', danger: true },
+        deleteSubmission: { title: 'Delete this intake submission?', body: 'This permanently deletes the submission and every file the client uploaded for it. This cannot be undone.', label: 'Delete', danger: true },
+    },
+}">
+    <div class="flex items-center justify-between">
+        <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to submissions</a>
+        <button type="button" x-on:click="confirmAction = 'deleteSubmission'" class="text-xs font-bold text-red-600 hover:underline">Delete Submission</button>
+    </div>
 
     @if($notice)
         <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start justify-between gap-3">
@@ -405,11 +560,37 @@ new class extends Component
                     <p class="text-sm font-semibold text-empower-text">{{ $upload->original_filename }}</p>
                     <p class="text-xs text-empower-muted">{{ $upload->upload_type->value }} &middot; {{ $upload->fileSizeForHumans() }} &middot; AI extraction: {{ $upload->ai_extraction_status->value }}</p>
                 </div>
-                <a href="{{ route('admin.uploads.download', $upload) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download</a>
+                <div class="flex items-center gap-3">
+                    <a href="{{ route('admin.uploads.download', $upload) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download</a>
+                    <button type="button" x-on:click="confirmAction = 'deleteUpload'; confirmUploadId = {{ $upload->id }}"
+                        class="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                </div>
             </div>
         @empty
             <p class="text-sm text-empower-muted italic">No files uploaded.</p>
         @endforelse
+    </div>
+
+    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-navy">Intake Answers</h3>
+            <button type="button" wire:click="toggleEditAnswers" class="text-xs font-bold text-[#1a7aad] hover:underline">
+                {{ $editingAnswers ? 'Cancel' : 'Edit' }}
+            </button>
+        </div>
+
+        @if($editingAnswers)
+            <textarea wire:model="answersJson" rows="8"
+                class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-xs font-mono text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition"></textarea>
+            @error('answersJson') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            <div class="mt-3 flex justify-end">
+                <button wire:click="saveAnswers" class="text-sm font-bold text-[#1a7aad] hover:underline">Save Answers</button>
+            </div>
+        @elseif(empty($submission->handbook_answers))
+            <p class="text-sm text-empower-muted italic">No intake answers recorded yet.</p>
+        @else
+            <pre class="text-xs font-mono text-empower-text whitespace-pre-wrap">{{ json_encode($submission->handbook_answers, JSON_PRETTY_PRINT) }}</pre>
+        @endif
     </div>
 
     @if($this->documentsForReview->isNotEmpty())
@@ -456,7 +637,15 @@ new class extends Component
                                     <p class="text-xs text-[#9a6700]">AI generation failed — a custom file will be delivered instead.</p>
                                 @endif
                             </div>
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.65rem] font-extrabold uppercase tracking-wider {{ $badge[1] }}">{{ $badge[0] }}</span>
+                            <div class="flex items-center gap-3">
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.65rem] font-extrabold uppercase tracking-wider {{ $badge[1] }}">{{ $badge[0] }}</span>
+                                @if($document->isApproved())
+                                    <button type="button" x-on:click="confirmAction = 'revokeApproval'; confirmDocumentId = {{ $document->id }}"
+                                        class="text-xs font-bold text-red-600 hover:underline">Revoke</button>
+                                @endif
+                                <button type="button" x-on:click="confirmAction = 'deleteDocument'; confirmDocumentId = {{ $document->id }}"
+                                    class="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -562,24 +751,32 @@ new class extends Component
         </div>
     @endif
 
-    {{-- Approve/Reject/Approve-selected/Delete-custom/Reopen confirmation modal --}}
+    {{-- Shared confirmation modal — text/label/danger-styling per action is looked up from modalText so
+         adding a new confirmAction doesn't require touching a giant per-attribute ternary chain. --}}
     <div x-show="confirmAction !== null" x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
         <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmAction = null">
-            <h3 class="text-base font-semibold text-navy mb-2"
-                x-text="confirmAction === 'approve' ? 'Approve this submission?' : confirmAction === 'reject' ? 'Reject this submission?' : confirmAction === 'deleteCustom' ? 'Remove this custom file?' : confirmAction === 'reopen' ? 'Reopen this submission for review?' : 'Approve the selected document(s)?'"></h3>
-            <p class="text-sm text-empower-muted mb-5"
-                x-text="confirmAction === 'approve' ? 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.' : confirmAction === 'reject' ? 'The client will be asked to re-upload based on your reviewer notes.' : confirmAction === 'deleteCustom' ? 'This cannot be undone. The AI-generated file will be delivered instead unless a new custom file is uploaded.' : confirmAction === 'reopen' ? 'This clears the rejection and reviewer notes, and puts the submission back under review.' : 'The client will be emailed once approved.'"></p>
+            <h3 class="text-base font-semibold text-navy mb-2" x-text="modalText[confirmAction]?.title"></h3>
+            <p class="text-sm text-empower-muted mb-5" x-text="modalText[confirmAction]?.body"></p>
             <div class="flex justify-end gap-3">
                 <button type="button" x-on:click="confirmAction = null"
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
                 <button type="button"
-                    x-on:click="(confirmAction === 'approve' ? $wire.approve() : confirmAction === 'reject' ? $wire.reject() : confirmAction === 'deleteCustom' ? $wire.deleteCustomDocument(confirmDocumentId) : confirmAction === 'reopen' ? $wire.reopen() : $wire.approveSelectedDocuments()).then(() => confirmAction = null).catch(() => {})"
-                    x-bind:class="confirmAction === 'reject' || confirmAction === 'deleteCustom' ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-accent text-navy-dark hover:bg-accent-dark'"
+                    x-on:click="(confirmAction === 'approve' ? $wire.approve()
+                        : confirmAction === 'reject' ? $wire.reject()
+                        : confirmAction === 'deleteCustom' ? $wire.deleteCustomDocument(confirmDocumentId)
+                        : confirmAction === 'reopen' ? $wire.reopen()
+                        : confirmAction === 'approveDocuments' ? $wire.approveSelectedDocuments()
+                        : confirmAction === 'revokeApproval' ? $wire.revokeApproval(confirmDocumentId)
+                        : confirmAction === 'deleteDocument' ? $wire.deleteGeneratedDocument(confirmDocumentId)
+                        : confirmAction === 'deleteUpload' ? $wire.deleteIntakeUpload(confirmUploadId)
+                        : $wire.deleteSubmission()
+                    ).then(() => confirmAction = null).catch(() => {})"
+                    x-bind:class="modalText[confirmAction]?.danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-accent text-navy-dark hover:bg-accent-dark'"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors">
-                    <span x-text="confirmAction === 'reject' ? 'Reject' : confirmAction === 'deleteCustom' ? 'Remove' : confirmAction === 'reopen' ? 'Reopen' : 'Approve'"></span>
+                    <span x-text="modalText[confirmAction]?.label"></span>
                 </button>
             </div>
         </div>

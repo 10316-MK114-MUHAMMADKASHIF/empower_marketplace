@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'user_id', 'package_id', 'checkout_batch_id', 'status', 'payment_status', 'billing_cycle',
@@ -65,5 +66,26 @@ class Order extends Model
     public function isPaid(): bool
     {
         return $this->payment_status === PaymentStatus::SimulatedPaid;
+    }
+
+    /**
+     * Delete every file this order owns (generated documents, intake uploads) ahead of a
+     * DB-level cascading delete, which removes the rows but never touches storage.
+     */
+    public function deleteCascadingFiles(): void
+    {
+        foreach ($this->generatedDocuments as $document) {
+            foreach ([$document->pdf_storage_path, $document->docx_storage_path, $document->custom_storage_path] as $path) {
+                if ($path) {
+                    Storage::disk('local')->delete($path);
+                }
+            }
+        }
+
+        foreach ($this->intakeSubmission?->intakeUploads ?? [] as $upload) {
+            if ($upload->storage_path) {
+                Storage::disk('local')->delete($upload->storage_path);
+            }
+        }
     }
 }

@@ -10,6 +10,7 @@ use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Mail\ClientDocumentsApprovedMail;
 use App\Mail\ClientSubmissionStatusMail;
+use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -180,6 +181,70 @@ class AdminPanelTest extends TestCase
 
         $submission->refresh();
         $this->assertSame(IntakeSubmissionStatus::UnderReview, $submission->status);
+    }
+
+    public function test_admin_can_edit_intake_answers(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        GeneratedDocument::factory()->completed()->create(['order_id' => $submission->order_id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('toggleEditAnswers')
+            ->set('answersJson', '{"practice_name": "Updated Practice"}')
+            ->call('saveAnswers')
+            ->assertHasNoErrors();
+
+        $submission->refresh();
+        $this->assertSame(['practice_name' => 'Updated Practice'], $submission->handbook_answers);
+        $this->assertDatabaseHas('generated_documents', ['order_id' => $submission->order_id, 'is_stale' => true, 'stale_reason' => 'handbook_answers_updated']);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'submission.answers_updated']);
+    }
+
+    public function test_editing_answers_with_invalid_json_fails(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('toggleEditAnswers')
+            ->set('answersJson', 'not valid json')
+            ->call('saveAnswers')
+            ->assertHasErrors('answersJson');
+    }
+
+    public function test_admin_can_delete_an_intake_upload(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        Storage::disk('local')->put('intake/upload.pdf', 'fake-upload');
+        $upload = IntakeUpload::factory()->create(['intake_submission_id' => $submission->id, 'storage_path' => 'intake/upload.pdf']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteIntakeUpload', $upload->id);
+
+        $this->assertDatabaseMissing('intake_uploads', ['id' => $upload->id]);
+        Storage::disk('local')->assertMissing('intake/upload.pdf');
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'upload.deleted']);
+    }
+
+    public function test_admin_can_delete_a_submission(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteSubmission')
+            ->assertRedirect(route('admin.submissions'));
+
+        $this->assertDatabaseMissing('intake_submissions', ['id' => $submission->id]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'submission.deleted']);
     }
 
     public function test_rejecting_a_submission_emails_the_client(): void
@@ -433,6 +498,43 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.custom_deleted']);
     }
 
+    public function test_admin_can_revoke_an_approved_documents_approval(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->approved()->create(['order_id' => $submission->order_id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('revokeApproval', $document->id);
+
+        $document->refresh();
+        $this->assertNull($document->reviewed_at);
+        $this->assertNull($document->reviewed_by);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.approval_revoked']);
+    }
+
+    public function test_admin_can_delete_a_generated_document(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('compliance/doc.pdf', 'contents');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->create([
+            'order_id' => $submission->order_id,
+            'pdf_storage_path' => 'compliance/doc.pdf',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteGeneratedDocument', $document->id);
+
+        $this->assertDatabaseMissing('generated_documents', ['id' => $document->id]);
+        Storage::disk('local')->assertMissing('compliance/doc.pdf');
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.deleted']);
+    }
+
     public function test_deleting_a_custom_document_that_is_not_the_active_delivery_source_keeps_the_prior_approval(): void
     {
         Storage::fake('local');
@@ -506,6 +608,93 @@ class AdminPanelTest extends TestCase
             ->call('markContacted', $lead->id);
 
         $this->assertTrue($lead->fresh()->is_contacted);
+    }
+
+    public function test_admin_lead_form_pages_render(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $lead = Lead::factory()->create();
+
+        $this->withoutVite()->actingAs($admin);
+
+        $this->get(route('admin.leads.create'))->assertOk();
+        $this->get(route('admin.leads.edit', $lead))->assertOk();
+    }
+
+    public function test_admin_can_create_a_lead(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.lead-form')
+            ->set('name', 'Manually Added Lead')
+            ->set('email', 'manual-lead@example.com')
+            ->set('message', 'Interested in the Essential package.')
+            ->set('adminNotes', 'Called in, not via the contact form.')
+            ->call('save')
+            ->assertRedirect(route('admin.leads'));
+
+        $this->assertDatabaseHas('leads', [
+            'name' => 'Manually Added Lead',
+            'email' => 'manual-lead@example.com',
+            'admin_notes' => 'Called in, not via the contact form.',
+        ]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'lead.created']);
+    }
+
+    public function test_admin_can_edit_a_lead(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $lead = Lead::factory()->create(['name' => 'Old Lead Name']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.lead-form', ['lead' => $lead])
+            ->set('name', 'New Lead Name')
+            ->set('adminNotes', 'Followed up by phone.')
+            ->call('save')
+            ->assertRedirect(route('admin.leads'));
+
+        $lead->refresh();
+        $this->assertSame('New Lead Name', $lead->name);
+        $this->assertSame('Followed up by phone.', $lead->admin_notes);
+    }
+
+    public function test_admin_can_delete_a_lead(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $lead = Lead::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.lead-list')
+            ->call('delete', $lead->id);
+
+        $this->assertDatabaseMissing('leads', ['id' => $lead->id]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'lead.deleted']);
+    }
+
+    // ── Activity log ────────────────────────────────────────────────────────
+
+    public function test_admin_can_view_the_activity_log(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        ActivityLog::record('package.created', 'Findable Event Description', user: $admin);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.activity-log'))
+            ->assertOk()
+            ->assertSee('Findable Event Description');
+    }
+
+    public function test_admin_can_search_the_activity_log(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        ActivityLog::record('package.created', 'A findable package event', user: $admin);
+        ActivityLog::record('lead.deleted', 'An unrelated lead event', user: $admin);
+
+        Livewire::actingAs($admin)
+            ->test('admin.activity-log-list')
+            ->set('search', 'findable package')
+            ->assertSee('A findable package event')
+            ->assertDontSee('An unrelated lead event');
     }
 
     // ── Packages ────────────────────────────────────────────────────────────

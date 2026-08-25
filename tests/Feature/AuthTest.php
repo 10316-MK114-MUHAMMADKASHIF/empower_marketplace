@@ -61,6 +61,19 @@ class AuthTest extends TestCase
             ->assertHasErrors(['email']);
     }
 
+    public function test_deactivated_user_cannot_log_in(): void
+    {
+        $user = User::factory()->create(['password' => 'secret123', 'is_active' => false]);
+
+        Livewire::test('auth.login-form')
+            ->set('email', $user->email)
+            ->set('password', 'secret123')
+            ->call('login')
+            ->assertHasErrors(['email']);
+
+        $this->assertGuest();
+    }
+
     public function test_login_requires_email_and_password(): void
     {
         Livewire::test('auth.login-form')

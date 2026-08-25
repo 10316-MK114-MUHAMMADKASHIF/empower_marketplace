@@ -6,6 +6,9 @@
         'documents' => ['admin.documents', 'Documents'],
         'packages' => ['admin.packages', 'Packages'],
         'leads' => ['admin.leads', 'Leads'],
+        'users' => ['admin.users', 'Users'],
+        'orders' => ['admin.orders', 'Orders'],
+        'activity-log' => ['admin.activity-log', 'Activity Log'],
     ] as $key => [$route, $label])
         <a href="{{ route($route) }}" wire:navigate
             class="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors {{ $active === $key ? 'bg-navy text-white' : 'text-empower-muted hover:bg-page' }}">
