@@ -198,6 +198,21 @@ class AdminUsersOrdersTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'practice.updated']);
     }
 
+    public function test_editing_a_practice_preserves_a_specialty_outside_the_preset_list(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+        $practice = Practice::factory()->create(['user_id' => $client->id, 'specialty' => 'Neurosurgery']);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.user-form', ['user' => $client])
+            ->assertSee('Neurosurgery');
+
+        $component->set('practiceName', $practice->name)->call('save')->assertRedirect(route('admin.users'));
+
+        $this->assertSame('Neurosurgery', $practice->refresh()->specialty);
+    }
+
     public function test_admin_can_add_an_osha_location(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);

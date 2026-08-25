@@ -1102,7 +1102,7 @@ new class extends Component
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span class="text-red-500">*</span></label>
                     <select wire:model="specialty"
                         class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
-                        @foreach(['General Practice','Dermatology','Cardiology','Behavioral Health','Pediatrics','Orthopedics','Dental','Other'] as $s)
+                        @foreach(Practice::SPECIALTIES as $s)
                             <option value="{{ $s }}" @selected($specialty === $s)>{{ $s }}</option>
                         @endforeach
                     </select>

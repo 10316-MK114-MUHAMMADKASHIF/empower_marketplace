@@ -19,6 +19,11 @@ class Practice extends Model
     /** @use HasFactory<PracticeFactory> */
     use HasFactory;
 
+    public const SPECIALTIES = [
+        'General Practice', 'Dermatology', 'Cardiology', 'Behavioral Health',
+        'Pediatrics', 'Orthopedics', 'Dental', 'Other',
+    ];
+
     /**
      * @return array<string, string>
      */

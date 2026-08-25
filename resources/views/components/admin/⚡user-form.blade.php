@@ -373,8 +373,15 @@ new class extends Component
 
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty</label>
-                    <input wire:model="practiceSpecialty" type="text"
+                    <select wire:model="practiceSpecialty"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @if($practiceSpecialty !== '' && ! in_array($practiceSpecialty, Practice::SPECIALTIES, true))
+                            <option value="{{ $practiceSpecialty }}">{{ $practiceSpecialty }}</option>
+                        @endif
+                        @foreach(Practice::SPECIALTIES as $s)
+                            <option value="{{ $s }}">{{ $s }}</option>
+                        @endforeach
+                    </select>
                     @error('practiceSpecialty') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 

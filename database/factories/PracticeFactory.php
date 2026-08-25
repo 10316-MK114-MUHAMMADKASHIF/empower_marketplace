@@ -22,10 +22,7 @@ class PracticeFactory extends Factory
             'logo_path' => null,
             'address' => fake()->streetAddress().', '.fake()->city().', '.fake()->stateAbbr(),
             'npi_number' => fake()->numerify('##########'),
-            'specialty' => fake()->randomElement([
-                'Family Medicine', 'Internal Medicine', 'Pediatrics',
-                'Cardiology', 'Dermatology', 'Orthopedics', 'Neurology',
-            ]),
+            'specialty' => fake()->randomElement(Practice::SPECIALTIES),
             'billable_providers_count' => fake()->numberBetween(1, 20),
             'is_profile_locked' => false,
             'locked_at' => null,
