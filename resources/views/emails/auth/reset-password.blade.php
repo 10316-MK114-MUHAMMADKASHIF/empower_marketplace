@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 # Reset Your Password
 
 Hi {{ $user->name }},

@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 # New Lead Received
 
 A new contact/quote request just came in{{ $lead->package_interest ? ' for the '.ucfirst($lead->package_interest).' package' : '' }}.

@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 # New Payment Received
 
 A client just completed payment for the **{{ $order->package?->name ?? 'Compliance Package' }}** package.

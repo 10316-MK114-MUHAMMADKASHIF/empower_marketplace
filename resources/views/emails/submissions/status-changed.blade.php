@@ -1,5 +1,5 @@
 @php($isApproved = $submission->status === \App\Enums\IntakeSubmissionStatus::Approved)
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 @if($isApproved)
 # Your Intake Documents Have Been Approved
 

@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 # Intake Documents Submitted
 
 A client has submitted intake documents for review.

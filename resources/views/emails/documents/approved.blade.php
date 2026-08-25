@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 # Your Documents Are Ready
 
 The following compliance document{{ $documents->count() > 1 ? 's have' : ' has' }} been reviewed and approved, and{{ $documents->count() > 1 ? ' are' : ' is' }} now available in your portal:

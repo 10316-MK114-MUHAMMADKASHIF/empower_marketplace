@@ -1,4 +1,4 @@
-<x-mail::message>
+<x-mail::message :message="$message ?? null">
 # Thanks, {{ $lead->name }}!
 
 We've received your message and a member of our team will be in touch shortly{{ $lead->package_interest ? ' about the **'.ucfirst($lead->package_interest).'** package' : '' }}.
