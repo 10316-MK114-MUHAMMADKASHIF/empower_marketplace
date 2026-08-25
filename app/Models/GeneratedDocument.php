@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'order_id', 'osha_location_id', 'document_type', 'status',
     'pdf_storage_path', 'docx_storage_path', 'pdf_owner_password',
     'is_stale', 'stale_reason', 'failure_reason', 'generated_at',
-    'reviewed_at', 'reviewed_by', 'delivery_source',
+    'reviewed_at', 'reviewed_by', 'revoked_at', 'delivery_source',
     'custom_storage_path', 'custom_original_filename',
 ])]
 class GeneratedDocument extends Model
@@ -35,6 +35,7 @@ class GeneratedDocument extends Model
             'is_stale' => 'boolean',
             'generated_at' => 'datetime',
             'reviewed_at' => 'datetime',
+            'revoked_at' => 'datetime',
             // owner password is encrypted at rest
             'pdf_owner_password' => 'encrypted',
         ];
@@ -63,6 +64,13 @@ class GeneratedDocument extends Model
     public function isApproved(): bool
     {
         return ! is_null($this->reviewed_at);
+    }
+
+    /** Previously approved, then pulled back for changes (revoked, or un-approved by a
+     *  delivery-source/custom-file change) and not yet re-approved. */
+    public function wasRevoked(): bool
+    {
+        return ! is_null($this->revoked_at) && ! $this->isApproved();
     }
 
     /** Whether this document currently has a deliverable file for its active delivery source. */

@@ -1185,6 +1185,34 @@ class PortalTest extends TestCase
             ->assertDontSee('Pending Review');
     }
 
+    public function test_a_revoked_document_shows_an_updated_badge_instead_of_ready_or_pending_review(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = $this->makeApprovedOrder($user);
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::ComplianceEthicsManual,
+            'reviewed_at' => null,
+            'reviewed_by' => null,
+            'revoked_at' => now(),
+        ]);
+
+        $this->assertTrue($document->wasRevoked());
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->assertSee('Updated')
+            ->assertDontSee('Ready')
+            ->assertDontSee('Download PDF')
+            ->assertDontSee('Pending Review');
+    }
+
     public function test_dashboard_shows_no_expected_documents_when_nothing_was_uploaded(): void
     {
         $user = User::factory()->create();

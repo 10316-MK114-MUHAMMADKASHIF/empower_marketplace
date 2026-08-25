@@ -1480,6 +1480,8 @@ new class extends Component
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Outdated</span>
                                     @elseif($doc->isReady())
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Ready</span>
+                                    @elseif($doc->wasRevoked())
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde8cc] text-[#9a5b0f]">Updated</span>
                                     @elseif($doc->status === DocumentStatus::Failed)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Failed</span>
                                     @elseif($doc->status === DocumentStatus::Completed)
@@ -1490,7 +1492,7 @@ new class extends Component
                                 </div>
                                 @if($doc?->generated_at)
                                     <p class="text-xs text-[#5d6e7f]">
-                                        {{ $doc->is_stale ? 'Last generated' : 'Generated' }} {{ $doc->generated_at->format('M j, Y') }}{{ $doc->is_stale ? ' — details changed since.' : '' }}
+                                        {{ $doc->is_stale ? 'Last generated' : 'Generated' }} {{ $doc->generated_at->format('M j, Y') }}{{ $doc->is_stale ? ' — details changed since.' : ($doc->wasRevoked() ? ' — pulled back for changes, check back soon.' : '') }}
                                     </p>
                                 @else
                                     <p class="text-xs text-[#5d6e7f]">We'll notify you once this is ready.</p>

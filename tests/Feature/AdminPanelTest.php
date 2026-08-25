@@ -562,7 +562,94 @@ class AdminPanelTest extends TestCase
         $document->refresh();
         $this->assertNull($document->reviewed_at);
         $this->assertNull($document->reviewed_by);
+        $this->assertNotNull($document->revoked_at);
+        $this->assertTrue($document->wasRevoked());
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.approval_revoked']);
+    }
+
+    public function test_reapproving_a_revoked_document_clears_the_revoked_flag(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'reviewed_at' => null,
+            'reviewed_by' => null,
+            'revoked_at' => now(),
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('selectedDocumentIds', [$document->id])
+            ->call('approveSelectedDocuments');
+
+        $document->refresh();
+        $this->assertNotNull($document->reviewed_at);
+        $this->assertNull($document->revoked_at);
+        $this->assertFalse($document->wasRevoked());
+    }
+
+    public function test_uploading_a_custom_file_on_an_approved_document_marks_it_revoked(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        $file = UploadedFile::fake()->create('corrected.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set("customDocumentFiles.{$document->id}", $file);
+
+        $document->refresh();
+        $this->assertNull($document->reviewed_at);
+        $this->assertNotNull($document->revoked_at);
+        $this->assertTrue($document->wasRevoked());
+    }
+
+    public function test_uploading_a_custom_file_on_a_never_approved_document_does_not_mark_it_revoked(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        $file = UploadedFile::fake()->create('corrected.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set("customDocumentFiles.{$document->id}", $file);
+
+        $document->refresh();
+        $this->assertNull($document->revoked_at);
+        $this->assertFalse($document->wasRevoked());
+    }
+
+    public function test_setting_delivery_source_on_an_approved_document_marks_it_revoked(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $document = GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $submission->order_id,
+            'custom_storage_path' => 'private/compliance/1/custom/corrected.pdf',
+            'delivery_source' => 'ai_generated',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('setDeliverySource', $document->id, 'custom');
+
+        $document->refresh();
+        $this->assertNull($document->reviewed_at);
+        $this->assertNotNull($document->revoked_at);
+        $this->assertTrue($document->wasRevoked());
     }
 
     public function test_admin_can_delete_a_generated_document(): void

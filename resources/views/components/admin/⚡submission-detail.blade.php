@@ -166,7 +166,7 @@ new class extends Component
             return;
         }
 
-        $document->update(['reviewed_at' => null, 'reviewed_by' => null]);
+        $document->update(['reviewed_at' => null, 'reviewed_by' => null, 'revoked_at' => now()]);
 
         $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
 
@@ -285,7 +285,7 @@ new class extends Component
         }
 
         foreach ($documents as $document) {
-            $document->update(['reviewed_at' => now(), 'reviewed_by' => auth()->id()]);
+            $document->update(['reviewed_at' => now(), 'reviewed_by' => auth()->id(), 'revoked_at' => null]);
         }
 
         ActivityLog::record(
@@ -325,6 +325,8 @@ new class extends Component
             "customDocumentFiles.{$documentId}" => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
+        $wasApproved = $document->isApproved();
+
         $file = $this->customDocumentFiles[$documentId];
         $storagePath = $file->store("private/compliance/{$document->order_id}/custom", 'local');
 
@@ -334,6 +336,7 @@ new class extends Component
             'delivery_source' => DocumentDeliverySource::Custom,
             'reviewed_at' => null,
             'reviewed_by' => null,
+            'revoked_at' => $wasApproved ? now() : $document->revoked_at,
         ]);
 
         // Uploading a custom file is itself the admin's choice to skip the
@@ -372,6 +375,7 @@ new class extends Component
         // AI-generated version means any prior approval no longer reflects
         // what will actually be sent — revoke it so it's reviewed again.
         $wasActiveDeliverySource = $document->delivery_source === DocumentDeliverySource::Custom;
+        $revokes = $wasActiveDeliverySource && $document->isApproved();
 
         $document->update([
             'custom_storage_path' => null,
@@ -379,6 +383,7 @@ new class extends Component
             'delivery_source' => DocumentDeliverySource::AiGenerated,
             'reviewed_at' => $wasActiveDeliverySource ? null : $document->reviewed_at,
             'reviewed_by' => $wasActiveDeliverySource ? null : $document->reviewed_by,
+            'revoked_at' => $revokes ? now() : $document->revoked_at,
         ]);
 
         $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
@@ -419,10 +424,13 @@ new class extends Component
             return;
         }
 
+        $wasApproved = $document->isApproved();
+
         $document->update([
             'delivery_source' => $deliverySource,
             'reviewed_at' => null,
             'reviewed_by' => null,
+            'revoked_at' => $wasApproved ? now() : $document->revoked_at,
         ]);
 
         if (! in_array($documentId, $this->selectedDocumentIds, true)) {
