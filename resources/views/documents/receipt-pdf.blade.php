@@ -7,6 +7,7 @@
         <td width="50%" style="text-align: right; vertical-align: top;">
             <h1 style="color: #12304f; font-size: 18px; margin: 0;">Payment Receipt</h1>
             <p style="color: #6b7280; font-size: 10px; margin-top: 6px;">
+                Order #{{ $order->id }}<br>
                 Receipt #{{ str_pad((string) $order->id, 6, '0', STR_PAD_LEFT) }}<br>
                 {{ $order->paid_at?->format('F j, Y') ?? '—' }}
             </p>

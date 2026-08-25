@@ -32,6 +32,7 @@
             <div class="text-right">
                 <h1 class="text-2xl font-bold tracking-wide text-[#12304f]">Payment Receipt</h1>
                 <p class="mt-2 text-sm text-gray-500 leading-relaxed">
+                    Order #{{ $order->id }}<br>
                     Receipt #{{ str_pad((string) $order->id, 6, '0', STR_PAD_LEFT) }}<br>
                     {{ $order->paid_at?->format('F j, Y') ?? '—' }}
                 </p>
