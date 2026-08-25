@@ -220,38 +220,6 @@ class AdminPanelTest extends TestCase
         $this->assertSame(IntakeSubmissionStatus::UnderReview, $submission->status);
     }
 
-    public function test_admin_can_edit_intake_answers(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission();
-        GeneratedDocument::factory()->completed()->create(['order_id' => $submission->order_id]);
-
-        Livewire::actingAs($admin)
-            ->test('admin.submission-detail', ['submission' => $submission])
-            ->call('toggleEditAnswers')
-            ->set('answersJson', '{"practice_name": "Updated Practice"}')
-            ->call('saveAnswers')
-            ->assertHasNoErrors();
-
-        $submission->refresh();
-        $this->assertSame(['practice_name' => 'Updated Practice'], $submission->handbook_answers);
-        $this->assertDatabaseHas('generated_documents', ['order_id' => $submission->order_id, 'is_stale' => true, 'stale_reason' => 'handbook_answers_updated']);
-        $this->assertDatabaseHas('activity_logs', ['event_type' => 'submission.answers_updated']);
-    }
-
-    public function test_editing_answers_with_invalid_json_fails(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission();
-
-        Livewire::actingAs($admin)
-            ->test('admin.submission-detail', ['submission' => $submission])
-            ->call('toggleEditAnswers')
-            ->set('answersJson', 'not valid json')
-            ->call('saveAnswers')
-            ->assertHasErrors('answersJson');
-    }
-
     public function test_admin_can_delete_an_intake_upload(): void
     {
         Storage::fake('local');

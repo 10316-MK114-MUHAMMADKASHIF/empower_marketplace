@@ -35,10 +35,6 @@ new class extends Component
     /** GeneratedDocument ids checked for bulk approval. */
     public array $selectedDocumentIds = [];
 
-    public bool $editingAnswers = false;
-
-    public string $answersJson = '';
-
     public function mount(IntakeSubmission $submission): void
     {
         $this->submissionId = $submission->id;
@@ -96,44 +92,6 @@ new class extends Component
         );
 
         unset($this->submission);
-    }
-
-    public function toggleEditAnswers(): void
-    {
-        $this->editingAnswers = ! $this->editingAnswers;
-
-        if ($this->editingAnswers) {
-            $this->answersJson = json_encode($this->submission->handbook_answers ?? [], JSON_PRETTY_PRINT);
-        }
-    }
-
-    public function saveAnswers(): void
-    {
-        $decoded = json_decode($this->answersJson, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
-            $this->addError('answersJson', 'Enter valid JSON (an object or array).');
-
-            return;
-        }
-
-        $submission = $this->submission;
-        $submission->update(['handbook_answers' => $decoded]);
-
-        GeneratedDocument::where('order_id', $submission->order_id)
-            ->where('is_stale', false)
-            ->update(['is_stale' => true, 'stale_reason' => 'handbook_answers_updated']);
-
-        ActivityLog::record(
-            'submission.answers_updated',
-            "Intake answers for order #{$submission->order_id} were edited by an admin.",
-            user: auth()->user(),
-            order: $submission->order,
-            subject: $submission,
-        );
-
-        $this->editingAnswers = false;
-        unset($this->submission, $this->documentsForReview);
     }
 
     public function deleteIntakeUpload(int $uploadId): void
@@ -586,28 +544,6 @@ new class extends Component
         @empty
             <p class="text-sm text-empower-muted italic">No files uploaded.</p>
         @endforelse
-    </div>
-
-    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-        <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-navy">Intake Answers</h3>
-            <button type="button" wire:click="toggleEditAnswers" class="text-xs font-bold text-[#1a7aad] hover:underline">
-                {{ $editingAnswers ? 'Cancel' : 'Edit' }}
-            </button>
-        </div>
-
-        @if($editingAnswers)
-            <textarea wire:model="answersJson" rows="8"
-                class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-xs font-mono text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition"></textarea>
-            @error('answersJson') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            <div class="mt-3 flex justify-end">
-                <button wire:click="saveAnswers" class="text-sm font-bold text-[#1a7aad] hover:underline">Save Answers</button>
-            </div>
-        @elseif(empty($submission->handbook_answers))
-            <p class="text-sm text-empower-muted italic">No intake answers recorded yet.</p>
-        @else
-            <pre class="text-xs font-mono text-empower-text whitespace-pre-wrap">{{ json_encode($submission->handbook_answers, JSON_PRETTY_PRINT) }}</pre>
-        @endif
     </div>
 
     @if($this->documentsForReview->isNotEmpty())
