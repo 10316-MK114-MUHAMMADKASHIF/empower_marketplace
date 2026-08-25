@@ -12,6 +12,7 @@ use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
+use App\Mail\ClientPaymentReceiptMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
@@ -603,6 +604,12 @@ new class extends Component
                     }
                 }
             );
+
+            try {
+                Mail::to($order->user->email)->send(new ClientPaymentReceiptMail($order));
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             $orderIds[] = $order->id;
         }

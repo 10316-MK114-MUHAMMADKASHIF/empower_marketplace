@@ -12,6 +12,7 @@ use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
+use App\Mail\ClientPaymentReceiptMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -285,6 +286,26 @@ class PortalTest extends TestCase
         Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($admin->email));
         Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
         Mail::assertNotSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($user->email));
+    }
+
+    public function test_paying_emails_the_client_a_receipt_with_a_pdf_attached(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('cardName', 'Jane Provider')
+            ->set('cardNumber', '4242 4242 4242 4242')
+            ->set('cardExpiry', '12/27')
+            ->set('cardCvc', '123')
+            ->call('pay');
+
+        Mail::assertSent(ClientPaymentReceiptMail::class, fn ($mail) => $mail->hasTo($user->email));
     }
 
     public function test_continuing_after_payment_advances_to_step_2(): void
