@@ -6,7 +6,6 @@ A client just completed payment for the **{{ $order->package?->name ?? 'Complian
 <x-mail::panel>
 **Client:** {{ $order->user?->name }}<br>
 **Email:** {{ $order->user?->email }}<br>
-**Practice:** {{ $order->user?->practice?->name ?: 'Not yet named' }}<br>
 **Amount Paid:** ${{ number_format((float) $order->amount_paid, 2) }}<br>
 **Order #:** {{ $order->id }}
 </x-mail::panel>
