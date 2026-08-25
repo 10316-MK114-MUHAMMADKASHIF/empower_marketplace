@@ -462,8 +462,7 @@ class AdminPanelTest extends TestCase
 
         Livewire::actingAs($admin)
             ->test('admin.submission-detail', ['submission' => $submission])
-            ->set("customDocumentFiles.{$document->id}", $file)
-            ->call('uploadCustomDocument', $document->id);
+            ->set("customDocumentFiles.{$document->id}", $file);
 
         $document->refresh();
         $this->assertSame('custom', $document->delivery_source->value);

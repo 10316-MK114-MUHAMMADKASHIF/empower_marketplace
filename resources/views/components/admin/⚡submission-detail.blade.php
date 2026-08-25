@@ -289,6 +289,13 @@ new class extends Component
         unset($this->documentsForReview);
     }
 
+    /** Livewire calls this automatically as soon as a file finishes uploading into
+     *  customDocumentFiles.{documentId} — no separate "Upload" click needed. */
+    public function updatedCustomDocumentFiles($value, $key): void
+    {
+        $this->uploadCustomDocument((int) $key);
+    }
+
     public function uploadCustomDocument(int $documentId): void
     {
         $submission = $this->submission;
@@ -642,11 +649,9 @@ new class extends Component
                                 @if($document->showsCustomUploadSlot)
                                     <div class="flex flex-wrap items-center gap-2">
                                         <input wire:model="customDocumentFiles.{{ $document->id }}" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                            wire:loading.attr="disabled" wire:target="customDocumentFiles.{{ $document->id }}"
                                             class="block text-xs text-[#5d6e7f] file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                                        <button type="button" wire:click="uploadCustomDocument({{ $document->id }})"
-                                            class="text-xs font-bold text-[#1a7aad] hover:underline">
-                                            Upload {{ $document->hasCustomDocument() ? 'Replacement' : 'Custom File' }}
-                                        </button>
+                                        <span wire:loading wire:target="customDocumentFiles.{{ $document->id }}" class="text-xs font-semibold text-empower-muted">Uploading…</span>
                                     </div>
                                     @error("customDocumentFiles.{$document->id}") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                 @elseif(! $document->hasCustomDocument())
