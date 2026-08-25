@@ -73,6 +73,23 @@ new class extends Component
             });
     }
 
+    /** "Approve Selected" only becomes clickable once every document still awaiting a
+     *  decision (not yet approved, not stale) has a delivery source checked — partial
+     *  selections stay disabled so nothing gets approved by accident before it's ready. */
+    #[Computed]
+    public function allReviewableDocumentsSelected(): bool
+    {
+        $reviewable = $this->documentsForReview->filter(
+            fn (GeneratedDocument $document) => ! $document->isApproved() && ! $document->is_stale
+        );
+
+        if ($reviewable->isEmpty()) {
+            return false;
+        }
+
+        return $reviewable->every(fn (GeneratedDocument $document) => in_array($document->id, $this->selectedDocumentIds, true));
+    }
+
     public function startReview(): void
     {
         $submission = $this->submission;
@@ -559,7 +576,8 @@ new class extends Component
                 <h3 class="text-sm font-semibold text-navy">Document Review</h3>
                 @if($this->documentsForReview->contains(fn ($d) => $d->canBeApproved()))
                     <button type="button" x-on:click="confirmAction = 'approveDocuments'"
-                        @disabled(empty($this->selectedDocumentIds))
+                        @disabled(! $this->allReviewableDocumentsSelected)
+                        title="{{ $this->allReviewableDocumentsSelected ? '' : 'Select a file for every document below to enable this' }}"
                         class="inline-flex items-center gap-1 rounded bg-accent px-4 py-1.5 text-xs font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         Approve Selected
                     </button>

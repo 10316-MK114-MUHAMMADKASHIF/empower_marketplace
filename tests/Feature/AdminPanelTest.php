@@ -373,6 +373,53 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'documents.approved']);
     }
 
+    public function test_approve_selected_stays_disabled_until_every_pending_document_is_selected(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $docOne = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        $docTwo = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::OshaSafetyPlan,
+        ]);
+
+        $component = Livewire::actingAs($admin)->test('admin.submission-detail', ['submission' => $submission]);
+        $this->assertFalse($component->instance()->allReviewableDocumentsSelected());
+
+        $component->set('selectedDocumentIds', [$docOne->id]);
+        $this->assertFalse($component->instance()->allReviewableDocumentsSelected());
+
+        $component->set('selectedDocumentIds', [$docOne->id, $docTwo->id]);
+        $this->assertTrue($component->instance()->allReviewableDocumentsSelected());
+    }
+
+    public function test_approve_selected_ignores_documents_that_are_already_approved_or_stale(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $pending = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        GeneratedDocument::factory()->completed()->approved()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::OshaSafetyPlan,
+        ]);
+        GeneratedDocument::factory()->completed()->stale()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::HipaaPrivacyPolicy,
+        ]);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('selectedDocumentIds', [$pending->id]);
+
+        $this->assertTrue($component->instance()->allReviewableDocumentsSelected());
+    }
+
     public function test_bulk_approval_still_succeeds_when_the_notification_email_fails_to_send(): void
     {
         Mail::shouldReceive('to')->once()->andReturnSelf();
