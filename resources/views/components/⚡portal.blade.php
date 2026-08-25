@@ -1154,12 +1154,20 @@ new class extends Component
                 ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
                 ->values()
                 ->all();
+            // Superset of requiredDownloadKeys — every questionnaire's badge (required or
+            // optional) needs its localStorage flag rehydrated on init, not just the ones
+            // that gate the "continue" button, or optional downloads look forgotten on return.
+            $allDownloadKeys = $this->applicableQuestionnaires
+                ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
+                ->values()
+                ->all();
         @endphp
         <div x-data="{
                 requiredKeys: @js($requiredDownloadKeys),
+                allKeys: @js($allDownloadKeys),
                 downloadedMap: {},
                 init() {
-                    this.requiredKeys.forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' });
+                    this.allKeys.forEach(k => { this.downloadedMap[k] = localStorage.getItem(k) === '1' });
                 },
                 markDownloaded(key) {
                     this.downloadedMap[key] = true;
