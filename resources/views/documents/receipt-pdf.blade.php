@@ -21,10 +21,7 @@
     <tr>
         <td width="50%" style="vertical-align: top;">
             <p style="color: #6b7280; font-size: 9px; text-transform: uppercase; margin: 0;">Billed To</p>
-            <p style="color: #12304f; font-size: 12px; font-weight: bold; margin: 4px 0 0;">{{ $practice?->name ?: 'Practice not yet named' }}</p>
-            @if($practice?->address)
-                <p style="color: #6b7280; font-size: 10px; margin: 2px 0 0;">{{ $practice->address }}</p>
-            @endif
+            <p style="color: #12304f; font-size: 12px; font-weight: bold; margin: 4px 0 0;">{{ $order->user->name }}</p>
             <p style="color: #6b7280; font-size: 10px; margin: 2px 0 0;">{{ $order->user->email }}</p>
         </td>
         <td width="50%" style="text-align: right; vertical-align: top;">
