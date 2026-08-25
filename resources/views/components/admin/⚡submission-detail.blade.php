@@ -10,6 +10,7 @@ use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
+use App\Models\Order;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -286,7 +287,48 @@ new class extends Component
             $this->notice = 'Submission approved, but the client notification email failed to send.';
         }
 
+        // Approving the submission is the decision a client-facing "you're all set" hinges on —
+        // finalize every document that's already ready to go so it doesn't silently sit at
+        // "Pending Review" (and undownloadable) just because nobody separately clicked
+        // "Approve Selected" for it too.
+        $readyDocuments = GeneratedDocument::where('order_id', $submission->order_id)
+            ->get()
+            ->filter(fn (GeneratedDocument $document) => $document->canBeApproved());
+
+        $this->selectedDocumentIds = [];
+        $this->finalizeDocumentApprovals($submission->order, $readyDocuments);
+
         unset($this->submission);
+    }
+
+    /** Marks each document approved and emails the client once, shared by both the
+     *  submission-level "Approve" action and the per-document "Approve Selected" action. */
+    private function finalizeDocumentApprovals(Order $order, Collection $documents): void
+    {
+        if ($documents->isEmpty()) {
+            return;
+        }
+
+        foreach ($documents as $document) {
+            $document->update(['reviewed_at' => now(), 'reviewed_by' => auth()->id()]);
+        }
+
+        ActivityLog::record(
+            'documents.approved',
+            "{$documents->count()} document(s) approved for order #{$order->id}.",
+            user: auth()->user(),
+            order: $order,
+            metadata: ['document_types' => $documents->map(fn ($d) => $d->document_type->value)->all()],
+        );
+
+        try {
+            Mail::to($order->user->email)->send(new ClientDocumentsApprovedMail($order, $documents));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->notice = trim(($this->notice ? $this->notice.' ' : '').'Document(s) approved, but the client notification email failed to send.');
+        }
+
+        unset($this->documentsForReview);
     }
 
     public function uploadCustomDocument(int $documentId): void
@@ -417,33 +459,8 @@ new class extends Component
             ->get()
             ->filter(fn (GeneratedDocument $document) => $document->canBeApproved());
 
-        if ($documents->isEmpty()) {
-            $this->selectedDocumentIds = [];
-
-            return;
-        }
-
-        foreach ($documents as $document) {
-            $document->update(['reviewed_at' => now(), 'reviewed_by' => auth()->id()]);
-        }
-
-        ActivityLog::record(
-            'documents.approved',
-            "{$documents->count()} document(s) approved for order #{$submission->order_id}.",
-            user: auth()->user(),
-            order: $submission->order,
-            metadata: ['document_types' => $documents->map(fn ($d) => $d->document_type->value)->all()],
-        );
-
-        try {
-            Mail::to($submission->order->user->email)->send(new ClientDocumentsApprovedMail($submission->order, $documents));
-        } catch (\Throwable $e) {
-            report($e);
-            $this->notice = 'Document(s) approved, but the client notification email failed to send.';
-        }
-
         $this->selectedDocumentIds = [];
-        unset($this->documentsForReview);
+        $this->finalizeDocumentApprovals($submission->order, $documents);
     }
 
     public function reject(): void

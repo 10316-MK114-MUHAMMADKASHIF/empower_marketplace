@@ -113,6 +113,43 @@ class AdminPanelTest extends TestCase
         ]);
     }
 
+    public function test_approving_a_submission_also_approves_its_ready_documents(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        $document = GeneratedDocument::factory()->completed()->create(['order_id' => $submission->order_id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('approve');
+
+        $document->refresh();
+        $this->assertNotNull($document->reviewed_at);
+        $this->assertSame($admin->id, $document->reviewed_by);
+        $this->assertTrue($document->isReady());
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'documents.approved']);
+    }
+
+    public function test_reject_reopen_and_approve_still_approves_the_ready_document(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        $document = GeneratedDocument::factory()->completed()->create(['order_id' => $submission->order_id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('reviewerNotes', 'Wrong practice name, please fix.')
+            ->call('reject');
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('reopen')
+            ->call('approve');
+
+        $document->refresh();
+        $this->assertTrue($document->isReady());
+    }
+
     public function test_approving_a_submission_emails_the_client(): void
     {
         Mail::fake();
