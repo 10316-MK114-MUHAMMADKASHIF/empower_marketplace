@@ -48,7 +48,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // Admin panel
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', fn () => view('admin.dashboard'))->name('dashboard');
     Route::get('/submissions', fn () => view('admin.submissions'))->name('submissions');
     Route::get('/submissions/{submission}', fn (IntakeSubmission $submission) => view('admin.submission-detail', compact('submission')))

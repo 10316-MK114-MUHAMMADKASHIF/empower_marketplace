@@ -56,7 +56,9 @@ class AdminPanelTest extends TestCase
 
     public function test_guest_cannot_access_admin_routes(): void
     {
-        $this->withoutVite()->get(route('admin.dashboard'))->assertRedirect(route('login'));
+        $this->withoutVite()->get(route('admin.dashboard'))
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('status', 'Please log in to access this page.');
     }
 
     public function test_client_cannot_access_admin_routes(): void
