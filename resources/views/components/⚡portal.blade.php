@@ -997,7 +997,8 @@ new class extends Component
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number</label>
-                            <input wire:model.blur="cardNumber" type="text" placeholder="4242 4242 4242 4242"
+                            <input wire:model.blur="cardNumber" type="text" placeholder="4242 4242 4242 4242" inputmode="numeric" maxlength="23"
+                                x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 19).replace(/(.{4})(?=.)/g, '$1 ')"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
@@ -1010,7 +1011,8 @@ new class extends Component
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC</label>
-                            <input wire:model.blur="cardCvc" type="text" placeholder="123"
+                            <input wire:model.blur="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
+                                x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
                                 class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
