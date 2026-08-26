@@ -831,48 +831,52 @@ new class extends Component
 ?>
 
 @php
-    $steps = [
-        1 => 'Payment',
-        2 => 'Practice Intake',
-        3 => 'Upload & Confirm',
-        4 => 'Review',
-        5 => 'Dashboard',
-    ];
-    $milestone = $this->completedMilestone;
-    $progressPct = ($milestone / 4) * 100;
+$steps = [
+1 => 'Payment',
+2 => 'Practice Intake',
+3 => 'Upload & Confirm',
+4 => 'Review',
+5 => 'Dashboard',
+];
+$milestone = $this->completedMilestone;
+$progressPct = ($milestone / 4) * 100;
 @endphp
 
 <div class="space-y-4">
 
     {{-- ── Portal preview hero ── --}}
     @php
-        $heroPackages = $milestone >= 1 ? $this->batchOrders->pluck('package')->filter()->values() : collect([$this->selectedPackage])->filter()->values();
-        $heroTotal = $heroPackages->sum('annual_price');
+    $heroPackages = $milestone >= 1 ? $this->batchOrders->pluck('package')->filter()->values() :
+    collect([$this->selectedPackage])->filter()->values();
+    $heroTotal = $heroPackages->sum('annual_price');
     @endphp
-    <div class="rounded-[1.25rem] p-4 sm:p-4" style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
+    <div class="rounded-[1.25rem] p-4 sm:p-4"
+        style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
         <div class="flex flex-col lg:flex-row lg:items-center gap-5">
             <div class="flex-1">
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-[0.7rem] font-extrabold tracking-[0.08em] uppercase bg-accent/16 text-[#dff7f3] mb-2">Portal preview</span>
+                <span
+                    class="inline-flex items-center rounded-full px-3 py-1 text-[0.7rem] font-extrabold tracking-[0.08em] uppercase bg-accent/16 text-[#dff7f3] mb-2">Portal
+                    preview</span>
                 <h1 class="text-xl sm:text-2xl font-bold text-white mb-1">
                     @if($heroPackages->isEmpty())
-                        Choose a package
+                    Choose a package
                     @elseif($heroPackages->count() === 1)
-                        Selected package: {{ $heroPackages->first()->name }}
+                    Selected package: {{ $heroPackages->first()->name }}
                     @else
-                        {{ $heroPackages->count() }} packages selected
+                    {{ $heroPackages->count() }} packages selected
                     @endif
                 </h1>
                 <p class="text-white/60 text-sm">Payment, practice intake, review, and document generation.</p>
             </div>
             @if($heroPackages->isNotEmpty())
-                <div class="bg-white/92 rounded-[1.25rem] p-4 min-w-48">
-                    <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
-                    <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal) }}</div>
-                    <div class="text-empower-muted text-xs">per provider / year</div>
-                    <div class="text-empower-muted text-xs mt-1">
-                        {{ $heroPackages->pluck('name')->implode(' + ') }}
-                    </div>
+            <div class="bg-white/92 rounded-[1.25rem] p-4 min-w-48">
+                <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
+                <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal) }}</div>
+                <div class="text-empower-muted text-xs">per provider / year</div>
+                <div class="text-empower-muted text-xs mt-1">
+                    {{ $heroPackages->pluck('name')->implode(' + ') }}
                 </div>
+            </div>
             @endif
         </div>
     </div>
@@ -881,21 +885,21 @@ new class extends Component
     <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <div class="flex justify-between items-center mb-4">
             <p class="text-xs text-[#5d6e7f]">Complete each step to receive your compliance documents.</p>
-            <span class="inline-flex items-center px-3 py-1 rounded-full bg-[#12304f]/[0.08] text-[#12304f] text-[0.72rem] font-extrabold tracking-wide uppercase">
+            <span
+                class="inline-flex items-center px-3 py-1 rounded-full bg-[#12304f]/[0.08] text-[#12304f] text-[0.72rem] font-extrabold tracking-wide uppercase">
                 Step {{ $step }} of 5
             </span>
         </div>
 
         <div class="flex items-start gap-1.5 overflow-x-auto pb-1 -mb-1">
             @foreach ($steps as $n => $title)
-                @php
-                    $isDone = $n <= $milestone;
-                    $isActive = $n === $step;
-                    $reachable = $this->canReach($n);
+            @php
+            $isDone = $n <= $milestone; $isActive=$n===$step; $reachable=$this->canReach($n);
                 @endphp
                 <div class="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[4.5rem] {{ $reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}"
-                     @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" @endif>
-                    <div class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
+                    @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" @endif>
+                    <div
+                        class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
                         {{ $isActive ? 'bg-[#12304f] text-white' : ($isDone ? 'bg-[#d7f3ea] text-[#117a51]' : 'bg-[#edf2f7] text-[#5d6e7f]') }}">
                         @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
                     </div>
@@ -905,128 +909,148 @@ new class extends Component
                     </div>
                 </div>
                 @if(!$loop->last)
-                    <div class="flex-1 h-0.5 mt-[1.125rem] min-w-4 {{ $n < $milestone ? 'bg-[#b8e8d7]' : 'bg-[#dfe7ef]' }}"></div>
+                <div class="flex-1 h-0.5 mt-[1.125rem] min-w-4 {{ $n < $milestone ? 'bg-[#b8e8d7]' : 'bg-[#dfe7ef]' }}">
+                </div>
                 @endif
-            @endforeach
+                @endforeach
         </div>
 
         <div class="mt-4 h-1.5 bg-[#dbe4ee] rounded-full overflow-hidden">
-            <div class="h-full bg-[#12304f] rounded-full transition-all duration-500" style="width: {{ $progressPct }}%"></div>
+            <div class="h-full bg-[#12304f] rounded-full transition-all duration-500"
+                style="width: {{ $progressPct }}%"></div>
         </div>
     </div>
 
     {{-- ── Step 1: Payment ── --}}
     @if($step === 1)
-        <div class="space-y-3">
+    <div class="space-y-3">
         @if($milestone >= 1)
-            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                <div class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5 mb-3">
-                    <span class="text-[#117a51]">&#10003;</span>
-                    <p class="text-sm font-semibold text-[#0f7a4f]">Payment received. Continue to download your practice intake form.</p>
-                </div>
-                <div class="divide-y divide-[#eef2f6]">
-                    @foreach($this->batchOrders as $order)
-                        <div class="flex items-center justify-between gap-3 px-2 py-2.5">
-                            <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
-                            <a href="{{ route('orders.receipt', $order) }}" target="_blank"
-                                class="inline-flex items-center gap-1.5 rounded border border-empower-border px-3 py-1.5 text-xs font-semibold text-navy hover:bg-page transition-colors">
-                                &#8681; View Receipt
-                            </a>
-                        </div>
-                    @endforeach
-                </div>
+        <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <div class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5 mb-3">
+                <span class="text-[#117a51]">&#10003;</span>
+                <p class="text-sm font-semibold text-[#0f7a4f]">Payment received. Continue to download your practice
+                    intake form.</p>
             </div>
+            <div class="divide-y divide-[#eef2f6]">
+                @foreach($this->batchOrders as $order)
+                <div class="flex items-center justify-between gap-3 px-2 py-2.5">
+                    <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
+                    <a href="{{ route('orders.receipt', $order) }}" target="_blank"
+                        class="inline-flex items-center gap-1.5 rounded border border-empower-border px-3 py-1.5 text-xs font-semibold text-navy hover:bg-page transition-colors">
+                        &#8681; View Receipt
+                    </a>
+                </div>
+                @endforeach
+            </div>
+        </div>
         @else
-            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-                <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
-                <p class="text-sm text-empower-muted">
-                    Complete payment first to unlock your practice intake form. Your documents are generated automatically once intake is submitted and reviewed.
-                </p>
-                <p class="text-sm text-empower-muted mt-1 mb-2">Your final invoice reflects the provider count you confirm during intake in the next step.</p>
-                @if(! $this->selectedPackage)
-                    <p class="text-sm text-empower-muted italic mb-2">No package selected.</p>
-                    <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">Browse packages &rarr;</a>
-                @else
-                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
-                        <div>
-                            <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
-                            <p class="text-xs text-empower-muted">${{ number_format($this->selectedPackage->annual_price) }} / year</p>
-                        </div>
-                        <a href="{{ route('home') }}#pricing" class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
-                    </div>
-                    <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
-                        <span class="text-sm font-semibold text-[#173045]">Total</span>
-                        <span class="text-lg font-extrabold text-navy">${{ number_format($this->selectedPackage->annual_price) }}</span>
-                    </div>
-                @endif
+        <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+            <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
+            <p class="text-sm text-empower-muted">
+                Complete payment first to unlock your practice intake form. Your documents are generated automatically
+                once intake is submitted and reviewed.
+            </p>
+            <p class="text-sm text-empower-muted mt-1 mb-2">Your final invoice reflects the provider count you confirm
+                during intake in the next step.</p>
+            @if(! $this->selectedPackage)
+            <p class="text-sm text-empower-muted italic mb-2">No package selected.</p>
+            <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">Browse
+                packages &rarr;</a>
+            @else
+            <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
+                <div>
+                    <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
+                    <p class="text-xs text-empower-muted">${{ number_format($this->selectedPackage->annual_price) }} /
+                        year</p>
+                </div>
+                <a href="{{ route('home') }}#pricing"
+                    class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
+            </div>
+            <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
+                <span class="text-sm font-semibold text-[#173045]">Total</span>
+                <span class="text-lg font-extrabold text-navy">${{ number_format($this->selectedPackage->annual_price)
+                    }}</span>
+            </div>
+            @endif
+        </div>
+
+        @auth
+        @else
+        <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
+            <p class="text-xs text-empower-muted mb-3">Create the account that will manage this practice's Empower
+                portal.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span
+                            class="text-red-500">*</span></label>
+                    <input wire:model.blur="accountName" type="text" placeholder="Jane Provider"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span
+                            class="text-red-500">*</span></label>
+                    <input wire:model.blur="accountEmail" type="email" placeholder="jane@practice.com"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+            </div>
+            <p class="text-xs text-empower-muted mt-2">We'll email you a secure, auto-generated password to log in with.
+            </p>
+        </div>
+        @endauth
+
+        <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
+            <p class="text-xs text-empower-muted mb-3">Preview form only — no real payment is processed here.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card</label>
+                    <input wire:model.blur="cardName" type="text" placeholder="Jane Provider"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number</label>
+                    <input wire:model.blur="cardNumber" type="text" placeholder="4242 4242 4242 4242"
+                        inputmode="numeric" maxlength="23"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 19).replace(/(.{4})(?=.)/g, '$1 ')"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry</label>
+                    <input wire:model.blur="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
+                        maxlength="5"
+                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC</label>
+                    <input wire:model.blur="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
             </div>
 
-            @auth
-            @else
-                    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                        <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
-                        <p class="text-xs text-empower-muted mb-3">Create the account that will manage this practice's Empower portal.</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div class="sm:col-span-2">
-                                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span class="text-red-500">*</span></label>
-                                <input wire:model.blur="accountName" type="text" placeholder="Jane Provider"
-                                    class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                            <div class="sm:col-span-2">
-                                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span class="text-red-500">*</span></label>
-                                <input wire:model.blur="accountEmail" type="email" placeholder="jane@practice.com"
-                                    class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                            </div>
-                        </div>
-                        <p class="text-xs text-empower-muted mt-2">We'll email you a secure, auto-generated password to log in with.</p>
-                    </div>
-                @endauth
-
-                <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                    <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
-                    <p class="text-xs text-empower-muted mb-3">Preview form only — no real payment is processed here.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card</label>
-                            <input wire:model.blur="cardName" type="text" placeholder="Jane Provider"
-                                class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('cardName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number</label>
-                            <input wire:model.blur="cardNumber" type="text" placeholder="4242 4242 4242 4242" inputmode="numeric" maxlength="23"
-                                x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 19).replace(/(.{4})(?=.)/g, '$1 ')"
-                                class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry</label>
-                            <input wire:model.blur="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
-                                x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
-                                class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC</label>
-                            <input wire:model.blur="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
-                                x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
-                                class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-
-                    <div class="mt-3 flex justify-end">
-                        <button wire:click="pay"
-                            class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                            <span wire:loading.remove>Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }} &rarr;</span>
-                            <span wire:loading>Processing…</span>
-                        </button>
-                    </div>
-                </div>
+            <div class="mt-3 flex justify-end">
+                <button wire:click="pay"
+                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
+                    <span wire:loading.remove>Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }}
+                        &rarr;</span>
+                    <span wire:loading>Processing…</span>
+                </button>
+            </div>
+        </div>
         @endif
 
         <div class="flex justify-end">
@@ -1035,150 +1059,167 @@ new class extends Component
                 Continue to Intake Form &rarr;
             </button>
         </div>
-        </div>
+    </div>
     @endif
 
     {{-- ── Step 2: Practice Intake ── --}}
     @if($step === 2)
-        <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            @if($editingProfile)
-                <div class="flex items-center gap-2 rounded-xl bg-[#edf6ff] border border-[#bfdcf3] px-4 py-3 mb-4 text-sm text-[#12304f]">
-                    You're updating practice details for an already-paid plan. Documents you've already generated will be marked outdated until you regenerate them.
-                </div>
-                <h2 class="text-lg font-semibold text-[#12304f] mb-1">Update Your Practice Details</h2>
-            @else
-                <p class="text-xs font-extrabold uppercase tracking-widest text-[#5d6e7f] mb-1">Step 2</p>
-                <h2 class="text-lg font-semibold text-[#12304f] mb-1">Confirm Key Details</h2>
-            @endif
-            <p class="text-sm text-[#5d6e7f] mb-5">This information is inserted directly into your compliance documents — please check accuracy. Practice Name and Logo lock permanently after your first submission.</p>
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        @if($editingProfile)
+        <div
+            class="flex items-center gap-2 rounded-xl bg-[#edf6ff] border border-[#bfdcf3] px-4 py-3 mb-4 text-sm text-[#12304f]">
+            You're updating practice details for an already-paid plan. Documents you've already generated will be marked
+            outdated until you regenerate them.
+        </div>
+        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Update Your Practice Details</h2>
+        @else
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#5d6e7f] mb-1">Step 2</p>
+        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Confirm Key Details</h2>
+        @endif
+        <p class="text-sm text-[#5d6e7f] mb-5">This information is inserted directly into your compliance documents —
+            please check accuracy. Practice Name and Logo lock permanently after your first submission.</p>
 
-            <div class="flex items-start gap-4 mb-5">
-                <div class="flex-shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-[#b9cfe0] bg-[#f7fbfd] flex items-center justify-center overflow-hidden">
-                    @if($this->practice?->logo_path)
-                        <img src="{{ Storage::disk('public')->url($this->practice->logo_path) }}" alt="Practice logo" class="w-full h-full object-contain">
+        <div class="flex items-start gap-4 mb-5">
+            <div
+                class="flex-shrink-0 w-16 h-16 rounded-xl border-2 border-dashed border-[#b9cfe0] bg-[#f7fbfd] flex items-center justify-center overflow-hidden">
+                @if($this->practice?->logo_path)
+                <img src="{{ Storage::disk('public')->url($this->practice->logo_path) }}" alt="Practice logo"
+                    class="w-full h-full object-contain">
+                @else
+                <span class="text-[0.62rem] font-bold text-[#5d6e7f] uppercase tracking-wider">Logo</span>
+                @endif
+            </div>
+            <div class="flex-1">
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
+                    Practice Logo
+                    @if($this->practice?->is_profile_locked)
+                    <span
+                        class="ml-1 inline-flex items-center gap-0.5 text-[0.68rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒
+                        Locked</span>
                     @else
-                        <span class="text-[0.62rem] font-bold text-[#5d6e7f] uppercase tracking-wider">Logo</span>
+                    <span class="text-red-500">*</span>
+                    @endif
+                </label>
+                @unless($this->practice?->is_profile_locked)
+                <input wire:model="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg"
+                    class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                @error('logoFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                @endunless
+                <p class="mt-1 text-xs text-[#5d6e7f]">PNG or SVG recommended, square aspect ratio.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
+                    Practice Name <span class="text-red-500">*</span>
+                    @if($this->practice?->is_profile_locked)
+                    <span
+                        class="ml-1 inline-flex items-center gap-0.5 text-[0.68rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒
+                        Locked</span>
+                    @endif
+                </label>
+                <input wire:model="practiceName" type="text" placeholder="Riverside Family Medicine" {{
+                    $this->practice?->is_profile_locked ? 'disabled' : '' }}
+                class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' : 'border-[#dbe4ee]'
+                }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4
+                py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0]
+                focus:border-transparent transition">
+                @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="sm:col-span-2">
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span
+                        class="text-red-500">*</span></label>
+                <input wire:model="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
+                    class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number <span
+                        class="text-red-500">*</span></label>
+                <input wire:model="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                    placeholder="1234567890" x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
+                    class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                @error('npiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span
+                        class="text-red-500">*</span></label>
+                <select wire:model="specialty"
+                    class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    @foreach(Practice::SPECIALTIES as $s)
+                    <option value="{{ $s }}" @selected($specialty===$s)>{{ $s }}</option>
+                    @endforeach
+                </select>
+                @error('specialty') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers <span
+                        class="text-red-500">*</span></label>
+                <input wire:model="billableProviders" type="number" min="1"
+                    class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+        </div>
+    </div>
+
+    {{--
+    OSHA Locations — commented out for now, re-enable by uncommenting this block.
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-base font-semibold text-[#12304f]">OSHA Locations</h3>
+                <p class="text-xs text-[#5d6e7f] mt-0.5">Add every practice location that needs an OSHA safety
+                    questionnaire on file.</p>
+            </div>
+            <button type="button" wire:click="$dispatch('open-osha-modal')"
+                class="inline-flex items-center gap-1 rounded bg-[#12304f] px-4 py-2 text-xs font-bold text-white hover:bg-[#0a2037] transition-colors">
+                + Add Location
+            </button>
+        </div>
+
+        @if($this->oshaLocations->isEmpty())
+        <p class="text-sm text-[#5d6e7f] italic">No locations added yet.</p>
+        @else
+        <div class="divide-y divide-[#eef2f6]">
+            @foreach($this->oshaLocations as $loc)
+            <div class="flex items-center justify-between gap-3 py-3">
+                <div>
+                    <p class="text-sm font-semibold text-[#12304f]">{{ $loc->name }}</p>
+                    @if($loc->address)
+                    <p class="text-xs text-[#5d6e7f]">{{ $loc->address }}</p>
                     @endif
                 </div>
-                <div class="flex-1">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
-                        Practice Logo
-                        @if($this->practice?->is_profile_locked)
-                            <span class="ml-1 inline-flex items-center gap-0.5 text-[0.68rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒 Locked</span>
-                        @else
-                            <span class="text-red-500">*</span>
-                        @endif
-                    </label>
-                    @unless($this->practice?->is_profile_locked)
-                        <input wire:model="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg"
-                            class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                        @error('logoFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    @endunless
-                    <p class="mt-1 text-xs text-[#5d6e7f]">PNG or SVG recommended, square aspect ratio.</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
-                        Practice Name <span class="text-red-500">*</span>
-                        @if($this->practice?->is_profile_locked)
-                            <span class="ml-1 inline-flex items-center gap-0.5 text-[0.68rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒 Locked</span>
-                        @endif
-                    </label>
-                    <input wire:model="practiceName" type="text" placeholder="Riverside Family Medicine"
-                        {{ $this->practice?->is_profile_locked ? 'disabled' : '' }}
-                        class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' : 'border-[#dbe4ee]' }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
-                    @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-
-                <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span class="text-red-500">*</span></label>
-                    <input wire:model="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
-                        class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
-                    @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number <span class="text-red-500">*</span></label>
-                    <input wire:model="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="1234567890"
-                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
-                        class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
-                    @error('npiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span class="text-red-500">*</span></label>
-                    <select wire:model="specialty"
-                        class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
-                        @foreach(Practice::SPECIALTIES as $s)
-                            <option value="{{ $s }}" @selected($specialty === $s)>{{ $s }}</option>
-                        @endforeach
-                    </select>
-                    @error('specialty') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers <span class="text-red-500">*</span></label>
-                    <input wire:model="billableProviders" type="number" min="1"
-                        class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
-                    @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-            </div>
-        </div>
-
-        {{--
-        OSHA Locations — commented out for now, re-enable by uncommenting this block.
-        <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-base font-semibold text-[#12304f]">OSHA Locations</h3>
-                    <p class="text-xs text-[#5d6e7f] mt-0.5">Add every practice location that needs an OSHA safety questionnaire on file.</p>
-                </div>
-                <button type="button" wire:click="$dispatch('open-osha-modal')"
-                    class="inline-flex items-center gap-1 rounded bg-[#12304f] px-4 py-2 text-xs font-bold text-white hover:bg-[#0a2037] transition-colors">
-                    + Add Location
+                <button type="button" wire:click="$dispatch('open-osha-modal', { locationId: {{ $loc->id }} })"
+                    class="text-xs font-semibold text-[#1a7aad] hover:underline flex-shrink-0">
+                    Edit
                 </button>
             </div>
-
-            @if($this->oshaLocations->isEmpty())
-                <p class="text-sm text-[#5d6e7f] italic">No locations added yet.</p>
-            @else
-                <div class="divide-y divide-[#eef2f6]">
-                    @foreach($this->oshaLocations as $loc)
-                        <div class="flex items-center justify-between gap-3 py-3">
-                            <div>
-                                <p class="text-sm font-semibold text-[#12304f]">{{ $loc->name }}</p>
-                                @if($loc->address)
-                                    <p class="text-xs text-[#5d6e7f]">{{ $loc->address }}</p>
-                                @endif
-                            </div>
-                            <button type="button" wire:click="$dispatch('open-osha-modal', { locationId: {{ $loc->id }} })"
-                                class="text-xs font-semibold text-[#1a7aad] hover:underline flex-shrink-0">
-                                Edit
-                            </button>
-                        </div>
-                    @endforeach
-                </div>
-            @endif
+            @endforeach
         </div>
-        --}}
+        @endif
+    </div>
+    --}}
 
-        @php
-            $requiredDownloadKeys = $editingProfile ? [] : $this->applicableQuestionnaires
-                ->where('required', true)
-                ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
-                ->values()
-                ->all();
-            // Superset of requiredDownloadKeys — every questionnaire's badge (required or
-            // optional) needs its localStorage flag rehydrated on init, not just the ones
-            // that gate the "continue" button, or optional downloads look forgotten on return.
-            $allDownloadKeys = $this->applicableQuestionnaires
-                ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
-                ->values()
-                ->all();
-        @endphp
-        <div x-data="{
+    @php
+    $requiredDownloadKeys = $editingProfile ? [] : $this->applicableQuestionnaires
+    ->where('required', true)
+    ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
+    ->values()
+    ->all();
+    // Superset of requiredDownloadKeys — every questionnaire's badge (required or
+    // optional) needs its localStorage flag rehydrated on init, not just the ones
+    // that gate the "continue" button, or optional downloads look forgotten on return.
+    $allDownloadKeys = $this->applicableQuestionnaires
+    ->map(fn ($q) => 'questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value)
+    ->values()
+    ->all();
+    @endphp
+    <div x-data="{
                 requiredKeys: @js($requiredDownloadKeys),
                 allKeys: @js($allDownloadKeys),
                 downloadedMap: {},
@@ -1193,97 +1234,103 @@ new class extends Component
                     return this.requiredKeys.every(k => this.downloadedMap[k]);
                 }
             }"
-            class="space-y-4"
-        >
-            @unless($editingProfile)
-                {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    @foreach($this->applicableQuestionnaires as $questionnaire)
-                        @php $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$questionnaire['uploadType']->value; @endphp
-                        <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col">
-                            <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3 mx-auto">📄</div>
-                            <p class="font-semibold text-sm text-[#12304f] mb-1">
-                                {{ $questionnaire['title'] }}
-                                @unless($questionnaire['required'])
-                                    <span class="text-[#5d6e7f] font-normal">(optional)</span>
-                                @endunless
-                            </p>
-                            <p class="text-xs text-[#5d6e7f] mb-4 flex-1">{{ $questionnaire['description'] }}</p>
-                            <a href="{{ Questionnaires::url($questionnaire['file']) }}"
-                                @click="markDownloaded('{{ $downloadKey }}')"
-                                class="inline-flex items-center justify-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0a2037] transition-colors">
-                                &#8681; Download Form
-                            </a>
-                            <p x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="mt-2 text-xs font-semibold text-[#0f7a4f]">
-                                &#10003; Downloaded
-                            </p>
-                            <p x-show="!downloadedMap['{{ $downloadKey }}']" x-cloak class="mt-2 text-xs text-[#5d6e7f]">
-                                Not downloaded yet
-                            </p>
-                        </div>
-                    @endforeach
-                </div>
-                <p x-show="!allRequiredDownloaded" x-cloak class="text-xs font-semibold text-[#9a6700]">
-                    Please download the required questionnaire(s) above before continuing.
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5 space-y-4">
+        @unless($editingProfile)
+        {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            @foreach($this->applicableQuestionnaires as $questionnaire)
+            @php $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$questionnaire['uploadType']->value;
+            @endphp
+            <div
+                class="border-2 border-dashed border-[#b9cfe0] rounded-[1.25rem] bg-[#f7fbfd] p-6 text-center flex flex-col">
+                <div
+                    class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3 mx-auto">
+                    📄</div>
+                <p class="font-semibold text-sm text-[#12304f] mb-1">
+                    {{ $questionnaire['title'] }}
+                    @unless($questionnaire['required'])
+                    <span class="text-[#5d6e7f] font-normal">(optional)</span>
+                    @endunless
                 </p>
-            @endunless
+                <p class="text-xs text-[#5d6e7f] mb-4 flex-1">{{ $questionnaire['description'] }}</p>
+                <a href="{{ Questionnaires::url($questionnaire['file']) }}"
+                    @click="markDownloaded('{{ $downloadKey }}')"
+                    class="inline-flex items-center justify-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0a2037] transition-colors">
+                    &#8681; Download Form
+                </a>
+                <p x-show="downloadedMap['{{ $downloadKey }}']" x-cloak
+                    class="mt-2 text-xs font-semibold text-[#0f7a4f]">
+                    &#10003; Downloaded
+                </p>
+                <p x-show="!downloadedMap['{{ $downloadKey }}']" x-cloak class="mt-2 text-xs text-[#5d6e7f]">
+                    Not downloaded yet
+                </p>
+            </div>
+            @endforeach
+        </div>
+        <p x-show="!allRequiredDownloaded" x-cloak class="text-xs font-semibold text-[#9a6700]">
+            Please download the required questionnaire(s) above before continuing.
+        </p>
+        @endunless
 
         <div class="flex justify-between">
             @if($editingProfile)
-                <button wire:click="cancelEditProfile"
-                    class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
-                    Cancel
-                </button>
+            <button wire:click="cancelEditProfile"
+                class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                Cancel
+            </button>
             @else
-                <button wire:click="goToStep(1)"
-                    class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
-                    &larr; Back
-                </button>
+            <button wire:click="goToStep(1)"
+                class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                &larr; Back
+            </button>
             @endif
-            <button wire:click="saveProfile"
-                :disabled="!allRequiredDownloaded"
+            <button wire:click="saveProfile" :disabled="!allRequiredDownloaded"
                 :class="!allRequiredDownloaded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#5bb2aa]'"
                 class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                <span wire:loading.remove>{{ $editingProfile ? 'Save Changes' : 'Submit Profile & Continue' }} &rarr;</span>
+                <span wire:loading.remove>{{ $editingProfile ? 'Save Changes' : 'Submit Profile & Continue' }}
+                    &rarr;</span>
                 <span wire:loading>Saving…</span>
             </button>
         </div>
-        </div>
+    </div>
 
-        <livewire:portal.osha-location-modal :practiceId="$this->practice?->id ?? 0" />
+    <livewire:portal.osha-location-modal :practiceId="$this->practice?->id ?? 0" />
     @endif
 
     {{-- ── Step 3: Intake Upload ── --}}
     @if($step === 3)
-        @php $rejected = (bool) $this->rejectedSubmission; @endphp
+    @php $rejected = (bool) $this->rejectedSubmission; @endphp
 
-        <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <p class="text-xs font-extrabold uppercase tracking-widest text-[#5d6e7f] mb-1">Step 3</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">Intake Upload</h2>
-            <p class="text-sm text-[#5d6e7f] mb-5">
-                @if($rejected)
-                    Your previous submission was rejected. Please address the reviewer's notes and re-upload.
-                @else
-                    Upload your completed intake documents. Our team will review them before generating your compliance documents.
-                @endif
-            </p>
-
-            @if($rejected && $this->rejectedSubmission?->reviewer_notes)
-                <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    <p class="font-semibold mb-0.5">Reviewer notes:</p>
-                    <p>{{ $this->rejectedSubmission->reviewer_notes }}</p>
-                </div>
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#5d6e7f] mb-1">Step 3</p>
+        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Intake Upload</h2>
+        <p class="text-sm text-[#5d6e7f] mb-5">
+            @if($rejected)
+            Your previous submission was rejected. Please address the reviewer's notes and re-upload.
+            @else
+            Upload your completed intake documents. Our team will review them before generating your compliance
+            documents.
             @endif
+        </p>
 
-            {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 —
-                 and every one shown here becomes mandatory to upload back. --}}
-            @php
-                $downloadTrackingKeyMap = $this->applicableQuestionnaires
-                    ->mapWithKeys(fn ($q) => ['questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value => $q['uploadType']->value])
-                    ->all();
-            @endphp
-            <div x-data="{
+        @if($rejected && $this->rejectedSubmission?->reviewer_notes)
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p class="font-semibold mb-0.5">Reviewer notes:</p>
+            <p>{{ $this->rejectedSubmission->reviewer_notes }}</p>
+        </div>
+        @endif
+
+        {{-- Only show an upload box for questionnaires the user actually downloaded in Step 2 —
+        and every one shown here becomes mandatory to upload back. --}}
+        @php
+        $downloadTrackingKeyMap = $this->applicableQuestionnaires
+        ->mapWithKeys(fn ($q) => ['questionnaire-downloaded-'.auth()->id().'-'.$q['uploadType']->value =>
+        $q['uploadType']->value])
+        ->all();
+        @endphp
+        <div x-data="{
                     downloadedMap: {},
                     init() {
                         const keyMap = @js($downloadTrackingKeyMap);
@@ -1293,301 +1340,349 @@ new class extends Component
                     get anyDownloaded() {
                         return Object.values(this.downloadedMap).some(v => v)
                     }
-                }"
-            >
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                    @foreach($this->applicableQuestionnaires as $questionnaire)
-                        @php
-                            $uploadKey = $questionnaire['uploadType']->value;
-                            $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$uploadKey;
-                            $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
-                            $existingUpload = $this->existingUploadsByType->get($uploadKey);
-                        @endphp
-                        <div wire:key="questionnaire-upload-{{ $uploadKey }}" x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
-                            <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
-                            <p class="font-semibold text-sm text-[#12304f] mb-1">
-                                {{ $questionnaire['title'] }}
-                            </p>
-                            <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
-                            @if($existingUpload && ! $uploadedFile)
-                                <p class="mt-1 mb-3 text-xs text-[#5d6e7f]">
-                                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
-                                        ✓ Already uploaded: {{ $existingUpload->original_filename }}
-                                    </span>
-                                    <br>Choose a new file below to replace it.
-                                </p>
-                            @endif
-                            <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
-                                class="block w-full max-w-full truncate text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
-                            @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
-                            @if($uploadedFile)
-                                <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-3 flex items-center justify-center gap-2 flex-wrap">
-                                    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
-                                        ✓ {{ $uploadedFile->getClientOriginalName() }}
-                                    </span>
-                                    <button type="button" wire:click="removeQuestionnaireFile('{{ $uploadKey }}')" class="text-xs font-bold text-red-600 hover:underline">
-                                        Remove
-                                    </button>
-                                </div>
-                                <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
-                            @endif
-                        </div>
-                    @endforeach
+                }">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                @foreach($this->applicableQuestionnaires as $questionnaire)
+                @php
+                $uploadKey = $questionnaire['uploadType']->value;
+                $downloadKey = 'questionnaire-downloaded-'.auth()->id().'-'.$uploadKey;
+                $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
+                $existingUpload = $this->existingUploadsByType->get($uploadKey);
+                @endphp
+                <div wire:key="questionnaire-upload-{{ $uploadKey }}" x-show="downloadedMap['{{ $downloadKey }}']"
+                    x-cloak class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
+                    <div
+                        class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">
+                        📄</div>
+                    <p class="font-semibold text-sm text-[#12304f] mb-1">
+                        {{ $questionnaire['title'] }}
+                    </p>
+                    <p class="text-xs text-[#5d6e7f] mb-3">{{ $questionnaire['description'] }}</p>
+                    @if($existingUpload && ! $uploadedFile)
+                    <p class="mt-1 mb-3 text-xs text-[#5d6e7f]">
+                        <span
+                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                            ✓ Already uploaded: {{ $existingUpload->original_filename }}
+                        </span>
+                        <br>Choose a new file below to replace it.
+                    </p>
+                    @endif
+                    <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}"
+                        accept=".pdf,.jpg,.jpeg,.png,.docx"
+                        class="block w-full max-w-full truncate text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                    @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                    @if($uploadedFile)
+                    <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}"
+                        class="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                        <span
+                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                            ✓ {{ $uploadedFile->getClientOriginalName() }}
+                        </span>
+                        <button type="button" wire:click="removeQuestionnaireFile('{{ $uploadKey }}')"
+                            class="text-xs font-bold text-red-600 hover:underline">
+                            Remove
+                        </button>
+                    </div>
+                    <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}"
+                        class="mt-2 text-xs text-[#5d6e7f]">Uploading…</div>
+                    @endif
                 </div>
-                <p x-show="!anyDownloaded" x-cloak class="text-sm text-[#5d6e7f] italic mb-4">
-                    You haven't downloaded any questionnaires yet. Go back to Step 2 to download the ones you need to fill out.
-                </p>
+                @endforeach
             </div>
-
-            <div class="flex justify-end">
-                <button wire:click="submitIntake"
-                    class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                    <span wire:loading.remove>Submit for Review &rarr;</span>
-                    <span wire:loading>Submitting…</span>
-                </button>
-            </div>
+            <p x-show="!anyDownloaded" x-cloak class="text-sm text-[#5d6e7f] italic mb-4">
+                You haven't downloaded any questionnaires yet. Go back to Step 2 to download the ones you need to fill
+                out.
+            </p>
         </div>
+
+        <div class="flex justify-end">
+            <button wire:click="submitIntake"
+                class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
+                <span wire:loading.remove>Submit for Review &rarr;</span>
+                <span wire:loading>Submitting…</span>
+            </button>
+        </div>
+    </div>
     @endif
 
     {{-- ── Step 4: Review Status ── --}}
     @if($step === 4)
-        <div wire:poll.5s="checkApproval"
-             class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <p class="text-xs font-extrabold uppercase tracking-widest text-[#5d6e7f] mb-1">Step 4</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">Review Status</h2>
-            <p class="text-sm text-[#5d6e7f] mb-5">Our team is reviewing your submission. This page refreshes automatically.</p>
+    <div wire:poll.5s="checkApproval"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <p class="text-xs font-extrabold uppercase tracking-widest text-[#5d6e7f] mb-1">Step 4</p>
+        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Review Status</h2>
+        <p class="text-sm text-[#5d6e7f] mb-5">Our team is reviewing your submission. This page refreshes automatically.
+        </p>
 
-            <div class="space-y-3">
-                @forelse($this->batchOrders as $order)
-                    @php
-                        $status = $order->intakeSubmission?->status;
-                        [$cardClasses, $iconClasses, $icon, $label] = match(true) {
-                            $status === IntakeSubmissionStatus::Approved => ['bg-[#f0fdf4] border-[#86efac]', 'bg-[#dcfce7] text-[#166534]', '✅', 'Approved — documents are being generated'],
-                            $status === IntakeSubmissionStatus::UnderReview => ['bg-[#fffbf0] border-[#fde68a]', 'bg-[#fef3c7] text-[#92400e]', '🔍', 'Under review'],
-                            $status === IntakeSubmissionStatus::Rejected => ['bg-[#fff1f2] border-[#fecdd3]', 'bg-[#fee2e2] text-[#9f1239]', '❌', 'Submission rejected'],
-                            default => ['bg-[#f4f7fb] border-[#dbe4ee]', 'bg-[#12304f]/[0.08] text-[#12304f]', '⏳', 'Submission received'],
-                        };
-                        $textClass = match(true) {
-                            $status === IntakeSubmissionStatus::Approved => 'text-[#166534]',
-                            $status === IntakeSubmissionStatus::UnderReview => 'text-[#92400e]',
-                            $status === IntakeSubmissionStatus::Rejected => 'text-[#9f1239]',
-                            default => 'text-[#12304f]',
-                        };
-                    @endphp
-                    <div class="flex items-start gap-4 rounded-xl border p-4 {{ $cardClasses }}">
-                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 {{ $iconClasses }}">{{ $icon }}</div>
-                        <div class="flex-1">
-                            <p class="font-semibold {{ $textClass }}">{{ $order->package?->name }} &middot; {{ $label }}</p>
-                            @if($status === IntakeSubmissionStatus::Rejected && $order->intakeSubmission?->reviewer_notes)
-                                <p class="text-sm text-[#881337] mt-1">{{ $order->intakeSubmission->reviewer_notes }}</p>
-                                <button wire:click="goToStep(3)" class="mt-2 inline-flex items-center gap-1 rounded bg-[#9f1239] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#881337] transition-colors">
-                                    Re-upload &rarr;
-                                </button>
-                            @elseif(! $status)
-                                <p class="text-sm text-[#5d6e7f]">No submission found.</p>
-                            @else
-                                <p class="text-sm text-[#5d6e7f]">
-                                    {{ $status === IntakeSubmissionStatus::UnderReview ? "An Empower compliance specialist is reviewing your submission." : 'Your intake documents are in the queue for review.' }}
-                                </p>
-                            @endif
-                        </div>
-                    </div>
-                @empty
-                    <p class="text-sm text-[#5d6e7f] italic">No submission found.</p>
-                @endforelse
+        <div class="space-y-3">
+            @forelse($this->batchOrders as $order)
+            @php
+            $status = $order->intakeSubmission?->status;
+            [$cardClasses, $iconClasses, $icon, $label] = match(true) {
+            $status === IntakeSubmissionStatus::Approved => ['bg-[#f0fdf4] border-[#86efac]', 'bg-[#dcfce7]
+            text-[#166534]', '✅', 'Approved — documents are being generated'],
+            $status === IntakeSubmissionStatus::UnderReview => ['bg-[#fffbf0] border-[#fde68a]', 'bg-[#fef3c7]
+            text-[#92400e]', '🔍', 'Under review'],
+            $status === IntakeSubmissionStatus::Rejected => ['bg-[#fff1f2] border-[#fecdd3]', 'bg-[#fee2e2]
+            text-[#9f1239]', '❌', 'Submission rejected'],
+            default => ['bg-[#f4f7fb] border-[#dbe4ee]', 'bg-[#12304f]/[0.08] text-[#12304f]', '⏳', 'Submission
+            received'],
+            };
+            $textClass = match(true) {
+            $status === IntakeSubmissionStatus::Approved => 'text-[#166534]',
+            $status === IntakeSubmissionStatus::UnderReview => 'text-[#92400e]',
+            $status === IntakeSubmissionStatus::Rejected => 'text-[#9f1239]',
+            default => 'text-[#12304f]',
+            };
+            @endphp
+            <div class="flex items-start gap-4 rounded-xl border p-4 {{ $cardClasses }}">
+                <div
+                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0 {{ $iconClasses }}">
+                    {{ $icon }}</div>
+                <div class="flex-1">
+                    <p class="font-semibold {{ $textClass }}">{{ $order->package?->name }} &middot; {{ $label }}</p>
+                    @if($status === IntakeSubmissionStatus::Rejected && $order->intakeSubmission?->reviewer_notes)
+                    <p class="text-sm text-[#881337] mt-1">{{ $order->intakeSubmission->reviewer_notes }}</p>
+                    <button wire:click="goToStep(3)"
+                        class="mt-2 inline-flex items-center gap-1 rounded bg-[#9f1239] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#881337] transition-colors">
+                        Re-upload &rarr;
+                    </button>
+                    @elseif(! $status)
+                    <p class="text-sm text-[#5d6e7f]">No submission found.</p>
+                    @else
+                    <p class="text-sm text-[#5d6e7f]">
+                        {{ $status === IntakeSubmissionStatus::UnderReview ? "An Empower compliance specialist is
+                        reviewing your submission." : 'Your intake documents are in the queue for review.' }}
+                    </p>
+                    @endif
+                </div>
             </div>
-
-            @if($milestone >= 4)
-                <button wire:click="goToStep(5)" class="mt-4 inline-flex items-center gap-1 rounded bg-[#76c8c0] px-4 py-1.5 text-xs font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
-                    Go to Dashboard &rarr;
-                </button>
-            @endif
+            @empty
+            <p class="text-sm text-[#5d6e7f] italic">No submission found.</p>
+            @endforelse
         </div>
+
+        @if($milestone >= 4)
+        <button wire:click="goToStep(5)"
+            class="mt-4 inline-flex items-center gap-1 rounded bg-[#76c8c0] px-4 py-1.5 text-xs font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
+            Go to Dashboard &rarr;
+        </button>
+        @endif
+    </div>
     @endif
 
     {{-- ── Step 5: Dashboard ── --}}
     @if($step === 5)
-        <p class="text-[0.65rem] font-extrabold uppercase tracking-widest text-[#5d6e7f]">Your Dashboard</p>
+    <p class="text-[0.65rem] font-extrabold uppercase tracking-widest text-[#5d6e7f]">Your Dashboard</p>
 
-        {{-- Practice info bar --}}
-        <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4 flex flex-wrap items-center gap-3">
-            <div class="w-11 h-11 rounded-xl border-2 border-dashed border-[#b9cfe0] bg-[#f7fbfd] flex items-center justify-center overflow-hidden flex-shrink-0">
-                @if($this->practice?->logo_path)
-                    <img src="{{ Storage::disk('public')->url($this->practice->logo_path) }}" alt="Practice logo" class="w-full h-full object-contain">
+    {{-- Practice info bar --}}
+    <div
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4 flex flex-wrap items-center gap-3">
+        <div
+            class="w-11 h-11 rounded-xl border-2 border-dashed border-[#b9cfe0] bg-[#f7fbfd] flex items-center justify-center overflow-hidden flex-shrink-0">
+            @if($this->practice?->logo_path)
+            <img src="{{ Storage::disk('public')->url($this->practice->logo_path) }}" alt="Practice logo"
+                class="w-full h-full object-contain">
+            @endif
+        </div>
+        <div class="flex-1 min-w-[200px]">
+            <div class="font-bold text-[#12304f] text-sm">
+                {{ $this->practice?->name ?: 'Practice name not set' }}
+                @if($this->practice?->is_profile_locked)
+                <span
+                    class="ml-1 inline-flex items-center gap-0.5 text-[0.62rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒
+                    Locked</span>
                 @endif
             </div>
-            <div class="flex-1 min-w-[200px]">
-                <div class="font-bold text-[#12304f] text-sm">
-                    {{ $this->practice?->name ?: 'Practice name not set' }}
-                    @if($this->practice?->is_profile_locked)
-                        <span class="ml-1 inline-flex items-center gap-0.5 text-[0.62rem] font-extrabold text-[#9a6700] bg-[#fff3cd] rounded px-1.5 py-0.5 uppercase tracking-wider">🔒 Locked</span>
+            <div class="text-xs text-[#5d6e7f]">
+                {{ auth()->user()->email }}
+                &middot; Effective {{ $this->practiceEffectiveDate?->format('M j, Y') }}
+                &middot; Renews {{ $this->practiceEffectiveDate?->copy()->addYear()->format('M j, Y') }}
+            </div>
+        </div>
+        <button wire:click="editProfile"
+            class="rounded border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#12304f] hover:bg-[#f4f7fb] transition-colors">
+            &#9998; Update Practice Info
+        </button>
+    </div>
+
+    {{-- Tabs --}}
+    <div class="flex gap-1 border-b border-[#dbe4ee]">
+        @foreach(['history' => 'History', 'payments' => 'Payments', 'documents' => 'Documents'] as $tabKey => $tabLabel)
+        <button wire:click="$set('dashboardTab', '{{ $tabKey }}')"
+            class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {{ $dashboardTab === $tabKey ? 'border-[#12304f] text-[#12304f]' : 'border-transparent text-[#5d6e7f] hover:text-[#12304f]' }}">
+            {{ $tabLabel }}
+        </button>
+        @endforeach
+    </div>
+
+    @if($dashboardTab === 'documents')
+    @if($this->userOrders->count() > 1)
+    <div class="flex flex-wrap gap-2">
+        @foreach($this->userOrders as $order)
+        <button type="button" wire:click="switchOrder({{ $order->id }})"
+            class="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $this->dashboardOrderId === $order->id ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
+            {{ $order->package?->name }}
+        </button>
+        @endforeach
+    </div>
+    @endif
+
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <h3 class="text-sm font-semibold text-[#12304f]">
+            {{ $this->currentOrder?->package?->name }}
+            <span class="text-xs font-normal text-[#5d6e7f]">&middot; {{ $this->expectedDocuments->count() }} doc(s)
+                &middot; purchased {{ $this->currentOrder?->paid_at?->format('M j, Y') }}</span>
+        </h3>
+
+        <div class="divide-y divide-[#eef2f6] mt-3">
+            @foreach($this->expectedDocuments as $row)
+            @php
+            $type = $row['type'];
+            $location = $row['location'];
+            $doc = $row['document'];
+            $title = $type->label().($location ? ' — '.$location->name : '');
+            @endphp
+            <div class="flex items-center justify-between gap-3 py-3">
+                <div class="flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 mb-0.5">
+                        <p class="text-sm font-bold text-[#12304f]">{{ $title }}</p>
+                        @if(! $doc)
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
+                        @elseif($doc->is_stale)
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Outdated</span>
+                        @elseif($doc->isReady())
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Ready</span>
+                        @elseif($doc->wasRevoked())
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde8cc] text-[#9a5b0f]">Updated</span>
+                        @elseif($doc->status === DocumentStatus::Failed)
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Failed</span>
+                        @elseif($doc->status === DocumentStatus::Completed)
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#edf2f7] text-[#5d6e7f]">Pending
+                            Review</span>
+                        @else
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
+                        @endif
+                    </div>
+                    @if($doc?->generated_at)
+                    <p class="text-xs text-[#5d6e7f]">
+                        {{ $doc->is_stale ? 'Last generated' : 'Generated' }} {{ $doc->generated_at->format('M j, Y')
+                        }}{{ $doc->is_stale ? ' — details changed since.' : ($doc->wasRevoked() ? ' — pulled back for
+                        changes, check back soon.' : '') }}
+                    </p>
+                    @else
+                    <p class="text-xs text-[#5d6e7f]">We'll notify you once this is ready.</p>
                     @endif
                 </div>
-                <div class="text-xs text-[#5d6e7f]">
-                    {{ auth()->user()->email }}
-                    &middot; Effective {{ $this->practiceEffectiveDate?->format('M j, Y') }}
-                    &middot; Renews {{ $this->practiceEffectiveDate?->copy()->addYear()->format('M j, Y') }}
+                <div class="flex gap-2 flex-shrink-0">
+                    @if($doc?->is_stale)
+                    <button wire:click="regenerateDocument({{ $doc->id }})"
+                        wire:confirm="Regenerate this document with your latest details?"
+                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
+                        Regenerate
+                    </button>
+                    @elseif($doc?->isReady() && $doc->delivery_source === \App\Enums\DocumentDeliverySource::Custom)
+                    <a href="{{ route('documents.download', $doc) }}"
+                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
+                        Download
+                    </a>
+                    @elseif($doc?->isReady() && $doc->pdf_storage_path)
+                    <a href="{{ route('documents.download', $doc) }}"
+                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
+                        Download PDF
+                    </a>
+                    @elseif($doc?->isReady() && $doc->docx_storage_path)
+                    <a href="{{ route('documents.download', $doc) }}?format=docx"
+                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
+                        Download DOCX
+                    </a>
+                    @endif
                 </div>
             </div>
-            <button wire:click="editProfile"
-                class="rounded border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#12304f] hover:bg-[#f4f7fb] transition-colors">
-                &#9998; Update Practice Info
-            </button>
-        </div>
-
-        {{-- Tabs --}}
-        <div class="flex gap-1 border-b border-[#dbe4ee]">
-            @foreach(['history' => 'History', 'payments' => 'Payments', 'documents' => 'Documents'] as $tabKey => $tabLabel)
-                <button wire:click="$set('dashboardTab', '{{ $tabKey }}')"
-                    class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {{ $dashboardTab === $tabKey ? 'border-[#12304f] text-[#12304f]' : 'border-transparent text-[#5d6e7f] hover:text-[#12304f]' }}">
-                    {{ $tabLabel }}
-                </button>
             @endforeach
         </div>
 
-        @if($dashboardTab === 'documents')
-            @if($this->userOrders->count() > 1)
-                <div class="flex flex-wrap gap-2">
-                    @foreach($this->userOrders as $order)
-                        <button type="button" wire:click="switchOrder({{ $order->id }})"
-                            class="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $this->dashboardOrderId === $order->id ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
-                            {{ $order->package?->name }}
-                        </button>
-                    @endforeach
-                </div>
-            @endif
-
-            <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <h3 class="text-sm font-semibold text-[#12304f]">
-                    {{ $this->currentOrder?->package?->name }}
-                    <span class="text-xs font-normal text-[#5d6e7f]">&middot; {{ $this->expectedDocuments->count() }} doc(s) &middot; purchased {{ $this->currentOrder?->paid_at?->format('M j, Y') }}</span>
-                </h3>
-
-                <div class="divide-y divide-[#eef2f6] mt-3">
-                    @foreach($this->expectedDocuments as $row)
-                        @php
-                            $type = $row['type'];
-                            $location = $row['location'];
-                            $doc = $row['document'];
-                            $title = $type->label().($location ? ' — '.$location->name : '');
-                        @endphp
-                        <div class="flex items-center justify-between gap-3 py-3">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex flex-wrap items-center gap-2 mb-0.5">
-                                    <p class="text-sm font-bold text-[#12304f]">{{ $title }}</p>
-                                    @if(! $doc)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
-                                    @elseif($doc->is_stale)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Outdated</span>
-                                    @elseif($doc->isReady())
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Ready</span>
-                                    @elseif($doc->wasRevoked())
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde8cc] text-[#9a5b0f]">Updated</span>
-                                    @elseif($doc->status === DocumentStatus::Failed)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fde2e2] text-[#a53b3b]">Failed</span>
-                                    @elseif($doc->status === DocumentStatus::Completed)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#edf2f7] text-[#5d6e7f]">Pending Review</span>
-                                    @else
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.6rem] font-extrabold uppercase tracking-wider bg-[#fff3cd] text-[#9a6700]">Generating</span>
-                                    @endif
-                                </div>
-                                @if($doc?->generated_at)
-                                    <p class="text-xs text-[#5d6e7f]">
-                                        {{ $doc->is_stale ? 'Last generated' : 'Generated' }} {{ $doc->generated_at->format('M j, Y') }}{{ $doc->is_stale ? ' — details changed since.' : ($doc->wasRevoked() ? ' — pulled back for changes, check back soon.' : '') }}
-                                    </p>
-                                @else
-                                    <p class="text-xs text-[#5d6e7f]">We'll notify you once this is ready.</p>
-                                @endif
-                            </div>
-                            <div class="flex gap-2 flex-shrink-0">
-                                @if($doc?->is_stale)
-                                    <button wire:click="regenerateDocument({{ $doc->id }})" wire:confirm="Regenerate this document with your latest details?"
-                                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
-                                        Regenerate
-                                    </button>
-                                @elseif($doc?->isReady() && $doc->delivery_source === \App\Enums\DocumentDeliverySource::Custom)
-                                    <a href="{{ route('documents.download', $doc) }}"
-                                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
-                                        Download
-                                    </a>
-                                @elseif($doc?->isReady() && $doc->pdf_storage_path)
-                                    <a href="{{ route('documents.download', $doc) }}"
-                                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
-                                        Download PDF
-                                    </a>
-                                @elseif($doc?->isReady() && $doc->docx_storage_path)
-                                    <a href="{{ route('documents.download', $doc) }}?format=docx"
-                                        class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
-                                        Download DOCX
-                                    </a>
-                                @endif
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-
-                @if(! empty($this->currentOrder?->package?->features))
-                    <p class="text-xs text-[#5d6e7f] mt-3"><strong>Services included:</strong> {{ implode(' &middot; ', $this->currentOrder->package->features) }}</p>
-                @endif
-                <p class="text-xs text-[#5d6e7f] mt-2">For any queries, <a href="{{ route('contact') }}" wire:navigate class="font-semibold text-[#1a7aad] hover:underline">contact us</a>.</p>
-            </div>
-
-            {{-- Add-on promo --}}
-            <div class="rounded-2xl bg-gradient-to-r from-[#76c8c0]/12 to-white border border-[#dbe4ee] p-5">
-                <div class="flex items-start gap-3">
-                    <span class="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#12304f] text-white text-sm">🛡</span>
-                    <div class="flex-1">
-                        <span class="text-[0.62rem] font-extrabold tracking-widest uppercase text-[#5bb2aa]">Add-on &middot; Available for Any Package</span>
-                        <h3 class="text-sm font-semibold text-[#12304f] mt-1">Legal Review &amp; Risk Assessment, by Frier Levitt</h3>
-                        <p class="text-xs text-[#5d6e7f] mt-1">Kovel-protected coding &amp; documentation review with a privileged legal analysis letter.</p>
-                    </div>
-                    <div class="text-right flex-shrink-0">
-                        <div class="text-lg font-extrabold text-[#12304f]">$2,500</div>
-                        <div class="text-[0.65rem] text-[#5d6e7f]">flat-fee / practice</div>
-                    </div>
-                </div>
-            </div>
-
-            <p class="text-xs text-[#5d6e7f]">🔒 Documents are delivered as protected, locked PDFs. Need a change? Use <strong>Update Practice Info</strong> above and regenerate — included at no extra charge during your active plan year.</p>
-        @elseif($dashboardTab === 'payments')
-            <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <h3 class="text-sm font-semibold text-[#12304f] mb-3">Purchase History</h3>
-                @forelse($this->userOrders as $order)
-                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] last:border-b-0">
-                        <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
-                        <span class="text-sm text-[#5d6e7f]">${{ number_format($order->amount_paid) }}</span>
-                        <span class="text-xs text-[#5d6e7f]">{{ $order->paid_at?->format('M j, Y') }}</span>
-                    </div>
-                @empty
-                    <p class="text-sm text-[#5d6e7f] italic">No purchases yet.</p>
-                @endforelse
-            </div>
-
-            <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <h3 class="text-sm font-semibold text-[#12304f] mb-1">Add a Package</h3>
-                <p class="text-xs text-[#5d6e7f] mb-3">Explore other compliance tiers for this practice.</p>
-                <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">View all packages &rarr;</a>
-            </div>
-        @else
-            <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                <h3 class="text-sm font-semibold text-[#12304f] mb-3">Account Activity</h3>
-                @forelse($this->activityLog as $log)
-                    <div class="py-2.5 border-b border-[#eef2f6] last:border-b-0">
-                        <p class="text-sm font-semibold text-[#173045]">{{ $log->description }}</p>
-                        <p class="text-xs text-[#5d6e7f]">{{ $log->created_at->format('M j, Y g:ia') }}</p>
-                    </div>
-                @empty
-                    <p class="text-sm text-[#5d6e7f] italic">No activity yet.</p>
-                @endforelse
-            </div>
+        @if(! empty($this->currentOrder?->package?->features))
+        <p class="text-xs text-[#5d6e7f] mt-3"><strong>Services included:</strong> {{ implode(' &middot; ',
+            $this->currentOrder->package->features) }}</p>
         @endif
+        <p class="text-xs text-[#5d6e7f] mt-2">For any queries, <a href="{{ route('contact') }}" wire:navigate
+                class="font-semibold text-[#1a7aad] hover:underline">contact us</a>.</p>
+    </div>
 
-        <div class="flex justify-start">
-            <button wire:click="goToStep(4)" class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
-                Back to Review
-            </button>
+    {{-- Add-on promo --}}
+    <div class="rounded-2xl bg-gradient-to-r from-[#76c8c0]/12 to-white border border-[#dbe4ee] p-5">
+        <div class="flex items-start gap-3">
+            <span
+                class="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#12304f] text-white text-sm">🛡</span>
+            <div class="flex-1">
+                <span class="text-[0.62rem] font-extrabold tracking-widest uppercase text-[#5bb2aa]">Add-on &middot;
+                    Available for Any Package</span>
+                <h3 class="text-sm font-semibold text-[#12304f] mt-1">Legal Review &amp; Risk Assessment, by Frier
+                    Levitt</h3>
+                <p class="text-xs text-[#5d6e7f] mt-1">Kovel-protected coding &amp; documentation review with a
+                    privileged legal analysis letter.</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+                <div class="text-lg font-extrabold text-[#12304f]">$2,500</div>
+                <div class="text-[0.65rem] text-[#5d6e7f]">flat-fee / practice</div>
+            </div>
         </div>
+    </div>
+
+    <p class="text-xs text-[#5d6e7f]">🔒 Documents are delivered as protected, locked PDFs. Need a change? Use
+        <strong>Update Practice Info</strong> above and regenerate — included at no extra charge during your active plan
+        year.
+    </p>
+    @elseif($dashboardTab === 'payments')
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <h3 class="text-sm font-semibold text-[#12304f] mb-3">Purchase History</h3>
+        @forelse($this->userOrders as $order)
+        <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] last:border-b-0">
+            <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
+            <span class="text-sm text-[#5d6e7f]">${{ number_format($order->amount_paid) }}</span>
+            <span class="text-xs text-[#5d6e7f]">{{ $order->paid_at?->format('M j, Y') }}</span>
+        </div>
+        @empty
+        <p class="text-sm text-[#5d6e7f] italic">No purchases yet.</p>
+        @endforelse
+    </div>
+
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <h3 class="text-sm font-semibold text-[#12304f] mb-1">Add a Package</h3>
+        <p class="text-xs text-[#5d6e7f] mb-3">Explore other compliance tiers for this practice.</p>
+        <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">View all packages
+            &rarr;</a>
+    </div>
+    @else
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <h3 class="text-sm font-semibold text-[#12304f] mb-3">Account Activity</h3>
+        @forelse($this->activityLog as $log)
+        <div class="py-2.5 border-b border-[#eef2f6] last:border-b-0">
+            <p class="text-sm font-semibold text-[#173045]">{{ $log->description }}</p>
+            <p class="text-xs text-[#5d6e7f]">{{ $log->created_at->format('M j, Y g:ia') }}</p>
+        </div>
+        @empty
+        <p class="text-sm text-[#5d6e7f] italic">No activity yet.</p>
+        @endforelse
+    </div>
+    @endif
+
+    <div class="flex justify-start">
+        <button wire:click="goToStep(4)"
+            class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+            Back to Review
+        </button>
+    </div>
     @endif
 
 </div>
