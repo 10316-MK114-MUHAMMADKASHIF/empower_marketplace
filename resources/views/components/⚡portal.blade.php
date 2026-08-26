@@ -1303,7 +1303,7 @@ new class extends Component
                             $uploadedFile = $this->questionnaireFiles[$uploadKey] ?? null;
                             $existingUpload = $this->existingUploadsByType->get($uploadKey);
                         @endphp
-                        <div x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
+                        <div wire:key="questionnaire-upload-{{ $uploadKey }}" x-show="downloadedMap['{{ $downloadKey }}']" x-cloak class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6 text-center">
                             <div class="w-14 h-14 rounded-full bg-[#12304f]/[0.08] text-[#12304f] inline-flex items-center justify-center text-2xl mb-3">📄</div>
                             <p class="font-semibold text-sm text-[#12304f] mb-1">
                                 {{ $questionnaire['title'] }}
@@ -1318,7 +1318,7 @@ new class extends Component
                                 </p>
                             @endif
                             <input type="file" wire:model="questionnaireFiles.{{ $uploadKey }}" accept=".pdf,.jpg,.jpeg,.png,.docx"
-                                class="block mx-auto text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                                class="block w-full max-w-full truncate text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
                             @error("questionnaireFiles.{$uploadKey}") <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
                             @if($uploadedFile)
                                 <div wire:loading.remove wire:target="questionnaireFiles.{{ $uploadKey }}" class="mt-3 flex items-center justify-center gap-2 flex-wrap">
