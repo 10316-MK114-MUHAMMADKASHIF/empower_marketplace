@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
+use App\Enums\IntakeMethod;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
@@ -528,6 +529,7 @@ class PortalTest extends TestCase
             ->set('practiceName', 'Sunrise Family Medicine')
             ->set('logoFile', UploadedFile::fake()->image('logo.png'))
             ->set('billableProviders', 3)
+            ->set('intakeMethod', 'download')
             ->call('saveProfile')
             ->assertSet('step', 3);
 
@@ -556,6 +558,7 @@ class PortalTest extends TestCase
             ->test('portal')
             ->set('practiceName', 'Sunrise Family Medicine')
             ->set('logoFile', $logo)
+            ->set('intakeMethod', 'download')
             ->call('saveProfile')
             ->assertSet('step', 3);
 
@@ -703,6 +706,7 @@ class PortalTest extends TestCase
             Livewire::actingAs($user)
                 ->test('portal')
                 ->call('goToStep', 2)
+                ->set('intakeMethod', 'download')
                 ->assertSee('Compliance & Ethics Questionnaire')
                 ->assertSee('HIPAA Business Associate Questionnaire')
                 ->assertSee('HIPAA Privacy Questionnaire')
@@ -1060,6 +1064,340 @@ class PortalTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    // ── Step 2: Upload for review (alternate to questionnaire downloads) ────
+
+    public function test_step2_shows_intake_method_radio_buttons_after_billable_providers(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->assertSee('Do you want to upload your documents')
+            ->assertSee('Download our questionnaires')
+            ->assertSee('Upload your existing documents');
+    }
+
+    public function test_selecting_upload_for_review_hides_questionnaire_downloads_and_shows_the_simple_uploader(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->assertDontSee('Download Form')
+            ->assertDontSee('Upload document(s) for review');
+
+        $component->set('intakeMethod', 'download')
+            ->assertSee('Download Form')
+            ->assertDontSee('Upload document(s) for review');
+
+        $component->set('intakeMethod', 'upload_for_review')
+            ->assertDontSee('Download Form')
+            ->assertSee('Upload document(s) for review');
+    }
+
+    public function test_save_profile_requires_choosing_an_intake_method(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
+            ->call('saveProfile')
+            ->assertHasErrors(['intakeMethod']);
+    }
+
+    public function test_submit_for_review_requires_at_least_one_file(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
+            ->set('billableProviders', 3)
+            ->set('intakeMethod', 'upload_for_review')
+            ->call('submitForReview')
+            ->assertHasErrors(['reviewDocumentFiles']);
+    }
+
+    public function test_submit_for_review_creates_submission_and_upload_and_advances_directly_to_step_4(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{"html":"<p>Polished.</p>"}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        $file = UploadedFile::fake()->create('handbook.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
+            ->set('billableProviders', 3)
+            ->set('intakeMethod', 'upload_for_review')
+            ->set('reviewDocumentFiles', [$file])
+            ->call('submitForReview')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_submissions', [
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Submitted->value,
+            'intake_method' => IntakeMethod::UploadForReview->value,
+        ]);
+
+        $this->assertDatabaseHas('intake_uploads', [
+            'original_filename' => 'handbook.pdf',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview->value,
+        ]);
+
+        $this->assertDatabaseHas('practices', [
+            'user_id' => $user->id,
+            'is_profile_locked' => true,
+        ]);
+
+        $upload = IntakeUpload::first();
+        $this->assertSame('<p>Polished.</p>', $upload->ai_extracted_data['html'] ?? null);
+
+        $this->assertDatabaseHas('generated_documents', [
+            'order_id' => $order->id,
+            'document_type' => DocumentType::PolishedClientDocument->value,
+            'intake_upload_id' => $upload->id,
+        ]);
+    }
+
+    public function test_submit_for_review_with_multiple_files_creates_one_upload_row_per_file(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{"html":"<p>Polished.</p>"}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
+            ->set('billableProviders', 3)
+            ->set('intakeMethod', 'upload_for_review')
+            ->set('reviewDocumentFiles', [
+                UploadedFile::fake()->create('handbook.pdf', 100, 'application/pdf'),
+                UploadedFile::fake()->create('safety-plan.pdf', 100, 'application/pdf'),
+            ])
+            ->call('submitForReview')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseCount('intake_uploads', 2);
+        $this->assertDatabaseCount('generated_documents', 2);
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'handbook.pdf']);
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'safety-plan.pdf']);
+    }
+
+    public function test_submit_for_review_creates_a_submission_for_every_order_in_the_batch(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{"html":"<p>Polished.</p>"}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $essential = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $professional = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
+
+        $batchId = (string) Str::ulid();
+        $orderA = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $essential->id,
+            'checkout_batch_id' => $batchId,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $orderB = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $professional->id,
+            'checkout_batch_id' => $batchId,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
+            ->set('billableProviders', 3)
+            ->set('intakeMethod', 'upload_for_review')
+            ->set('reviewDocumentFiles', [UploadedFile::fake()->create('handbook.pdf', 100, 'application/pdf')])
+            ->call('submitForReview')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_submissions', ['order_id' => $orderA->id, 'intake_method' => IntakeMethod::UploadForReview->value]);
+        $this->assertDatabaseHas('intake_submissions', ['order_id' => $orderB->id, 'intake_method' => IntakeMethod::UploadForReview->value]);
+        $this->assertDatabaseCount('intake_uploads', 2);
+    }
+
+    public function test_rejected_upload_for_review_submission_routes_back_to_step_2_on_reload(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->uploadForReview()->create([
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Rejected,
+            'reviewer_notes' => 'Please upload a clearer scan.',
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 2)
+            ->assertSet('intakeMethod', 'upload_for_review')
+            ->assertSee('Please upload a clearer scan.');
+    }
+
+    public function test_rejected_download_method_submission_still_routes_to_step_3_on_reload(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->create([
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Rejected,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 3);
+    }
+
+    public function test_reupload_button_routes_to_the_step_matching_how_the_order_was_submitted(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $reviewOrder = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->uploadForReview()->create([
+            'order_id' => $reviewOrder->id,
+            'status' => IntakeSubmissionStatus::Rejected,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 4)
+            ->call('reuploadForOrder', $reviewOrder->id)
+            ->assertSet('step', 2)
+            ->assertSet('intakeMethod', 'upload_for_review');
+    }
+
+    public function test_resubmitting_for_review_after_rejection_replaces_the_prior_upload_and_document(): void
+    {
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{"html":"<p>Polished.</p>"}']]]]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $submission = IntakeSubmission::factory()->uploadForReview()->create([
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Rejected,
+        ]);
+        $oldUpload = IntakeUpload::factory()->completed()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'old-handbook.pdf',
+        ]);
+        GeneratedDocument::factory()->completed()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $oldUpload->id,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('intakeMethod', 'upload_for_review')
+            ->set('reviewDocumentFiles', [UploadedFile::fake()->create('new-handbook.pdf', 100, 'application/pdf')])
+            ->call('submitForReview')
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseMissing('intake_uploads', ['id' => $oldUpload->id]);
+        $this->assertDatabaseHas('intake_uploads', ['original_filename' => 'new-handbook.pdf']);
+        $this->assertDatabaseCount('intake_uploads', 1);
+        $this->assertDatabaseCount('generated_documents', 1);
+    }
+
     // ── Step 4: Review Status ───────────────────────────────────────────────
 
     public function test_check_approval_advances_to_step_5_when_approved(): void
@@ -1156,7 +1494,7 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->set('step', 5)
-            ->assertSee('Pending Review')
+            ->assertSee('Pending')
             ->assertDontSee('Download PDF')
             ->assertDontSee('Ready');
 

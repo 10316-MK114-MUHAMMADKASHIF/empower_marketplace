@@ -17,6 +17,10 @@ enum IntakeUploadType: string
     case HipaaPrivacyQuestionnaire = 'hipaa_privacy_questionnaire';
     case HipaaSecurityQuestionnaire = 'hipaa_security_questionnaire';
 
+    // A client's own existing compliance document, uploaded directly for AI polishing and
+    // admin review instead of a blank questionnaire being filled out and uploaded back.
+    case ClientDocumentForReview = 'client_document_for_review';
+
     public function promptLabel(): string
     {
         return match ($this) {
@@ -29,6 +33,7 @@ enum IntakeUploadType: string
             self::HipaaBusinessAssociateQuestionnaire => 'HIPAA business associate practice workflow questionnaire',
             self::HipaaPrivacyQuestionnaire => 'HIPAA privacy practice workflow questionnaire',
             self::HipaaSecurityQuestionnaire => 'HIPAA security practice workflow questionnaire',
+            self::ClientDocumentForReview => 'compliance document submitted for review',
         };
     }
 }

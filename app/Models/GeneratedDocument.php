@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'order_id', 'osha_location_id', 'document_type', 'status',
+    'order_id', 'osha_location_id', 'intake_upload_id', 'document_type', 'status',
     'pdf_storage_path', 'docx_storage_path', 'pdf_owner_password',
     'is_stale', 'stale_reason', 'failure_reason', 'generated_at',
     'reviewed_at', 'reviewed_by', 'revoked_at', 'delivery_source',
@@ -49,6 +49,11 @@ class GeneratedDocument extends Model
     public function oshaLocation(): BelongsTo
     {
         return $this->belongsTo(OshaLocation::class);
+    }
+
+    public function intakeUpload(): BelongsTo
+    {
+        return $this->belongsTo(IntakeUpload::class);
     }
 
     public function reviewedBy(): BelongsTo

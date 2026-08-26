@@ -62,7 +62,7 @@ new class extends Component
         $uploadedTypes = $submission->intakeUploads->map(fn ($u) => $u->upload_type)->all();
 
         return GeneratedDocument::where('order_id', $submission->order_id)
-            ->with('reviewedBy')
+            ->with(['reviewedBy', 'intakeUpload'])
             ->orderBy('document_type')
             ->get()
             ->map(function (GeneratedDocument $document) use ($uploadedTypes) {
@@ -255,17 +255,11 @@ new class extends Component
             subject: $submission,
         );
 
-        try {
-            Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
-        } catch (\Throwable $e) {
-            report($e);
-            $this->notice = 'Submission approved, but the client notification email failed to send.';
-        }
-
         // Approving the submission is the decision a client-facing "you're all set" hinges on —
         // finalize every document that's already ready to go so it doesn't silently sit at
         // "Pending Review" (and undownloadable) just because nobody separately clicked
-        // "Approve Selected" for it too.
+        // "Approve Selected" for it too. This step never emails on its own — the client is
+        // notified once, below, for the submission as a whole.
         $readyDocuments = GeneratedDocument::where('order_id', $submission->order_id)
             ->get()
             ->filter(fn (GeneratedDocument $document) => $document->canBeApproved());
@@ -273,11 +267,36 @@ new class extends Component
         $this->selectedDocumentIds = [];
         $this->finalizeDocumentApprovals($submission->order, $readyDocuments);
 
+        try {
+            Mail::to($submission->order->user->email)->send(new ClientSubmissionStatusMail($submission));
+        } catch (\Throwable $e) {
+            report($e);
+            $this->notice = 'Submission approved, but the client notification email failed to send.';
+        }
+
+        // One consolidated "your documents are ready" email listing every ready document for
+        // this order — not just ones newly finalized above — since documents approved earlier
+        // via "Approve Selected" no longer emailed on their own and still need to be told about.
+        $allReadyDocuments = GeneratedDocument::where('order_id', $submission->order_id)
+            ->get()
+            ->filter(fn (GeneratedDocument $document) => $document->isReady());
+
+        if ($allReadyDocuments->isNotEmpty()) {
+            try {
+                Mail::to($submission->order->user->email)->send(new ClientDocumentsApprovedMail($submission->order, $allReadyDocuments));
+            } catch (\Throwable $e) {
+                report($e);
+                $this->notice = trim(($this->notice ? $this->notice.' ' : '').'Submission approved, but the documents-ready email failed to send.');
+            }
+        }
+
         unset($this->submission);
     }
 
-    /** Marks each document approved and emails the client once, shared by both the
-     *  submission-level "Approve" action and the per-document "Approve Selected" action. */
+    /** Marks each document approved — shared by both the submission-level "Approve" action
+     *  and the per-document "Approve Selected" action. Does NOT email the client: the client
+     *  is notified once, when the submission itself is approved (see approve()), not every
+     *  time a document gets picked and approved along the way. */
     private function finalizeDocumentApprovals(Order $order, Collection $documents): void
     {
         if ($documents->isEmpty()) {
@@ -295,13 +314,6 @@ new class extends Component
             order: $order,
             metadata: ['document_types' => $documents->map(fn ($d) => $d->document_type->value)->all()],
         );
-
-        try {
-            Mail::to($order->user->email)->send(new ClientDocumentsApprovedMail($order, $documents));
-        } catch (\Throwable $e) {
-            report($e);
-            $this->notice = trim(($this->notice ? $this->notice.' ' : '').'Document(s) approved, but the client notification email failed to send.');
-        }
 
         unset($this->documentsForReview);
     }
@@ -440,6 +452,9 @@ new class extends Component
         unset($this->documentsForReview);
     }
 
+    /** Approves the checked documents without emailing the client — that happens once, when
+     *  the admin approves the submission as a whole (see approve()), not at every document
+     *  pick along the way. */
     public function approveSelectedDocuments(): void
     {
         $submission = $this->submission;
@@ -615,7 +630,7 @@ new class extends Component
                         <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
                             <div>
                                 <p class="text-sm font-semibold text-empower-text">
-                                    {{ $document->document_type->label() }}{{ $document->oshaLocation ? ' — '.$document->oshaLocation->name : '' }}
+                                    {{ $document->document_type->label() }}{{ $document->oshaLocation ? ' — '.$document->oshaLocation->name : '' }}{{ $document->intakeUpload ? ' — '.$document->intakeUpload->original_filename : '' }}
                                 </p>
                                 @if($document->isApproved())
                                     <p class="text-xs text-empower-muted">Approved by {{ $document->reviewedBy?->name ?? 'admin' }} &middot; {{ $document->reviewed_at->format('M j, Y') }} &middot; delivered the {{ $document->delivery_source === DocumentDeliverySource::Custom ? 'custom' : 'AI-generated' }} file</p>

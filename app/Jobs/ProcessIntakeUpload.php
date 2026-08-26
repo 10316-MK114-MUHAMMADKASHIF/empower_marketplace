@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
+use App\Enums\IntakeUploadType;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
 use App\Support\ManualQuestionSets;
@@ -29,9 +30,9 @@ class ProcessIntakeUpload implements ShouldQueue
         $this->upload->update(['ai_extraction_status' => AiExtractionStatus::Processing]);
 
         try {
-            $data = $this->isDocx()
-                ? $this->extractFromDocx()
-                : $this->extractWithVision();
+            $data = $this->upload->upload_type === IntakeUploadType::ClientDocumentForReview
+                ? ($this->isDocx() ? $this->polishFromDocx() : $this->polishWithVision())
+                : ($this->isDocx() ? $this->extractFromDocx() : $this->extractWithVision());
 
             $schema = $this->upload->upload_type
                 ? ManualQuestionSets::forQuestionnaireType($this->upload->upload_type)
@@ -155,6 +156,71 @@ class ProcessIntakeUpload implements ShouldQueue
         }
 
         return $this->parseJson($response->json('choices.0.message.content', ''));
+    }
+
+    /**
+     * Rephrases and grammar-corrects a client's already-drafted document (rather than
+     * extracting fixed question/answer pairs) — used only for IntakeUploadType::ClientDocumentForReview.
+     */
+    private function polishWithVision(): array
+    {
+        $fileContent = Storage::disk('local')->get($this->upload->storage_path);
+        $base64 = base64_encode((string) $fileContent);
+        $mediaType = $this->upload->mime_type ?? 'application/pdf';
+
+        $response = $this->openai()->post($this->openaiUrl(), [
+            'model' => config('services.openai.model'),
+            'response_format' => ['type' => 'json_object'],
+            'messages' => [[
+                'role' => 'user',
+                'content' => [
+                    $this->buildFilePart($base64, $mediaType),
+                    ['type' => 'text', 'text' => $this->buildPolishPrompt()],
+                ],
+            ]],
+        ]);
+
+        if ($response->failed()) {
+            throw new \RuntimeException('OpenAI API error: '.$response->status());
+        }
+
+        return $this->parseJson($response->json('choices.0.message.content', ''));
+    }
+
+    private function polishFromDocx(): array
+    {
+        $absolutePath = Storage::disk('local')->path($this->upload->storage_path);
+        $phpWord = IOFactory::load($absolutePath);
+        $text = $this->extractText($phpWord);
+
+        $response = $this->openai()->post($this->openaiUrl(), [
+            'model' => config('services.openai.model'),
+            'response_format' => ['type' => 'json_object'],
+            'messages' => [[
+                'role' => 'user',
+                'content' => $this->buildPolishPrompt()."\n\nDocument content:\n".$text,
+            ]],
+        ]);
+
+        if ($response->failed()) {
+            throw new \RuntimeException('OpenAI API error: '.$response->status());
+        }
+
+        return $this->parseJson($response->json('choices.0.message.content', ''));
+    }
+
+    private function buildPolishPrompt(): string
+    {
+        return <<<'PROMPT'
+You are a professional compliance-document editor. Rephrase and correct grammar, spelling, and awkward
+phrasing in the attached document while strictly preserving its original meaning, structure, and every
+substantive detail — do not add, remove, or invent information.
+
+Return the corrected document as a JSON object with exactly one key, "html", containing clean semantic
+HTML for the full document content (use <h1>/<h2> for its existing headings, <p> for paragraphs,
+<ul>/<li> or <ol>/<li> for lists, and <table> for tabular content). Do not include <html>, <head>, or
+<body> tags, inline styles, or markdown formatting. Return only valid JSON with no additional text.
+PROMPT;
     }
 
     /**
@@ -329,6 +395,14 @@ PROMPT;
             $docType = DocumentType::forQuestionnaireType($uploadType);
 
             if ($docType === null) {
+                continue;
+            }
+
+            if ($docType->isPerUpload()) {
+                $submission->intakeUploads
+                    ->where('upload_type', $uploadType)
+                    ->each(fn (IntakeUpload $upload) => GenerateComplianceDocument::dispatch($order, $docType, null, $upload));
+
                 continue;
             }
 

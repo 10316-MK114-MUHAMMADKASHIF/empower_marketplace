@@ -3,6 +3,7 @@
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
+use App\Enums\IntakeMethod;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
@@ -75,6 +76,13 @@ new class extends Component
     public int $billableProviders = 1;
 
     public bool $editingProfile = false;
+
+    // '' | 'download' | 'upload_for_review' — which Step 2 continuation the client picked.
+    public string $intakeMethod = '';
+
+    // Flat multi-file array for the "upload for review" path — no per-slot keying needed
+    // since, unlike questionnaireFiles, several files can share the same upload type.
+    public array $reviewDocumentFiles = [];
 
     // Step 5
     public string $dashboardTab = 'documents';
@@ -196,6 +204,7 @@ new class extends Component
         }
 
         return GeneratedDocument::where('order_id', $this->dashboardOrderId)
+            ->with('intakeUpload')
             ->orderBy('document_type')
             ->get();
     }
@@ -229,7 +238,18 @@ new class extends Component
                 continue;
             }
 
-            if ($docType->isPerLocation()) {
+            if ($docType->isPerUpload()) {
+                $order->intakeSubmission->intakeUploads
+                    ->where('upload_type', $uploadType)
+                    ->each(function ($upload) use (&$rows, $docType, $docs) {
+                        $rows->push([
+                            'type' => $docType,
+                            'location' => null,
+                            'document' => $docs->first(fn ($d) => $d->document_type === $docType && $d->intake_upload_id === $upload->id),
+                            'sourceUpload' => $upload,
+                        ]);
+                    });
+            } elseif ($docType->isPerLocation()) {
                 if ($locations->isEmpty()) {
                     $rows->push(['type' => $docType, 'location' => null, 'document' => $docs->first(fn ($d) => $d->document_type === $docType && ! $d->osha_location_id)]);
                 }
@@ -387,8 +407,21 @@ new class extends Component
 
         $submissions = $this->batchOrders->map(fn ($o) => $o->intakeSubmission);
 
-        if ($submissions->contains(fn ($s) => $s === null || $s->status === IntakeSubmissionStatus::Rejected)) {
+        if ($submissions->contains(fn ($s) => $s === null)) {
             $this->step = 3;
+
+            return;
+        }
+
+        $rejected = $submissions->first(fn ($s) => $s->status === IntakeSubmissionStatus::Rejected);
+
+        if ($rejected) {
+            if ($rejected->intake_method === IntakeMethod::UploadForReview) {
+                $this->intakeMethod = IntakeMethod::UploadForReview->value;
+                $this->step = 2;
+            } else {
+                $this->step = 3;
+            }
 
             return;
         }
@@ -441,11 +474,11 @@ new class extends Component
     {
         abort_unless(auth()->check(), 403);
 
-        $document = GeneratedDocument::with(['oshaLocation', 'order'])->findOrFail($documentId);
+        $document = GeneratedDocument::with(['oshaLocation', 'order', 'intakeUpload'])->findOrFail($documentId);
 
         abort_unless($document->order_id === $this->dashboardOrderId, 403);
 
-        GenerateComplianceDocument::dispatch($document->order, $document->document_type, $document->oshaLocation);
+        GenerateComplianceDocument::dispatch($document->order, $document->document_type, $document->oshaLocation, $document->intakeUpload);
 
         ActivityLog::record(
             'document.regenerate_requested',
@@ -627,21 +660,23 @@ new class extends Component
         unset($this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders);
     }
 
-    public function saveProfile(): void
+    /** @return array<string, mixed> */
+    private function profileRules(): array
     {
-        abort_unless(auth()->check(), 403);
-
         $isLocked = (bool) auth()->user()->practice?->is_profile_locked;
 
-        $this->validate([
+        return [
             'practiceName' => 'required|string|max:150',
             'logoFile' => $isLocked ? 'nullable|file|mimes:png,jpg,jpeg,svg|max:2048' : 'required|file|mimes:png,jpg,jpeg,svg|max:2048',
             'practiceAddress' => 'required|string|max:255',
             'npiNumber' => 'required|digits:10',
             'specialty' => 'required|string|max:100',
             'billableProviders' => 'required|integer|min:1|max:9999',
-        ]);
+        ];
+    }
 
+    private function persistProfile(): Practice
+    {
         $practice = auth()->user()->practice ?? Practice::create([
             'user_id' => auth()->id(),
             'name' => $this->practiceName,
@@ -664,6 +699,23 @@ new class extends Component
 
         $this->logoFile = null;
         unset($this->practice, $this->completedMilestone);
+
+        return $practice;
+    }
+
+    public function saveProfile(): void
+    {
+        abort_unless(auth()->check(), 403);
+
+        $rules = $this->profileRules();
+
+        if (! $this->editingProfile) {
+            $rules['intakeMethod'] = 'required|in:download,upload_for_review';
+        }
+
+        $this->validate($rules);
+
+        $practice = $this->persistProfile();
 
         if ($this->editingProfile) {
             $this->editingProfile = false;
@@ -809,6 +861,155 @@ new class extends Component
         $this->questionnaireFiles = [];
         unset($this->intakeSubmission, $this->currentOrder, $this->completedMilestone, $this->batchOrders, $this->rejectedSubmission);
         $this->step = 4;
+    }
+
+    /** Clears a just-picked (not yet submitted) file from the "upload for review" dropzone. */
+    public function removeReviewDocumentFile(int $index): void
+    {
+        unset($this->reviewDocumentFiles[$index]);
+        $this->reviewDocumentFiles = array_values($this->reviewDocumentFiles);
+        $this->resetErrorBag('reviewDocumentFiles');
+    }
+
+    /**
+     * The alternate Step 2 continuation: instead of downloading and filling out our
+     * questionnaires, the client uploads their own already-drafted documents directly for
+     * AI polishing and admin review. Skips Step 3 entirely — goes straight to Step 4.
+     */
+    public function submitForReview(): void
+    {
+        abort_unless(auth()->check(), 403);
+
+        $this->resetErrorBag();
+
+        $rules = $this->profileRules();
+        $rules['intakeMethod'] = 'required|in:download,upload_for_review';
+        $rules['reviewDocumentFiles'] = 'required|array|min:1';
+        $rules['reviewDocumentFiles.*'] = 'file|max:20480';
+
+        $this->validate($rules);
+
+        $this->persistProfile();
+
+        $orders = $this->batchOrders;
+
+        if ($orders->isEmpty()) {
+            $this->addError('reviewDocumentFiles', 'No active order found for this submission.');
+
+            return;
+        }
+
+        // Resubmitting after a rejection — replace the prior batch of review documents
+        // rather than accumulating alongside them, matching submitIntake()'s replace-in-place
+        // behavior for questionnaire uploads.
+        foreach ($orders as $order) {
+            $previousSubmission = $order->intakeSubmission;
+
+            if (! $previousSubmission || $previousSubmission->intake_method !== IntakeMethod::UploadForReview) {
+                continue;
+            }
+
+            $previousSubmission->intakeUploads()
+                ->where('upload_type', IntakeUploadType::ClientDocumentForReview)
+                ->get()
+                ->each(function (IntakeUpload $upload) {
+                    if ($upload->storage_path) {
+                        Storage::disk('local')->delete($upload->storage_path);
+                    }
+
+                    GeneratedDocument::where('intake_upload_id', $upload->id)->get()->each(function (GeneratedDocument $doc) {
+                        foreach ([$doc->pdf_storage_path, $doc->docx_storage_path, $doc->custom_storage_path] as $path) {
+                            if ($path) {
+                                Storage::disk('local')->delete($path);
+                            }
+                        }
+                        $doc->delete();
+                    });
+
+                    $upload->delete();
+                });
+        }
+
+        $batchToken = (string) Str::ulid();
+
+        $storedFiles = collect($this->reviewDocumentFiles)->map(fn ($file) => [
+            'path' => $file->store("uploads/batch/{$batchToken}"),
+            'original_filename' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+        ])->values()->all();
+
+        $primaryUploadsByPath = [];
+
+        foreach ($orders as $order) {
+            $submission = IntakeSubmission::updateOrCreate(
+                ['order_id' => $order->id],
+                [
+                    'status' => IntakeSubmissionStatus::Submitted,
+                    'intake_method' => IntakeMethod::UploadForReview,
+                    'reviewer_notes' => null,
+                    'submitted_at' => now(),
+                ]
+            );
+
+            foreach ($storedFiles as $meta) {
+                $upload = IntakeUpload::create([
+                    'intake_submission_id' => $submission->id,
+                    'upload_type' => IntakeUploadType::ClientDocumentForReview,
+                    'original_filename' => $meta['original_filename'],
+                    'storage_path' => $meta['path'],
+                    'mime_type' => $meta['mime_type'],
+                    'file_size' => $meta['file_size'],
+                    'ai_extraction_status' => AiExtractionStatus::Pending,
+                ]);
+
+                $primaryUploadsByPath[$meta['path']] ??= $upload;
+            }
+
+            Order::where('id', $order->id)->update(['status' => OrderStatus::IntakeSubmitted]);
+
+            ActivityLog::record(
+                'submission.submitted',
+                "Documents submitted for review for order #{$order->id}.",
+                user: auth()->user(),
+                order: $order,
+                subject: $submission,
+            );
+
+            $submission->setRelation('order', $order);
+
+            User::where('role', UserRole::Admin)->pluck('email')->each(
+                function (string $adminEmail) use ($submission) {
+                    try {
+                        Mail::to($adminEmail)->send(new AdminIntakeSubmittedMail($submission));
+                    } catch (\Throwable $e) {
+                        report($e);
+                    }
+                }
+            );
+        }
+
+        foreach ($primaryUploadsByPath as $upload) {
+            ProcessIntakeUpload::dispatch($upload);
+        }
+
+        $this->reviewDocumentFiles = [];
+        unset($this->intakeSubmission, $this->currentOrder, $this->completedMilestone, $this->batchOrders, $this->rejectedSubmission);
+        $this->step = 4;
+    }
+
+    /** Routes a rejected order's "Re-upload" action to whichever step matches how it was
+     *  originally submitted — Step 2's upload-for-review dropzone, or Step 3's questionnaires. */
+    public function reuploadForOrder(int $orderId): void
+    {
+        $submission = $this->batchOrders->firstWhere('id', $orderId)?->intakeSubmission;
+
+        if ($submission?->intake_method === IntakeMethod::UploadForReview) {
+            $this->intakeMethod = IntakeMethod::UploadForReview->value;
+            $this->goToStep(2);
+        } else {
+            $this->goToStep(3);
+        }
     }
 
     public function checkApproval(): void
@@ -1165,6 +1366,74 @@ $progressPct = ($milestone / 4) * 100;
                 @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
         </div>
+
+        @unless($editingProfile)
+        <div class="mt-5 pt-5">
+            <label class="block text-sm font-semibold text-[#31465b] mb-2">
+                Do you want to upload your documents for review or do you want to download our questionnaires?
+                <span class="text-red-500">*</span>
+            </label>
+            <div class="flex gap-3">
+                <label
+                    class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
+                    <input type="radio" wire:model.live="intakeMethod" value="download" class="mt-0.5">
+                    <span>
+                        <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
+                        <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
+                            them back for us to build your documents.</span>
+                    </span>
+                </label>
+                <label
+                    class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'upload_for_review' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
+                    <input type="radio" wire:model.live="intakeMethod" value="upload_for_review" class="mt-0.5">
+                    <span>
+                        <span class="block text-sm font-semibold text-[#12304f]">Upload your existing documents for
+                            review</span>
+                        <span class="block text-xs text-[#5d6e7f]">Already have compliance documents? Upload them and
+                            we'll review, refine, and finalize them for you.</span>
+                    </span>
+                </label>
+            </div>
+            @error('intakeMethod') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+
+            @if($intakeMethod === 'upload_for_review')
+            <div class="mt-4">
+                @if($this->rejectedSubmission?->reviewer_notes)
+                <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <p class="font-semibold mb-0.5">Reviewer notes:</p>
+                    <p>{{ $this->rejectedSubmission->reviewer_notes }}</p>
+                </div>
+                @endif
+                <div class="border-2 border-dashed border-[#b9cfe0] rounded-[1rem] bg-[#f7fbfd] p-6">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
+                        Upload document(s) for review <span class="text-red-500">*</span>
+                    </label>
+                    <p class="text-xs text-[#5d6e7f] mb-3">Upload one or more of your existing compliance documents.
+                        Our team and AI will review, clean up, and finalize each one for you.</p>
+                    <input type="file" wire:model="reviewDocumentFiles" multiple accept=".pdf,.jpg,.jpeg,.png,.docx"
+                        class="block w-full max-w-full truncate text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                    @error('reviewDocumentFiles') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('reviewDocumentFiles.*') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                    <div wire:loading wire:target="reviewDocumentFiles" class="mt-2 text-xs text-[#5d6e7f]">Uploading…
+                    </div>
+                    @if(!empty($reviewDocumentFiles))
+                    <ul class="mt-3 space-y-1.5" wire:loading.remove wire:target="reviewDocumentFiles">
+                        @foreach($reviewDocumentFiles as $i => $file)
+                        <li class="flex items-center justify-between gap-2 text-sm">
+                            <span
+                                class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#edf6ff] text-[#12304f] font-semibold truncate max-w-[80%]">&#10003;
+                                {{ $file->getClientOriginalName() }}</span>
+                            <button type="button" wire:click="removeReviewDocumentFile({{ $i }})"
+                                class="text-xs font-bold text-red-600 hover:underline flex-shrink-0">Remove</button>
+                        </li>
+                        @endforeach
+                    </ul>
+                    @endif
+                </div>
+            </div>
+            @endif
+        </div>
+        @endunless
     </div>
 
     {{--
@@ -1235,7 +1504,7 @@ $progressPct = ($milestone / 4) * 100;
                 }
             }"
         class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5 space-y-4">
-        @unless($editingProfile)
+        @if(! $editingProfile && $intakeMethod === 'download')
         {{-- Questionnaire downloads — one per file the client's purchased package(s) need --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach($this->applicableQuestionnaires as $questionnaire)
@@ -1271,7 +1540,7 @@ $progressPct = ($milestone / 4) * 100;
         <p x-show="!allRequiredDownloaded" x-cloak class="text-xs font-semibold text-[#9a6700]">
             Please download the required questionnaire(s) above before continuing.
         </p>
-        @endunless
+        @endif
 
         <div class="flex justify-between">
             @if($editingProfile)
@@ -1285,11 +1554,14 @@ $progressPct = ($milestone / 4) * 100;
                 &larr; Back
             </button>
             @endif
-            <button wire:click="saveProfile" :disabled="!allRequiredDownloaded"
-                :class="!allRequiredDownloaded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#5bb2aa]'"
+            @php $isReviewUpload = ! $editingProfile && $intakeMethod === 'upload_for_review'; @endphp
+            <button wire:click="{{ $isReviewUpload ? 'submitForReview' : 'saveProfile' }}" @unless($isReviewUpload)
+                :disabled="!allRequiredDownloaded"
+                :class="!allRequiredDownloaded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#5bb2aa]'" @endunless
                 class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                <span wire:loading.remove>{{ $editingProfile ? 'Save Changes' : 'Submit Profile & Continue' }}
+                <span wire:loading.remove>{{ $editingProfile ? 'Save Changes' : ($isReviewUpload ? 'Submit Documents for
+                    Review' : 'Submit Profile & Continue') }}
                     &rarr;</span>
                 <span wire:loading>Saving…</span>
             </button>
@@ -1445,7 +1717,7 @@ $progressPct = ($milestone / 4) * 100;
                     <p class="font-semibold {{ $textClass }}">{{ $order->package?->name }} &middot; {{ $label }}</p>
                     @if($status === IntakeSubmissionStatus::Rejected && $order->intakeSubmission?->reviewer_notes)
                     <p class="text-sm text-[#881337] mt-1">{{ $order->intakeSubmission->reviewer_notes }}</p>
-                    <button wire:click="goToStep(3)"
+                    <button wire:click="reuploadForOrder({{ $order->id }})"
                         class="mt-2 inline-flex items-center gap-1 rounded bg-[#9f1239] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#881337] transition-colors">
                         Re-upload &rarr;
                     </button>
@@ -1543,7 +1815,9 @@ $progressPct = ($milestone / 4) * 100;
             $type = $row['type'];
             $location = $row['location'];
             $doc = $row['document'];
-            $title = $type->label().($location ? ' — '.$location->name : '');
+            $sourceUpload = $row['sourceUpload'] ?? null;
+            $title = $type->label().($location ? ' — '.$location->name : '').($sourceUpload ? ' —
+            '.$sourceUpload->original_filename : '');
             @endphp
             <div class="flex items-center justify-between gap-3 py-3">
                 <div class="flex-1 min-w-0">

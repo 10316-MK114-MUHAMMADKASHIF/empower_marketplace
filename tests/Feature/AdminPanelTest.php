@@ -349,7 +349,7 @@ class AdminPanelTest extends TestCase
 
     // ── Document review (per-document approval) ──────────────────────────────
 
-    public function test_admin_can_bulk_approve_selected_documents_and_client_is_emailed(): void
+    public function test_admin_can_bulk_approve_selected_documents_without_emailing_the_client(): void
     {
         Mail::fake();
 
@@ -373,9 +373,49 @@ class AdminPanelTest extends TestCase
         $this->assertNotNull($docTwo->fresh()->reviewed_at);
         $this->assertSame($admin->id, $docOne->fresh()->reviewed_by);
 
-        Mail::assertSent(ClientDocumentsApprovedMail::class, fn ($mail) => $mail->hasTo($submission->order->user->email));
+        // The client is notified once, when the submission itself is approved — not here.
+        Mail::assertNotSent(ClientDocumentsApprovedMail::class);
 
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'documents.approved']);
+    }
+
+    public function test_approving_a_submission_emails_the_full_ready_documents_list_including_previously_selected_ones(): void
+    {
+        Mail::fake();
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        $clientEmail = $submission->order->user->email;
+        $docOne = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        $docTwo = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::OshaSafetyPlan,
+        ]);
+
+        // Admin approves the first document individually first — no email yet.
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->set('selectedDocumentIds', [$docOne->id])
+            ->call('approveSelectedDocuments');
+
+        Mail::assertNotSent(ClientDocumentsApprovedMail::class);
+
+        // Approving the submission as a whole sends one email listing BOTH documents — the
+        // one approved earlier via "Approve Selected", plus the one finalized just now.
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('approve');
+
+        Mail::assertSent(ClientDocumentsApprovedMail::class, function ($mail) use ($clientEmail, $docOne, $docTwo) {
+            $ids = $mail->documents->pluck('id')->all();
+
+            return $mail->hasTo($clientEmail)
+                && in_array($docOne->id, $ids, true)
+                && in_array($docTwo->id, $ids, true);
+        });
     }
 
     public function test_approve_selected_stays_disabled_until_every_pending_document_is_selected(): void
@@ -425,13 +465,13 @@ class AdminPanelTest extends TestCase
         $this->assertTrue($component->instance()->allReviewableDocumentsSelected());
     }
 
-    public function test_bulk_approval_still_succeeds_when_the_notification_email_fails_to_send(): void
+    public function test_approving_a_submission_still_succeeds_when_a_notification_email_fails_to_send(): void
     {
-        Mail::shouldReceive('to')->once()->andReturnSelf();
-        Mail::shouldReceive('send')->once()->andThrow(new \RuntimeException('SMTP rejected the recipient.'));
+        Mail::shouldReceive('to')->twice()->andReturnSelf();
+        Mail::shouldReceive('send')->twice()->andThrow(new \RuntimeException('SMTP rejected the recipient.'));
 
         $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $submission = $this->makeSubmission();
         $document = GeneratedDocument::factory()->completed()->create([
             'order_id' => $submission->order_id,
             'document_type' => DocumentType::EmployeeHandbookBasic,
@@ -439,12 +479,12 @@ class AdminPanelTest extends TestCase
 
         $component = Livewire::actingAs($admin)
             ->test('admin.submission-detail', ['submission' => $submission])
-            ->set('selectedDocumentIds', [$document->id])
-            ->call('approveSelectedDocuments');
+            ->call('approve');
 
         $component->assertOk();
+        $submission->refresh();
+        $this->assertSame(IntakeSubmissionStatus::Approved, $submission->status);
         $this->assertNotNull($document->fresh()->reviewed_at);
-        $this->assertSame($admin->id, $document->fresh()->reviewed_by);
         $this->assertStringContainsString('failed to send', $component->get('notice'));
     }
 
@@ -497,6 +537,91 @@ class AdminPanelTest extends TestCase
         $this->assertTrue($documents->firstWhere('id', $uploadedDoc->id)->showsCustomUploadSlot);
         $this->assertFalse($documents->firstWhere('id', $notUploadedDoc->id)->showsCustomUploadSlot);
         $this->assertTrue($documents->firstWhere('id', $noQuestionnaireLinkDoc->id)->showsCustomUploadSlot);
+    }
+
+    // ── Upload for review (alternate to questionnaire downloads) ────────────
+
+    public function test_uploaded_forms_list_shows_every_client_review_file_individually(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'employee-handbook.pdf',
+        ]);
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'safety-plan.pdf',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->assertSee('employee-handbook.pdf')
+            ->assertSee('safety-plan.pdf');
+    }
+
+    public function test_document_review_grid_shows_a_separate_row_per_uploaded_file_with_its_filename(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $uploadA = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'employee-handbook.pdf',
+        ]);
+        $uploadB = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'safety-plan.pdf',
+        ]);
+        GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $uploadA->id,
+        ]);
+        GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $uploadB->id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->assertSee('employee-handbook.pdf')
+            ->assertSee('safety-plan.pdf');
+    }
+
+    public function test_approving_a_submission_approves_all_of_its_polished_client_documents(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        $uploadA = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+        ]);
+        $uploadB = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+        ]);
+        $docA = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $uploadA->id,
+        ]);
+        $docB = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $uploadB->id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('approve');
+
+        $this->assertNotNull($docA->fresh()->reviewed_at);
+        $this->assertNotNull($docB->fresh()->reviewed_at);
     }
 
     public function test_uploading_a_custom_document_switches_delivery_source_and_revokes_prior_approval(): void

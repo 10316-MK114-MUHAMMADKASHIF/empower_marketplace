@@ -23,6 +23,10 @@ enum DocumentType: string
     case HipaaBusinessAssociateManual = 'hipaa_business_associate_manual';
     case HipaaSecurityManual = 'hipaa_security_manual';
 
+    // A client-uploaded existing document, AI-polished and generated 1:1 per upload rather
+    // than merged into one of the fixed manual templates above.
+    case PolishedClientDocument = 'polished_client_document';
+
     public function label(): string
     {
         return match ($this) {
@@ -38,6 +42,7 @@ enum DocumentType: string
             self::EmergencyOperationsPlan => 'Emergency Operations Plan',
             self::HipaaBusinessAssociateManual => 'HIPAA Business Associate Manual',
             self::HipaaSecurityManual => 'HIPAA Security Manual',
+            self::PolishedClientDocument => 'Reviewed & Polished Document',
         };
     }
 
@@ -71,6 +76,12 @@ enum DocumentType: string
         return $this === self::OshaLocationReport;
     }
 
+    /** Whether this document is generated once per source upload, rather than once per order. */
+    public function isPerUpload(): bool
+    {
+        return $this === self::PolishedClientDocument;
+    }
+
     /** The client questionnaire this document's content is sourced from, if any. */
     public function linkedQuestionnaireType(): ?IntakeUploadType
     {
@@ -79,6 +90,7 @@ enum DocumentType: string
             self::HipaaBusinessAssociateManual => IntakeUploadType::HipaaBusinessAssociateQuestionnaire,
             self::HipaaPrivacyPolicy => IntakeUploadType::HipaaPrivacyQuestionnaire,
             self::HipaaSecurityManual => IntakeUploadType::HipaaSecurityQuestionnaire,
+            self::PolishedClientDocument => IntakeUploadType::ClientDocumentForReview,
             default => null,
         };
     }

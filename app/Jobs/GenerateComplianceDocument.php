@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Models\GeneratedDocument;
+use App\Models\IntakeUpload;
 use App\Models\Order;
 use App\Models\OshaLocation;
 use App\Models\Practice;
@@ -26,6 +27,7 @@ class GenerateComplianceDocument implements ShouldQueue
         public readonly Order $order,
         public readonly DocumentType $documentType,
         public readonly ?OshaLocation $oshaLocation = null,
+        public readonly ?IntakeUpload $intakeUpload = null,
     ) {}
 
     public function handle(CompliancePdfGenerator $pdfGenerator): void
@@ -35,6 +37,7 @@ class GenerateComplianceDocument implements ShouldQueue
                 'order_id' => $this->order->id,
                 'document_type' => $this->documentType,
                 'osha_location_id' => $this->oshaLocation?->id,
+                'intake_upload_id' => $this->intakeUpload?->id,
             ],
             ['status' => DocumentStatus::Pending]
         );
@@ -45,7 +48,18 @@ class GenerateComplianceDocument implements ShouldQueue
         try {
             $viewData = $this->buildViewData();
             $basePath = 'private/compliance/'.$this->order->id;
-            $slug = $this->documentType->value.($this->oshaLocation ? '_'.$this->oshaLocation->id : '');
+            $slug = $this->documentType->value
+                .($this->oshaLocation ? '_'.$this->oshaLocation->id : '')
+                .($this->intakeUpload ? '_upload'.$this->intakeUpload->id : '');
+
+            // An AI-polished 1:1 rendering of the client's own uploaded document — no merge
+            // template involved, so this must be checked before the linked-questionnaire
+            // branch below even though this type does have a linkedQuestionnaireType().
+            if ($this->documentType->isPerUpload()) {
+                $this->generateFromPolishedUpload($doc, $pdfGenerator, $basePath, $slug);
+
+                return;
+            }
 
             // A manual assembled from the client's own questionnaire answers — merge the
             // real answers into the template, then convert the result to a protected PDF.
@@ -106,6 +120,42 @@ class GenerateComplianceDocument implements ShouldQueue
                 'failure_reason' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Renders the AI-polished HTML produced for this specific upload straight to a
+     * protected PDF — no merge template exists for arbitrary client-uploaded content, so
+     * unlike the questionnaire-linked manuals this document type is PDF-only.
+     */
+    private function generateFromPolishedUpload(
+        GeneratedDocument $doc,
+        CompliancePdfGenerator $pdfGenerator,
+        string $basePath,
+        string $slug,
+    ): void {
+        $upload = $this->intakeUpload ?? throw new \RuntimeException('Missing source upload for polished document.');
+
+        $html = $upload->fresh()->ai_extracted_data['html'] ?? null;
+
+        if (! $html) {
+            throw new \RuntimeException('Source upload has no AI-polished content yet.');
+        }
+
+        $ownerPassword = Str::random(32);
+        $pdfContent = $pdfGenerator->generate($html, $ownerPassword);
+
+        $pdfPath = "{$basePath}/{$slug}.pdf";
+        Storage::disk('local')->put($pdfPath, $pdfContent);
+
+        $doc->update([
+            'status' => DocumentStatus::Completed,
+            'pdf_storage_path' => $pdfPath,
+            'docx_storage_path' => null,
+            'pdf_owner_password' => $ownerPassword,
+            'is_stale' => false,
+            'failure_reason' => null,
+            'generated_at' => now(),
+        ]);
     }
 
     /** @param array<string, mixed> $viewData */

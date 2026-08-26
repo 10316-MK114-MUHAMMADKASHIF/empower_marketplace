@@ -385,6 +385,104 @@ class GenerateComplianceDocumentTest extends TestCase
         $this->assertNull($doc->docx_storage_path);
     }
 
+    // ── AI-polished client documents (upload for review) ────────────────────
+
+    public function test_generates_a_pdf_only_polished_document_from_the_uploads_ai_html(): void
+    {
+        Storage::fake('local');
+        $this->mockPdfGenerator();
+
+        $order = $this->makeOrder();
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => ['html' => '<p>Polished content.</p>'],
+        ]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::PolishedClientDocument, null, $upload);
+
+        $doc = GeneratedDocument::where('order_id', $order->id)->firstOrFail();
+
+        $this->assertEquals(DocumentStatus::Completed, $doc->status);
+        $this->assertSame($upload->id, $doc->intake_upload_id);
+        $this->assertNotNull($doc->pdf_storage_path);
+        $this->assertNull($doc->docx_storage_path);
+        $this->assertNotNull($doc->pdf_owner_password);
+        Storage::disk('local')->assertExists($doc->pdf_storage_path);
+    }
+
+    public function test_two_uploads_of_the_same_type_produce_two_distinct_generated_document_rows(): void
+    {
+        Storage::fake('local');
+        $this->mock(CompliancePdfGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')->twice()->andReturn('%PDF-1.4 fake');
+        });
+
+        $order = $this->makeOrder();
+        $uploadA = IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => ['html' => '<p>First.</p>'],
+        ]);
+        $uploadB = IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => ['html' => '<p>Second.</p>'],
+        ]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::PolishedClientDocument, null, $uploadA);
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::PolishedClientDocument, null, $uploadB);
+
+        $this->assertDatabaseCount('generated_documents', 2);
+        $this->assertDatabaseHas('generated_documents', ['intake_upload_id' => $uploadA->id]);
+        $this->assertDatabaseHas('generated_documents', ['intake_upload_id' => $uploadB->id]);
+    }
+
+    public function test_regenerating_a_polished_document_reuses_its_existing_row_via_intake_upload_id(): void
+    {
+        Storage::fake('local');
+        $this->mock(CompliancePdfGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')->twice()->andReturn('%PDF-1.4 fake');
+        });
+
+        $order = $this->makeOrder();
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => ['html' => '<p>Polished.</p>'],
+        ]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::PolishedClientDocument, null, $upload);
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::PolishedClientDocument, null, $upload);
+
+        $this->assertDatabaseCount('generated_documents', 1);
+    }
+
+    public function test_polished_document_generation_fails_gracefully_when_source_upload_has_no_html_yet(): void
+    {
+        Storage::fake('local');
+
+        $order = $this->makeOrder();
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+            'ai_extracted_data' => null,
+        ]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::PolishedClientDocument, null, $upload);
+
+        $doc = GeneratedDocument::where('order_id', $order->id)->firstOrFail();
+
+        $this->assertEquals(DocumentStatus::Failed, $doc->status);
+        $this->assertNotNull($doc->failure_reason);
+        $this->assertNull($doc->pdf_storage_path);
+    }
+
     // ── Failure handling ──────────────────────────────────────────────────
 
     public function test_marks_document_failed_when_view_not_found(): void
