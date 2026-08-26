@@ -1398,6 +1398,73 @@ class PortalTest extends TestCase
         $this->assertDatabaseCount('generated_documents', 1);
     }
 
+    public function test_step2_shows_previously_uploaded_review_documents_after_returning_from_rejection(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $submission = IntakeSubmission::factory()->uploadForReview()->create([
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Rejected,
+        ]);
+        IntakeUpload::factory()->completed()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'employee-handbook.pdf',
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 2)
+            ->assertSet('intakeMethod', 'upload_for_review')
+            ->assertSee('employee-handbook.pdf');
+    }
+
+    public function test_resubmitting_for_review_without_new_files_keeps_the_existing_upload(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $submission = IntakeSubmission::factory()->uploadForReview()->create([
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Rejected,
+        ]);
+        $existingUpload = IntakeUpload::factory()->completed()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'original_filename' => 'employee-handbook.pdf',
+        ]);
+        $existingDoc = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $existingUpload->id,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('intakeMethod', 'upload_for_review')
+            ->call('submitForReview')
+            ->assertHasNoErrors()
+            ->assertSet('step', 4);
+
+        $this->assertDatabaseHas('intake_uploads', ['id' => $existingUpload->id]);
+        $this->assertDatabaseHas('generated_documents', ['id' => $existingDoc->id]);
+        $this->assertDatabaseCount('intake_uploads', 1);
+        $this->assertSame(IntakeSubmissionStatus::Submitted, $submission->fresh()->status);
+    }
+
     // ── Step 4: Review Status ───────────────────────────────────────────────
 
     public function test_check_approval_advances_to_step_5_when_approved(): void

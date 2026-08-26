@@ -167,6 +167,23 @@ new class extends Component
         return $submission->intakeUploads->keyBy(fn ($upload) => $upload->upload_type->value);
     }
 
+    /** Every "upload for review" document already on file for the current submission — unlike
+     *  existingUploadsByType() this isn't collapsed to one per type, since several files of
+     *  this one type are expected. */
+    #[Computed]
+    public function existingReviewUploads(): Collection
+    {
+        $orders = $this->batchOrders->isNotEmpty() ? $this->batchOrders : $this->userOrders;
+
+        $submission = $orders->first()?->intakeSubmission;
+
+        if (! $submission) {
+            return collect();
+        }
+
+        return $submission->intakeUploads->where('upload_type', IntakeUploadType::ClientDocumentForReview)->values();
+    }
+
     /** The order whose documents are currently displayed on the Step 5 dashboard. */
     #[Computed]
     public function currentOrder(): ?Order
@@ -884,7 +901,10 @@ new class extends Component
 
         $rules = $this->profileRules();
         $rules['intakeMethod'] = 'required|in:download,upload_for_review';
-        $rules['reviewDocumentFiles'] = 'required|array|min:1';
+        // Mirrors submitIntake()'s questionnaire-box behavior: a file already on record (e.g.
+        // from before a rejection) satisfies the requirement — the client isn't forced to
+        // re-pick every file just to resubmit one that was fine.
+        $rules['reviewDocumentFiles'] = $this->existingReviewUploads->isEmpty() ? 'required|array|min:1' : 'nullable|array';
         $rules['reviewDocumentFiles.*'] = 'file|max:20480';
 
         $this->validate($rules);
@@ -899,35 +919,38 @@ new class extends Component
             return;
         }
 
-        // Resubmitting after a rejection — replace the prior batch of review documents
-        // rather than accumulating alongside them, matching submitIntake()'s replace-in-place
-        // behavior for questionnaire uploads.
-        foreach ($orders as $order) {
-            $previousSubmission = $order->intakeSubmission;
+        // Resubmitting after a rejection with new files — replace the prior batch of review
+        // documents rather than accumulating alongside them, matching submitIntake()'s
+        // replace-in-place behavior for questionnaire uploads. If no new files were chosen,
+        // the existing uploads are left exactly as they are.
+        if (! empty($this->reviewDocumentFiles)) {
+            foreach ($orders as $order) {
+                $previousSubmission = $order->intakeSubmission;
 
-            if (! $previousSubmission || $previousSubmission->intake_method !== IntakeMethod::UploadForReview) {
-                continue;
-            }
+                if (! $previousSubmission || $previousSubmission->intake_method !== IntakeMethod::UploadForReview) {
+                    continue;
+                }
 
-            $previousSubmission->intakeUploads()
-                ->where('upload_type', IntakeUploadType::ClientDocumentForReview)
-                ->get()
-                ->each(function (IntakeUpload $upload) {
-                    if ($upload->storage_path) {
-                        Storage::disk('local')->delete($upload->storage_path);
-                    }
-
-                    GeneratedDocument::where('intake_upload_id', $upload->id)->get()->each(function (GeneratedDocument $doc) {
-                        foreach ([$doc->pdf_storage_path, $doc->docx_storage_path, $doc->custom_storage_path] as $path) {
-                            if ($path) {
-                                Storage::disk('local')->delete($path);
-                            }
+                $previousSubmission->intakeUploads()
+                    ->where('upload_type', IntakeUploadType::ClientDocumentForReview)
+                    ->get()
+                    ->each(function (IntakeUpload $upload) {
+                        if ($upload->storage_path) {
+                            Storage::disk('local')->delete($upload->storage_path);
                         }
-                        $doc->delete();
-                    });
 
-                    $upload->delete();
-                });
+                        GeneratedDocument::where('intake_upload_id', $upload->id)->get()->each(function (GeneratedDocument $doc) {
+                            foreach ([$doc->pdf_storage_path, $doc->docx_storage_path, $doc->custom_storage_path] as $path) {
+                                if ($path) {
+                                    Storage::disk('local')->delete($path);
+                                }
+                            }
+                            $doc->delete();
+                        });
+
+                        $upload->delete();
+                    });
+            }
         }
 
         $batchToken = (string) Str::ulid();
@@ -1410,6 +1433,19 @@ $progressPct = ($milestone / 4) * 100;
                     </label>
                     <p class="text-xs text-[#5d6e7f] mb-3">Upload one or more of your existing compliance documents.
                         Our team and AI will review, clean up, and finalize each one for you.</p>
+                    @if($this->existingReviewUploads->isNotEmpty() && empty($reviewDocumentFiles))
+                    <div class="mb-3">
+                        <p class="text-xs text-[#5d6e7f] mb-1.5">Already uploaded:</p>
+                        <ul class="flex flex-wrap gap-2">
+                            @foreach($this->existingReviewUploads as $existingUpload)
+                            <li class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                                ✓ {{ $existingUpload->original_filename }}
+                            </li>
+                            @endforeach
+                        </ul>
+                        <p class="mt-1.5 text-xs text-[#5d6e7f]">Choose new files below to replace these.</p>
+                    </div>
+                    @endif
                     <input type="file" wire:model="reviewDocumentFiles" multiple accept=".pdf,.jpg,.jpeg,.png,.docx"
                         class="block w-full max-w-full truncate text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
                     @error('reviewDocumentFiles') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
