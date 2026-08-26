@@ -325,6 +325,13 @@ new class extends Component
 
     public function canReach(int $step): bool
     {
+        // Step 3 (questionnaire upload) doesn't exist for the "upload for review" path —
+        // that flow's file upload lives in Step 2 and skips straight to Step 4. Block it from
+        // being navigated to directly, whether via the stepper icon or a "Back" action.
+        if ($step === 3 && $this->submissionIntakeMethod() === IntakeMethod::UploadForReview) {
+            return false;
+        }
+
         return match ($step) {
             1 => true,
             2 => $this->completedMilestone >= 1,
@@ -333,6 +340,11 @@ new class extends Component
             5 => $this->completedMilestone >= 4,
             default => false,
         };
+    }
+
+    private function submissionIntakeMethod(): ?IntakeMethod
+    {
+        return $this->batchOrders->first()?->intakeSubmission?->intake_method;
     }
 
     public function mount(): void
@@ -458,9 +470,22 @@ new class extends Component
 
     public function goToStep(int $step): void
     {
-        if ($this->canReach($step)) {
-            $this->step = $step;
+        if (! $this->canReach($step)) {
+            return;
         }
+
+        // Landing back on Step 2 (e.g. via the stepper icon, not just the rejected-submission
+        // routing in mount()) should reflect which intake method the client already chose —
+        // otherwise neither radio appears selected even though a submission already exists.
+        if ($step === 2) {
+            $method = $this->submissionIntakeMethod();
+
+            if ($method) {
+                $this->intakeMethod = $method->value;
+            }
+        }
+
+        $this->step = $step;
     }
 
     public function editProfile(): void

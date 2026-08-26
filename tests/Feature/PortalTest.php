@@ -1331,6 +1331,29 @@ class PortalTest extends TestCase
             ->assertSet('step', 3);
     }
 
+    public function test_navigating_back_to_step2_via_the_stepper_restores_the_chosen_intake_method(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->uploadForReview()->submitted()->create(['order_id' => $order->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 4)
+            ->assertSet('intakeMethod', '')
+            ->call('goToStep', 2)
+            ->assertSet('step', 2)
+            ->assertSet('intakeMethod', 'upload_for_review')
+            ->assertSee('Upload your existing documents');
+    }
+
     public function test_reupload_button_routes_to_the_step_matching_how_the_order_was_submitted(): void
     {
         $user = User::factory()->create();
@@ -1353,6 +1376,29 @@ class PortalTest extends TestCase
             ->call('reuploadForOrder', $reviewOrder->id)
             ->assertSet('step', 2)
             ->assertSet('intakeMethod', 'upload_for_review');
+    }
+
+    public function test_step3_is_unreachable_for_an_upload_for_review_submission(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        IntakeSubmission::factory()->uploadForReview()->submitted()->create(['order_id' => $order->id]);
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('step', 4);
+
+        $this->assertFalse($component->instance()->canReach(3));
+
+        // Neither the stepper icon nor any other action can land on Step 3.
+        $component->call('goToStep', 3)->assertSet('step', 4);
     }
 
     public function test_resubmitting_for_review_after_rejection_replaces_the_prior_upload_and_document(): void
