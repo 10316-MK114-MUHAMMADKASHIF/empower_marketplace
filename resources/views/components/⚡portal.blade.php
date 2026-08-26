@@ -579,22 +579,29 @@ new class extends Component
     public function updated(string $property): void
     {
         $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail'];
+        $profileFields = ['practiceName', 'practiceAddress', 'npiNumber', 'specialty', 'billableProviders', 'logoFile'];
 
-        if (! in_array($property, $paymentFields, true)) {
+        if (in_array($property, $paymentFields, true)) {
+            if ($property === 'cardNumber') {
+                $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
+            }
+
+            $rules = $this->paymentRules();
+
+            if (array_key_exists($property, $rules)) {
+                $this->validateOnly($property, [$property => $rules[$property]]);
+            }
+
             return;
         }
 
-        if ($property === 'cardNumber') {
-            $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
+        if (in_array($property, $profileFields, true)) {
+            $rules = $this->profileRules();
+
+            if (array_key_exists($property, $rules)) {
+                $this->validateOnly($property, [$property => $rules[$property]]);
+            }
         }
-
-        $rules = $this->paymentRules();
-
-        if (! array_key_exists($property, $rules)) {
-            return;
-        }
-
-        $this->validateOnly($property, [$property => $rules[$property]]);
     }
 
     public function pay(): void
@@ -1350,7 +1357,7 @@ $progressPct = ($milestone / 4) * 100;
                     @endif
                 </label>
                 @unless($this->practice?->is_profile_locked)
-                <input wire:model="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg"
+                <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg"
                     class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
                 @error('logoFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 @endunless
@@ -1368,7 +1375,7 @@ $progressPct = ($milestone / 4) * 100;
                         Locked</span>
                     @endif
                 </label>
-                <input wire:model="practiceName" type="text" placeholder="Riverside Family Medicine" {{
+                <input wire:model.live="practiceName" type="text" placeholder="Riverside Family Medicine" {{
                     $this->practice?->is_profile_locked ? 'disabled' : '' }}
                 class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' : 'border-[#dbe4ee]'
                 }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4
@@ -1380,7 +1387,7 @@ $progressPct = ($milestone / 4) * 100;
             <div class="sm:col-span-2">
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span
                         class="text-red-500">*</span></label>
-                <input wire:model="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
+                <input wire:model.live="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
                     class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                 @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
@@ -1388,7 +1395,7 @@ $progressPct = ($milestone / 4) * 100;
             <div>
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number <span
                         class="text-red-500">*</span></label>
-                <input wire:model="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                <input wire:model.live="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
                     placeholder="1234567890" x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
                     class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                 @error('npiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -1397,7 +1404,7 @@ $progressPct = ($milestone / 4) * 100;
             <div>
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span
                         class="text-red-500">*</span></label>
-                <select wire:model="specialty"
+                <select wire:model.live="specialty"
                     class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                     @foreach(Practice::SPECIALTIES as $s)
                     <option value="{{ $s }}" @selected($specialty===$s)>{{ $s }}</option>
@@ -1409,7 +1416,7 @@ $progressPct = ($milestone / 4) * 100;
             <div>
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers <span
                         class="text-red-500">*</span></label>
-                <input wire:model="billableProviders" type="number" min="1"
+                <input wire:model.live="billableProviders" type="number" min="1"
                     class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                 @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
@@ -1463,7 +1470,8 @@ $progressPct = ($milestone / 4) * 100;
                         <p class="text-xs text-[#5d6e7f] mb-1.5">Already uploaded:</p>
                         <ul class="flex flex-wrap gap-2">
                             @foreach($this->existingReviewUploads as $existingUpload)
-                            <li class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
+                            <li
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
                                 ✓ {{ $existingUpload->original_filename }}
                             </li>
                             @endforeach

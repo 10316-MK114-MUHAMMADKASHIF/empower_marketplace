@@ -568,4 +568,127 @@ class ProcessIntakeUploadTest extends TestCase
         Queue::assertPushed(GenerateComplianceDocument::class, fn ($job) => $job->documentType === DocumentType::PolishedClientDocument
             && $job->intakeUpload?->id === $upload2->id);
     }
+
+    // ── Image preservation (upload for review) ──────────────────────────────
+
+    public function test_client_document_for_review_docx_preserves_embedded_images(): void
+    {
+        Storage::fake('local');
+
+        // A real .docx with an image sandwiched between two paragraphs, to prove the image
+        // survives extraction -> AI polish -> reinsertion, not just the surrounding text.
+        $imagePath = tempnam(sys_get_temp_dir(), 'img').'.png';
+        file_put_contents($imagePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+
+        $phpWord = new PhpWord;
+        $section = $phpWord->addSection();
+        $section->addText('Before the image.');
+        $section->addImage($imagePath, ['width' => 50, 'height' => 50]);
+        $section->addText('After the image.');
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'docx').'.docx';
+        IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+        Storage::disk('local')->put('uploads/20/handbook.docx', file_get_contents($tempPath));
+        unlink($tempPath);
+        unlink($imagePath);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/20/handbook.docx',
+            'original_filename' => 'handbook.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(
+                $this->openaiResponse('{"html":"<p>Before the image.</p>[[IMAGE_1]]<p>After the image.</p>"}')
+            ),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        // The prompt sent to OpenAI must include both the placeholder and the instruction to
+        // preserve it — this is what "refining the prompt" actually needs to accomplish.
+        Http::assertSent(function ($request) {
+            $text = $request['messages'][0]['content'];
+
+            return str_contains($text, '[[IMAGE_1]]') && str_contains($text, 'image placeholders');
+        });
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $html = $upload->ai_extracted_data['html'];
+
+        // The final stored HTML has the real embedded image, not the placeholder token.
+        $this->assertStringNotContainsString('[[IMAGE_1]]', $html);
+        $this->assertStringContainsString('<img src="data:image/png;base64,', $html);
+        $this->assertStringContainsString('Before the image.', $html);
+        $this->assertStringContainsString('After the image.', $html);
+    }
+
+    public function test_client_document_for_review_appends_image_when_ai_drops_the_placeholder(): void
+    {
+        Storage::fake('local');
+
+        $imagePath = tempnam(sys_get_temp_dir(), 'img').'.png';
+        file_put_contents($imagePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+
+        $phpWord = new PhpWord;
+        $section = $phpWord->addSection();
+        $section->addText('Some text.');
+        $section->addImage($imagePath, ['width' => 50, 'height' => 50]);
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'docx').'.docx';
+        IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+        Storage::disk('local')->put('uploads/21/handbook.docx', file_get_contents($tempPath));
+        unlink($tempPath);
+        unlink($imagePath);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/21/handbook.docx',
+            'original_filename' => 'handbook.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        // The AI ignores the placeholder-preservation instruction entirely.
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{"html":"<p>Some polished text.</p>"}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $html = $upload->fresh()->ai_extracted_data['html'];
+        $this->assertStringContainsString('<img src="data:image/png;base64,', $html);
+    }
+
+    public function test_client_document_for_review_image_upload_embeds_the_original_image(): void
+    {
+        Storage::fake('local');
+
+        $imageBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+        Storage::disk('local')->put('uploads/22/scan.png', $imageBytes);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/22/scan.png',
+            'original_filename' => 'scan.png',
+            'mime_type' => 'image/png',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(
+                $this->openaiResponse('{"html":"<p>Transcribed text from the scan.</p>"}')
+            ),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $html = $upload->fresh()->ai_extracted_data['html'];
+        $this->assertStringContainsString('Transcribed text from the scan.', $html);
+        $this->assertStringContainsString('<img src="data:image/png;base64,'.base64_encode($imageBytes).'"', $html);
+    }
 }

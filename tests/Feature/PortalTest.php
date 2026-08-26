@@ -586,6 +586,31 @@ class PortalTest extends TestCase
             ->assertHasErrors(['practiceName']);
     }
 
+    public function test_practice_fields_validate_live_without_calling_save_profile(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->set('practiceName', '')
+            ->assertHasErrors(['practiceName'])
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->assertHasNoErrors(['practiceName'])
+            ->set('npiNumber', '123')
+            ->assertHasErrors(['npiNumber'])
+            ->set('npiNumber', '1234567890')
+            ->assertHasNoErrors(['npiNumber']);
+    }
+
     public function test_save_profile_requires_logo_address_npi_and_specialty_on_first_submission(): void
     {
         $user = User::factory()->create();

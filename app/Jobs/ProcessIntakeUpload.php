@@ -15,6 +15,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpWord\Element\Image;
 use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
@@ -184,21 +185,30 @@ class ProcessIntakeUpload implements ShouldQueue
             throw new \RuntimeException('OpenAI API error: '.$response->status());
         }
 
-        return $this->parseJson($response->json('choices.0.message.content', ''));
+        $data = $this->parseJson($response->json('choices.0.message.content', ''));
+
+        // A plain image upload (not a PDF) IS the document — the AI's text response can only
+        // describe it, not reproduce its pixels, so embed the original image directly into
+        // the output alongside whatever polished/transcribed text came back.
+        if ($mediaType !== 'application/pdf' && isset($data['html'])) {
+            $data['html'] .= '<img src="data:'.$mediaType.';base64,'.$base64.'" style="max-width:100%;height:auto;">';
+        }
+
+        return $data;
     }
 
     private function polishFromDocx(): array
     {
         $absolutePath = Storage::disk('local')->path($this->upload->storage_path);
         $phpWord = IOFactory::load($absolutePath);
-        $text = $this->extractText($phpWord);
+        $extracted = $this->extractTextWithImages($phpWord);
 
         $response = $this->openai()->post($this->openaiUrl(), [
             'model' => config('services.openai.model'),
             'response_format' => ['type' => 'json_object'],
             'messages' => [[
                 'role' => 'user',
-                'content' => $this->buildPolishPrompt()."\n\nDocument content:\n".$text,
+                'content' => $this->buildPolishPrompt($extracted['images'] !== [])."\n\nDocument content:\n".$extracted['text'],
             ]],
         ]);
 
@@ -206,12 +216,22 @@ class ProcessIntakeUpload implements ShouldQueue
             throw new \RuntimeException('OpenAI API error: '.$response->status());
         }
 
-        return $this->parseJson($response->json('choices.0.message.content', ''));
+        $data = $this->parseJson($response->json('choices.0.message.content', ''));
+        $data['html'] = $this->reinsertImages($data['html'] ?? '', $extracted['images']);
+
+        return $data;
     }
 
-    private function buildPolishPrompt(): string
+    private function buildPolishPrompt(bool $hasImagePlaceholders = false): string
     {
-        return <<<'PROMPT'
+        $imageInstruction = $hasImagePlaceholders
+            ? "\n\nThe document contains image placeholders like [[IMAGE_1]], [[IMAGE_2]], etc., marking exactly "
+                .'where images appear in the original. Preserve every placeholder EXACTLY as written, on its own '
+                .'line, in the same relative position in your output — do not remove, rename, merge, translate, '
+                .'or describe them.'
+            : '';
+
+        return <<<PROMPT
 You are a professional compliance-document editor. Rephrase and correct grammar, spelling, and awkward
 phrasing in the attached document while strictly preserving its original meaning, structure, and every
 substantive detail — do not add, remove, or invent information.
@@ -219,8 +239,31 @@ substantive detail — do not add, remove, or invent information.
 Return the corrected document as a JSON object with exactly one key, "html", containing clean semantic
 HTML for the full document content (use <h1>/<h2> for its existing headings, <p> for paragraphs,
 <ul>/<li> or <ol>/<li> for lists, and <table> for tabular content). Do not include <html>, <head>, or
-<body> tags, inline styles, or markdown formatting. Return only valid JSON with no additional text.
+<body> tags, inline styles, or markdown formatting. Return only valid JSON with no additional text.{$imageInstruction}
 PROMPT;
+    }
+
+    /**
+     * Swaps each [[IMAGE_N]] placeholder for the real embedded image. Any placeholder the AI
+     * failed to preserve still gets its image appended at the end, rather than silently lost.
+     *
+     * @param  array<string, array{data: string, mime: string}>  $images
+     */
+    private function reinsertImages(string $html, array $images): string
+    {
+        $missing = [];
+
+        foreach ($images as $placeholder => $image) {
+            $tag = '<img src="data:'.$image['mime'].';base64,'.$image['data'].'" style="max-width:100%;height:auto;">';
+
+            if (str_contains($html, $placeholder)) {
+                $html = str_replace($placeholder, $tag, $html);
+            } else {
+                $missing[] = $tag;
+            }
+        }
+
+        return $html.implode('', $missing);
     }
 
     /**
@@ -278,6 +321,62 @@ PROMPT;
                 $text .= $element->getText().' ';
             } elseif (method_exists($element, 'getElements')) {
                 $text .= $this->extractTextFromElements($element->getElements());
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * Like extractText(), but also captures embedded images — used only for the "upload for
+     * review" polish path, which needs to carry images through to the output. Kept separate
+     * from extractText() so the existing structured questionnaire extraction (which has no use
+     * for image placeholders) is unaffected.
+     *
+     * @return array{text: string, images: array<string, array{data: string, mime: string}>}
+     */
+    private function extractTextWithImages(PhpWord $phpWord): array
+    {
+        $images = [];
+        $text = '';
+
+        foreach ($phpWord->getSections() as $section) {
+            $text .= $this->extractTextAndImagesFromElements($section->getElements(), $images);
+        }
+
+        return ['text' => $text, 'images' => $images];
+    }
+
+    /**
+     * @param  array<int, mixed>  $elements
+     * @param  array<string, array{data: string, mime: string}>  $images
+     */
+    private function extractTextAndImagesFromElements(array $elements, array &$images): string
+    {
+        $text = '';
+        foreach ($elements as $element) {
+            if ($element instanceof Image) {
+                $data = $element->getImageStringData(true);
+
+                if ($data) {
+                    $placeholder = '[[IMAGE_'.(count($images) + 1).']]';
+                    $images[$placeholder] = ['data' => $data, 'mime' => $element->getImageType() ?: 'image/png'];
+                    $text .= "\n{$placeholder}\n";
+                }
+            } elseif ($element instanceof Table) {
+                foreach ($element->getRows() as $row) {
+                    foreach ($row->getCells() as $cell) {
+                        $text .= $this->extractTextAndImagesFromElements($cell->getElements(), $images);
+                    }
+                }
+            } elseif (method_exists($element, 'getElements')) {
+                // Checked before getText(): a TextRun (an inline run within a paragraph) has
+                // both methods, but its own getText() only concatenates Text/Ruby children and
+                // silently drops any Image nested in the same run — recursing into its
+                // getElements() instead is what lets the instanceof Image branch above catch it.
+                $text .= $this->extractTextAndImagesFromElements($element->getElements(), $images);
+            } elseif (method_exists($element, 'getText')) {
+                $text .= $element->getText().' ';
             }
         }
 
