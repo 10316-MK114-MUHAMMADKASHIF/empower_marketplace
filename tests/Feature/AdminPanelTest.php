@@ -63,7 +63,9 @@ class AdminPanelTest extends TestCase
     {
         $client = User::factory()->create(['role' => UserRole::Client]);
 
-        $this->withoutVite()->actingAs($client)->get(route('admin.dashboard'))->assertForbidden();
+        $this->withoutVite()->actingAs($client)->get(route('admin.dashboard'))
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('status', 'Please log in to access this page.');
     }
 
     public function test_admin_can_view_dashboard(): void
@@ -852,7 +854,7 @@ class AdminPanelTest extends TestCase
     {
         $client = User::factory()->create(['role' => UserRole::Client]);
 
-        $this->withoutVite()->actingAs($client)->get(route('admin.packages'))->assertForbidden();
+        $this->withoutVite()->actingAs($client)->get(route('admin.packages'))->assertRedirect(route('login'));
     }
 
     public function test_admin_can_create_a_package_for_an_unused_tier(): void
@@ -981,6 +983,6 @@ class AdminPanelTest extends TestCase
         $submission = $this->makeSubmission();
         $upload = IntakeUpload::factory()->create(['intake_submission_id' => $submission->id]);
 
-        $this->actingAs($client)->get(route('admin.uploads.download', $upload))->assertForbidden();
+        $this->actingAs($client)->get(route('admin.uploads.download', $upload))->assertRedirect(route('login'));
     }
 }

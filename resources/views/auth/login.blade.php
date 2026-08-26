@@ -68,6 +68,22 @@
         </div>
     </footer>
 
+    @if(session('status'))
+        <div
+            x-data="{ show: true }"
+            x-init="setTimeout(() => show = false, 4000)"
+            x-show="show"
+            x-transition
+            x-cloak
+            class="fixed bottom-6 right-6 z-[100]"
+        >
+            <div class="flex items-center gap-2 rounded-xl bg-[#12304f] text-white pl-4 pr-5 py-3 shadow-[0_18px_50px_rgba(10,32,55,0.25)]">
+                <span class="text-[#76c8c0] font-bold">&#9432;</span>
+                <span class="text-sm font-semibold">{{ session('status') }}</span>
+            </div>
+        </div>
+    @endif
+
     @livewireScripts
 </body>
 </html>
