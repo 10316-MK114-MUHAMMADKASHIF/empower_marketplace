@@ -1382,14 +1382,14 @@ $progressPct = ($milestone / 4) * 100;
             <p class="text-xs text-empower-muted mb-3">Create the account that will manage this practice's Empower
                 portal.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="sm:col-span-2">
+                <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span
                             class="text-red-500">*</span></label>
                     <input wire:model.live="accountName" type="text" placeholder="Jane Provider"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
-                <div class="sm:col-span-2">
+                <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span
                             class="text-red-500">*</span></label>
                     <input wire:model.live="accountEmail" type="email" placeholder="jane@practice.com"
@@ -1409,14 +1409,14 @@ $progressPct = ($milestone / 4) * 100;
                 logged by this form.</p>
             @error('payment') <p class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="sm:col-span-2">
+                <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span class="text-red-500">*</span></label>
                     <input x-ref="cardName" type="text" placeholder="Jane Provider"
                         x-on:input="cardNameValid = $el.value.trim().length > 0"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('cardName') <p x-show="!cardNameValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
-                <div class="sm:col-span-2">
+                <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span class="text-red-500">*</span></label>
                     <input x-ref="cardNumber" type="text" placeholder="4242 4242 4242 4242"
                         inputmode="numeric" maxlength="23"
@@ -1445,24 +1445,26 @@ $progressPct = ($milestone / 4) * 100;
                         class="w-full rounded-xl border {{ $errors->has('billingAddress1') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('billingAddress1') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span class="text-red-500">*</span></label>
-                    <input wire:model.live="billingCity" type="text" placeholder="Somerset"
-                        class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span class="text-red-500">*</span></label>
-                    <input wire:model.live="billingState" type="text" placeholder="NJ" maxlength="2"
-                        x-on:input="$el.value = $el.value.toUpperCase()"
-                        class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span class="text-red-500">*</span></label>
-                    <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric" maxlength="10"
-                        class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                <div class="sm:col-span-2 grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span class="text-red-500">*</span></label>
+                        <input wire:model.live="billingCity" type="text" placeholder="Somerset"
+                            class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span class="text-red-500">*</span></label>
+                        <input wire:model.live="billingState" type="text" placeholder="NJ" maxlength="2"
+                            x-on:input="$el.value = $el.value.toUpperCase()"
+                            class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span class="text-red-500">*</span></label>
+                        <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric" maxlength="10"
+                            class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
                 </div>
             </div>
 
