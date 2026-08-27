@@ -17,7 +17,7 @@
 <nav class="sticky top-0 z-50 bg-white/96 backdrop-blur border-b border-[#d4e5f1] shadow-sm">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
-            <a href="#home" class="flex items-center gap-2.5">
+            <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                 <span class="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5">
                     <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[22px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-[#0e3a61] text-sm\'>EMPOWER</span>'">
                 </span>
@@ -25,6 +25,7 @@
             </a>
 
             <div class="hidden md:flex items-center gap-7">
+                <a href="#home" class="text-sm font-medium text-[#5c778d] hover:text-[#0e3a61] transition-colors">Home</a>
                 <a href="#services" class="text-sm font-medium text-[#5c778d] hover:text-[#0e3a61] transition-colors">Services</a>
                 <a href="#process" class="text-sm font-medium text-[#5c778d] hover:text-[#0e3a61] transition-colors">Process</a>
                 <a href="#pricing" class="text-sm font-medium text-[#5c778d] hover:text-[#0e3a61] transition-colors">Pricing</a>

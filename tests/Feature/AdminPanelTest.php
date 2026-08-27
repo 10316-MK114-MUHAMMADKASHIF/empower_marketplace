@@ -470,44 +470,16 @@ class AdminPanelTest extends TestCase
 
     // ── Document review (per-document approval) ──────────────────────────────
 
-    public function test_admin_can_bulk_approve_selected_documents_without_emailing_the_client(): void
-    {
-        Mail::fake();
-
-        $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
-        $docOne = GeneratedDocument::factory()->completed()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::EmployeeHandbookBasic,
-        ]);
-        $docTwo = GeneratedDocument::factory()->completed()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::OshaSafetyPlan,
-        ]);
-
-        Livewire::actingAs($admin)
-            ->test('admin.submission-detail', ['submission' => $submission])
-            ->set('selectedDocumentIds', [$docOne->id, $docTwo->id])
-            ->call('approveSelectedDocuments');
-
-        $this->assertNotNull($docOne->fresh()->reviewed_at);
-        $this->assertNotNull($docTwo->fresh()->reviewed_at);
-        $this->assertSame($admin->id, $docOne->fresh()->reviewed_by);
-
-        // The client is notified once, when the submission itself is approved — not here.
-        Mail::assertNotSent(ClientDocumentsApprovedMail::class);
-
-        $this->assertDatabaseHas('activity_logs', ['event_type' => 'documents.approved']);
-    }
-
-    public function test_approving_a_submission_emails_the_full_ready_documents_list_including_previously_selected_ones(): void
+    public function test_approving_a_submission_emails_the_full_ready_documents_list_including_previously_approved_ones(): void
     {
         Mail::fake();
 
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $submission = $this->makeSubmission();
         $clientEmail = $submission->order->user->email;
-        $docOne = GeneratedDocument::factory()->completed()->create([
+        // Already approved from an earlier review cycle — e.g. before this submission was
+        // reopened and is being approved again.
+        $docOne = GeneratedDocument::factory()->completed()->approved()->create([
             'order_id' => $submission->order_id,
             'document_type' => DocumentType::EmployeeHandbookBasic,
         ]);
@@ -516,16 +488,8 @@ class AdminPanelTest extends TestCase
             'document_type' => DocumentType::OshaSafetyPlan,
         ]);
 
-        // Admin approves the first document individually first — no email yet.
-        Livewire::actingAs($admin)
-            ->test('admin.submission-detail', ['submission' => $submission])
-            ->set('selectedDocumentIds', [$docOne->id])
-            ->call('approveSelectedDocuments');
-
-        Mail::assertNotSent(ClientDocumentsApprovedMail::class);
-
-        // Approving the submission as a whole sends one email listing BOTH documents — the
-        // one approved earlier via "Approve Selected", plus the one finalized just now.
+        // Approving the submission sends one email listing BOTH documents — the one already
+        // approved from before, plus the one finalized by this approval.
         Livewire::actingAs($admin)
             ->test('admin.submission-detail', ['submission' => $submission])
             ->call('approve');
@@ -537,53 +501,6 @@ class AdminPanelTest extends TestCase
                 && in_array($docOne->id, $ids, true)
                 && in_array($docTwo->id, $ids, true);
         });
-    }
-
-    public function test_approve_selected_stays_disabled_until_every_pending_document_is_selected(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
-        $docOne = GeneratedDocument::factory()->completed()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::EmployeeHandbookBasic,
-        ]);
-        $docTwo = GeneratedDocument::factory()->completed()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::OshaSafetyPlan,
-        ]);
-
-        $component = Livewire::actingAs($admin)->test('admin.submission-detail', ['submission' => $submission]);
-        $this->assertFalse($component->instance()->allReviewableDocumentsSelected());
-
-        $component->set('selectedDocumentIds', [$docOne->id]);
-        $this->assertFalse($component->instance()->allReviewableDocumentsSelected());
-
-        $component->set('selectedDocumentIds', [$docOne->id, $docTwo->id]);
-        $this->assertTrue($component->instance()->allReviewableDocumentsSelected());
-    }
-
-    public function test_approve_selected_ignores_documents_that_are_already_approved_or_stale(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
-        $pending = GeneratedDocument::factory()->completed()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::EmployeeHandbookBasic,
-        ]);
-        GeneratedDocument::factory()->completed()->approved()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::OshaSafetyPlan,
-        ]);
-        GeneratedDocument::factory()->completed()->stale()->create([
-            'order_id' => $submission->order_id,
-            'document_type' => DocumentType::HipaaPrivacyPolicy,
-        ]);
-
-        $component = Livewire::actingAs($admin)
-            ->test('admin.submission-detail', ['submission' => $submission])
-            ->set('selectedDocumentIds', [$pending->id]);
-
-        $this->assertTrue($component->instance()->allReviewableDocumentsSelected());
     }
 
     public function test_approving_a_submission_still_succeeds_when_a_notification_email_fails_to_send(): void
@@ -609,12 +526,12 @@ class AdminPanelTest extends TestCase
         $this->assertStringContainsString('failed to send', $component->get('notice'));
     }
 
-    public function test_admin_cannot_approve_a_document_that_has_not_finished_generating(): void
+    public function test_approving_a_submission_does_not_approve_a_document_that_has_not_finished_generating(): void
     {
         Mail::fake();
 
         $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $submission = $this->makeSubmission(IntakeSubmissionStatus::Approved);
+        $submission = $this->makeSubmission();
         $document = GeneratedDocument::factory()->create([
             'order_id' => $submission->order_id,
             'document_type' => DocumentType::EmployeeHandbookBasic,
@@ -623,8 +540,7 @@ class AdminPanelTest extends TestCase
 
         Livewire::actingAs($admin)
             ->test('admin.submission-detail', ['submission' => $submission])
-            ->set('selectedDocumentIds', [$document->id])
-            ->call('approveSelectedDocuments');
+            ->call('approve');
 
         $this->assertNull($document->fresh()->reviewed_at);
         Mail::assertNotSent(ClientDocumentsApprovedMail::class);
@@ -831,8 +747,7 @@ class AdminPanelTest extends TestCase
 
         Livewire::actingAs($admin)
             ->test('admin.submission-detail', ['submission' => $submission])
-            ->set('selectedDocumentIds', [$document->id])
-            ->call('approveSelectedDocuments');
+            ->call('approve');
 
         $document->refresh();
         $this->assertNotNull($document->reviewed_at);

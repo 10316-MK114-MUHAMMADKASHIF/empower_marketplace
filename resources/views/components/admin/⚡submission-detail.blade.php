@@ -34,9 +34,6 @@ new class extends Component
     /** Keyed by GeneratedDocument id. */
     public array $customDocumentFiles = [];
 
-    /** GeneratedDocument ids checked for bulk approval. */
-    public array $selectedDocumentIds = [];
-
     public function mount(IntakeSubmission $submission): void
     {
         $this->submissionId = $submission->id;
@@ -185,23 +182,6 @@ new class extends Component
             });
     }
 
-    /** "Approve Selected" only becomes clickable once every document still awaiting a
-     *  decision (not yet approved, not stale) has a delivery source checked — partial
-     *  selections stay disabled so nothing gets approved by accident before it's ready. */
-    #[Computed]
-    public function allReviewableDocumentsSelected(): bool
-    {
-        $reviewable = $this->documentsForReview->filter(
-            fn (GeneratedDocument $document) => ! $document->isApproved() && ! $document->is_stale
-        );
-
-        if ($reviewable->isEmpty()) {
-            return false;
-        }
-
-        return $reviewable->every(fn (GeneratedDocument $document) => in_array($document->id, $this->selectedDocumentIds, true));
-    }
-
     public function startReview(): void
     {
         $submission = $this->submission;
@@ -280,8 +260,6 @@ new class extends Component
 
         $document->update(['reviewed_at' => null, 'reviewed_by' => null, 'revoked_at' => now()]);
 
-        $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
-
         ActivityLog::record(
             'document.approval_revoked',
             "Approval for {$document->document_type->label()} was revoked for order #{$document->order_id}.",
@@ -309,8 +287,6 @@ new class extends Component
 
         $label = $document->document_type->label();
         $document->delete();
-
-        $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
 
         ActivityLog::record('document.deleted', "{$label} was deleted from order #{$submission->order_id} by an admin.", user: auth()->user(), order: $submission->order);
 
@@ -367,16 +343,14 @@ new class extends Component
             subject: $submission,
         );
 
-        // Approving the submission is the decision a client-facing "you're all set" hinges on —
-        // finalize every document that's already ready to go so it doesn't silently sit at
-        // "Pending Review" (and undownloadable) just because nobody separately clicked
-        // "Approve Selected" for it too. This step never emails on its own — the client is
-        // notified once, below, for the submission as a whole.
+        // Approving the submission is the only approval action now — finalize every document
+        // that already has a file ready to go (AI-generated or custom) in the same step, rather
+        // than requiring a separate per-document approval. Doesn't email on its own — the
+        // client is notified once, below, for the submission as a whole.
         $readyDocuments = GeneratedDocument::where('order_id', $submission->order_id)
             ->get()
             ->filter(fn (GeneratedDocument $document) => $document->canBeApproved());
 
-        $this->selectedDocumentIds = [];
         $this->finalizeDocumentApprovals($submission->order, $readyDocuments);
 
         try {
@@ -387,8 +361,8 @@ new class extends Component
         }
 
         // One consolidated "your documents are ready" email listing every ready document for
-        // this order — not just ones newly finalized above — since documents approved earlier
-        // via "Approve Selected" no longer emailed on their own and still need to be told about.
+        // this order, in case any were already approved and delivered before this submission-level
+        // approval (e.g. a prior approve/reopen/approve cycle).
         $allReadyDocuments = GeneratedDocument::where('order_id', $submission->order_id)
             ->get()
             ->filter(fn (GeneratedDocument $document) => $document->isReady());
@@ -405,10 +379,8 @@ new class extends Component
         unset($this->submission);
     }
 
-    /** Marks each document approved — shared by both the submission-level "Approve" action
-     *  and the per-document "Approve Selected" action. Does NOT email the client: the client
-     *  is notified once, when the submission itself is approved (see approve()), not every
-     *  time a document gets picked and approved along the way. */
+    /** Marks each document approved, as part of approving the submission as a whole. Does NOT
+     *  email the client itself: the client is notified once, by approve(), for the submission. */
     private function finalizeDocumentApprovals(Order $order, Collection $documents): void
     {
         if ($documents->isEmpty()) {
@@ -463,13 +435,6 @@ new class extends Component
             'revoked_at' => $wasApproved ? now() : $document->revoked_at,
         ]);
 
-        // Uploading a custom file is itself the admin's choice to skip the
-        // AI-generated version, so it should also mark the document selected
-        // for the next "Approve Selected" batch — no extra click required.
-        if (! in_array($documentId, $this->selectedDocumentIds, true)) {
-            $this->selectedDocumentIds[] = $documentId;
-        }
-
         ActivityLog::record(
             'document.custom_uploaded',
             "Custom {$document->document_type->label()} uploaded for order #{$document->order_id}.",
@@ -510,8 +475,6 @@ new class extends Component
             'revoked_at' => $revokes ? now() : $document->revoked_at,
         ]);
 
-        $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
-
         ActivityLog::record(
             'document.custom_deleted',
             "Custom {$document->document_type->label()} removed for order #{$document->order_id}.",
@@ -523,12 +486,8 @@ new class extends Component
         unset($this->documentsForReview);
     }
 
-    /**
-     * Fires when the admin checks the "AI-Generated File" or "Custom File" box
-     * for a document. Setting a delivery source now doubles as selecting the
-     * document for the next bulk approval — checking the already-selected
-     * source again deselects it, matching normal checkbox toggle behavior.
-     */
+    /** Fires when the admin checks the "AI-Generated File" or "Custom File" box for a
+     *  document, choosing which version will be delivered once the submission is approved. */
     public function setDeliverySource(int $documentId, string $source): void
     {
         $submission = $this->submission;
@@ -542,9 +501,7 @@ new class extends Component
             return;
         }
 
-        if (in_array($documentId, $this->selectedDocumentIds, true) && $document->delivery_source === $deliverySource) {
-            $this->selectedDocumentIds = array_values(array_diff($this->selectedDocumentIds, [$documentId]));
-
+        if ($document->delivery_source === $deliverySource) {
             return;
         }
 
@@ -557,27 +514,7 @@ new class extends Component
             'revoked_at' => $wasApproved ? now() : $document->revoked_at,
         ]);
 
-        if (! in_array($documentId, $this->selectedDocumentIds, true)) {
-            $this->selectedDocumentIds[] = $documentId;
-        }
-
         unset($this->documentsForReview);
-    }
-
-    /** Approves the checked documents without emailing the client — that happens once, when
-     *  the admin approves the submission as a whole (see approve()), not at every document
-     *  pick along the way. */
-    public function approveSelectedDocuments(): void
-    {
-        $submission = $this->submission;
-
-        $documents = GeneratedDocument::whereIn('id', $this->selectedDocumentIds)
-            ->where('order_id', $submission->order_id)
-            ->get()
-            ->filter(fn (GeneratedDocument $document) => $document->canBeApproved());
-
-        $this->selectedDocumentIds = [];
-        $this->finalizeDocumentApprovals($submission->order, $documents);
     }
 
     public function reject(): void
@@ -623,11 +560,10 @@ new class extends Component
     confirmDocumentId: null,
     confirmUploadId: null,
     modalText: {
-        approve: { title: 'Approve this submission?', body: 'The client can then continue to their document dashboard. Generated documents still need to be individually reviewed and approved below before they are visible to the client.', label: 'Approve', danger: false },
+        approve: { title: 'Approve this submission?', body: 'Every document that currently has a file ready (AI-generated or custom) will be approved and become visible to the client at once. The client is emailed a single notification.', label: 'Approve', danger: false },
         reject: { title: 'Reject this submission?', body: 'The client will be asked to re-upload based on your reviewer notes.', label: 'Reject', danger: true },
         deleteCustom: { title: 'Remove this custom file?', body: 'This cannot be undone. The AI-generated file will be delivered instead unless a new custom file is uploaded.', label: 'Remove', danger: true },
         reopen: { title: 'Reopen this submission for review?', body: 'This clears the rejection and reviewer notes, and puts the submission back under review.', label: 'Reopen', danger: false },
-        approveDocuments: { title: 'Approve the selected document(s)?', body: 'The client will be emailed once approved.', label: 'Approve', danger: false },
         revokeApproval: { title: 'Revoke approval for this document?', body: 'It goes back to pending review and the client will no longer be able to download it until it is approved again.', label: 'Revoke', danger: true },
         deleteDocument: { title: 'Delete this document?', body: 'This permanently deletes the generated document and any custom file uploaded for it. This cannot be undone.', label: 'Delete', danger: true },
         deleteUpload: { title: 'Delete this uploaded file?', body: 'This permanently deletes the file the client uploaded. This cannot be undone.', label: 'Delete', danger: true },
@@ -720,16 +656,8 @@ new class extends Component
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
                 <h3 class="text-sm font-semibold text-navy">Document Review</h3>
-                @if($this->documentsForReview->contains(fn ($d) => $d->canBeApproved()))
-                    <button type="button" x-on:click="confirmAction = 'approveDocuments'"
-                        @disabled(! $this->allReviewableDocumentsSelected)
-                        title="{{ $this->allReviewableDocumentsSelected ? '' : 'Select a file for every document below to enable this' }}"
-                        class="inline-flex items-center gap-1 rounded bg-accent px-4 py-1.5 text-xs font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        Approve Selected
-                    </button>
-                @endif
             </div>
-            <p class="text-xs text-empower-muted mb-4">Every document expected from the uploaded questionnaires, with its current AI generation status. If a document fails or takes too long to generate, upload a corrected file below and choose which version to deliver.</p>
+            <p class="text-xs text-empower-muted mb-4">Every document expected from the uploaded questionnaires, with its current AI generation status. If a document fails or takes too long to generate, upload a corrected file below and choose which version to deliver, then use Approve/Reject below to finalize the whole submission.</p>
 
             <div class="space-y-4">
                 @forelse($this->documentsForReview as $document)
@@ -747,8 +675,8 @@ new class extends Component
                         // A document can only be checked into a box while it's awaiting a decision —
                         // once approved or marked outdated, the boxes go read-only (see below).
                         $reviewable = ! $document->isApproved() && ! $document->is_stale;
-                        $aiSelected = $reviewable && in_array($document->id, $this->selectedDocumentIds, true) && $document->delivery_source === DocumentDeliverySource::AiGenerated;
-                        $customSelected = $reviewable && in_array($document->id, $this->selectedDocumentIds, true) && $document->delivery_source === DocumentDeliverySource::Custom;
+                        $aiSelected = $reviewable && $document->delivery_source === DocumentDeliverySource::AiGenerated;
+                        $customSelected = $reviewable && $document->delivery_source === DocumentDeliverySource::Custom;
                     @endphp
                     <div class="rounded-xl border border-empower-border p-4">
                         <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
@@ -896,13 +824,12 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
-                @php $modalTargets = 'approve,reject,deleteCustom,reopen,approveDocuments,revokeApproval,deleteDocument,deleteUpload,deleteSubmission'; @endphp
+                @php $modalTargets = 'approve,reject,deleteCustom,reopen,revokeApproval,deleteDocument,deleteUpload,deleteSubmission'; @endphp
                 <button type="button"
                     x-on:click="(confirmAction === 'approve' ? $wire.approve()
                         : confirmAction === 'reject' ? $wire.reject()
                         : confirmAction === 'deleteCustom' ? $wire.deleteCustomDocument(confirmDocumentId)
                         : confirmAction === 'reopen' ? $wire.reopen()
-                        : confirmAction === 'approveDocuments' ? $wire.approveSelectedDocuments()
                         : confirmAction === 'revokeApproval' ? $wire.revokeApproval(confirmDocumentId)
                         : confirmAction === 'deleteDocument' ? $wire.deleteGeneratedDocument(confirmDocumentId)
                         : confirmAction === 'deleteUpload' ? $wire.deleteIntakeUpload(confirmUploadId)
