@@ -26,6 +26,7 @@ use App\Models\Practice;
 use App\Models\User;
 use App\Services\CloverChargeService;
 use App\Support\Questionnaires;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -33,6 +34,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -70,6 +72,14 @@ new class extends Component
     public string $billingState = '';
 
     public string $billingZip = '';
+
+    // Card field *messages* only ("The card number field is required.") — never the values
+    // themselves. Livewire only persists error-bag entries for real bound properties across
+    // requests (see SupportValidation::dehydrate()), so since cardName/cardNumber/etc. are
+    // deliberately not properties, their @error() messages would otherwise vanish the moment
+    // any other request fires (e.g. live-validating a billing field). This property survives
+    // normally and boot() replays it into the error bag every request.
+    public array $cardErrors = [];
 
     // Step 2
     public $logoFile = null;
@@ -354,6 +364,20 @@ new class extends Component
     private function submissionIntakeMethod(): ?IntakeMethod
     {
         return $this->batchOrders->first()?->intakeSubmission?->intake_method;
+    }
+
+    /**
+     * Runs on every request. Replays any persisted card-field error messages back into the
+     * (otherwise request-scoped) error bag — see the $cardErrors property for why this is
+     * necessary.
+     */
+    public function boot(): void
+    {
+        foreach ($this->cardErrors as $field => $messages) {
+            foreach ((array) $messages as $message) {
+                $this->addError($field, $message);
+            }
+        }
     }
 
     public function mount(): void
@@ -656,16 +680,25 @@ new class extends Component
     public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): void
     {
         $this->resetErrorBag();
+        $this->cardErrors = [];
 
         $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
 
         // One combined validation pass — billing fields (bound properties) plus card fields
         // (method arguments) — so a client seeing errors on both at once gets shown both at
         // once, the same as before card fields stopped being properties.
-        Validator::make(
-            [...$this->only(array_keys($this->paymentRules())), ...compact('cardName', 'cardNumber', 'cardExpiry', 'cardCvc')],
-            [...$this->paymentRules(), ...$this->cardRules()]
-        )->validate();
+        try {
+            Validator::make(
+                [...$this->only(array_keys($this->paymentRules())), ...compact('cardName', 'cardNumber', 'cardExpiry', 'cardCvc')],
+                [...$this->paymentRules(), ...$this->cardRules()]
+            )->validate();
+        } catch (ValidationException $e) {
+            // Persist just the card-field messages (see $cardErrors) so they're still visible
+            // after the client's next keystroke on an unrelated, live-validated field.
+            $this->cardErrors = Arr::only($e->validator->errors()->messages(), array_keys($this->cardRules()));
+
+            throw $e;
+        }
 
         $packages = Package::whereIn('id', array_filter([$this->selectedPackageId]))->get();
 
@@ -1352,14 +1385,14 @@ $progressPct = ($milestone / 4) * 100;
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span
                             class="text-red-500">*</span></label>
-                    <input wire:model.blur="accountName" type="text" placeholder="Jane Provider"
+                    <input wire:model.live="accountName" type="text" placeholder="Jane Provider"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span
                             class="text-red-500">*</span></label>
-                    <input wire:model.blur="accountEmail" type="email" placeholder="jane@practice.com"
+                    <input wire:model.live="accountEmail" type="email" placeholder="jane@practice.com"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
@@ -1369,7 +1402,7 @@ $progressPct = ($milestone / 4) * 100;
         </div>
         @endauth
 
-        <div x-data="{}"
+        <div x-data="{ cardNameValid: false, cardNumberValid: false, cardExpiryValid: false, cardCvcValid: false }"
             class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
             <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
             <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved or
@@ -1377,55 +1410,56 @@ $progressPct = ($milestone / 4) * 100;
             @error('payment') <p class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span class="text-red-500">*</span></label>
                     <input x-ref="cardName" type="text" placeholder="Jane Provider"
+                        x-on:input="cardNameValid = $el.value.trim().length > 0"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardName') <p x-show="!cardNameValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span class="text-red-500">*</span></label>
                     <input x-ref="cardNumber" type="text" placeholder="4242 4242 4242 4242"
                         inputmode="numeric" maxlength="23"
-                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 19).replace(/(.{4})(?=.)/g, '$1 ')"
+                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 19); $el.value = digits.replace(/(.{4})(?=.)/g, '$1 '); cardNumberValid = digits.length >= 13"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardNumber') <p x-show="!cardNumberValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span class="text-red-500">*</span></label>
                     <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
                         maxlength="5"
-                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
+                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits; let mm = parseInt(digits.slice(0, 2), 10); let yyyy = 2000 + parseInt(digits.slice(2, 4), 10); cardExpiryValid = digits.length === 4 && mm >= 1 && mm <= 12 && yyyy >= new Date().getFullYear()"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardExpiry') <p x-show="!cardExpiryValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC <span class="text-red-500">*</span></label>
                     <input x-ref="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
-                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, ''); cardCvcValid = $el.value.length >= 3 && $el.value.length <= 4"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardCvc') <p x-show="!cardCvcValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span class="text-red-500">*</span></label>
                     <input wire:model.live="billingAddress1" type="text" placeholder="7 Clyde Road"
                         class="w-full rounded-xl border {{ $errors->has('billingAddress1') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('billingAddress1') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span class="text-red-500">*</span></label>
                     <input wire:model.live="billingCity" type="text" placeholder="Somerset"
                         class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span class="text-red-500">*</span></label>
                     <input wire:model.live="billingState" type="text" placeholder="NJ" maxlength="2"
                         x-on:input="$el.value = $el.value.toUpperCase()"
                         class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip</label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span class="text-red-500">*</span></label>
                     <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric" maxlength="10"
                         class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror

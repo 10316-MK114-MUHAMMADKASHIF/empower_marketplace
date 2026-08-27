@@ -423,6 +423,29 @@ class PortalTest extends TestCase
     }
 
     /**
+     * Regression test: card field errors previously vanished the moment any other Livewire
+     * request fired (e.g. live-validating an unrelated field), because Livewire only persists
+     * error-bag entries for real bound properties across requests — and cardName/cardNumber/
+     * etc. are deliberately not properties (see pay()'s docblock). See $cardErrors + boot().
+     */
+    public function test_card_field_errors_survive_editing_an_unrelated_live_validated_field(): void
+    {
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay')
+            ->assertHasErrors(['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'accountName', 'accountEmail'])
+            ->set('accountName', 'Jane Provider')
+            ->assertHasNoErrors(['accountName'])
+            ->assertHasErrors(['cardName', 'cardNumber', 'cardExpiry', 'cardCvc']);
+    }
+
+    /**
      * Card number/expiry/CVC are deliberately NOT bound Livewire properties (see pay()'s
      * docblock), so they can no longer validate live as the client types — only the billing
      * address fields (never cardholder data) can. This test replaces the old card-focused one.
@@ -442,6 +465,23 @@ class PortalTest extends TestCase
             ->assertHasNoErrors(['billingAddress1'])
             ->set('billingZip', str_repeat('1', 25))
             ->assertHasErrors(['billingZip']);
+    }
+
+    public function test_guest_account_fields_validate_live_without_calling_pay(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountName', '')
+            ->assertHasErrors(['accountName'])
+            ->set('accountName', 'Jane Provider')
+            ->assertHasNoErrors(['accountName'])
+            ->set('accountEmail', 'taken@example.com')
+            ->assertHasErrors(['accountEmail'])
+            ->set('accountEmail', 'jane@practice.com')
+            ->assertHasNoErrors(['accountEmail']);
     }
 
     public function test_pay_rejects_a_card_number_with_the_wrong_digit_count(): void
