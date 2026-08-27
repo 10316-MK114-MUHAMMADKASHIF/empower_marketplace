@@ -17,6 +17,7 @@ use App\Models\IntakeUpload;
 use App\Models\Lead;
 use App\Models\Order;
 use App\Models\Package;
+use App\Models\PaymentLog;
 use App\Models\Practice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -963,6 +964,90 @@ class AdminPanelTest extends TestCase
             ->set('search', 'findable package')
             ->assertSee('A findable package event')
             ->assertDontSee('An unrelated lead event');
+    }
+
+    // ── Payment logs ────────────────────────────────────────────────────────
+
+    public function test_admin_can_view_the_payment_log(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        PaymentLog::factory()->create(['transaction_id' => 'FINDABLE_TXN_ID']);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.payment-logs'))
+            ->assertOk()
+            ->assertSee('FINDABLE_TXN_ID');
+    }
+
+    public function test_admin_can_search_the_payment_log(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $package = Package::factory()->create();
+        PaymentLog::factory()->create(['package_id' => $package->id, 'transaction_id' => 'FINDABLE_TXN_ID']);
+        PaymentLog::factory()->create(['package_id' => $package->id, 'transaction_id' => 'UNRELATED_TXN_ID']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.payment-log-list')
+            ->set('search', 'FINDABLE_TXN')
+            ->assertSee('FINDABLE_TXN_ID')
+            ->assertDontSee('UNRELATED_TXN_ID');
+    }
+
+    public function test_admin_can_filter_the_payment_log_by_status(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $package = Package::factory()->create();
+        PaymentLog::factory()->create(['package_id' => $package->id, 'transaction_id' => 'SUCCESS_TXN_ID']);
+        PaymentLog::factory()->declined()->create(['package_id' => $package->id, 'message' => 'Card declined for testing']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.payment-log-list')
+            ->set('status', 'declined')
+            ->assertSee('Card declined for testing')
+            ->assertDontSee('SUCCESS_TXN_ID');
+    }
+
+    public function test_admin_can_view_the_full_payment_log_detail(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $user = User::factory()->create();
+        $log = PaymentLog::factory()->create([
+            'user_id' => $user->id,
+            'transaction_id' => 'DETAIL_TXN_ID',
+            'billing_address' => ['name' => 'Jane Provider', 'address1' => '7 Clyde Road', 'city' => 'Somerset', 'state' => 'NJ', 'zip' => '08873'],
+        ]);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.payment-logs.show', $log))
+            ->assertOk()
+            ->assertSee('DETAIL_TXN_ID')
+            ->assertSee($user->email)
+            ->assertSee('7 Clyde Road');
+    }
+
+    public function test_admin_can_delete_a_payment_log_from_the_list(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $log = PaymentLog::factory()->create(['transaction_id' => 'DELETE_ME_TXN_ID']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.payment-log-list')
+            ->call('delete', $log->id)
+            ->assertDontSee('DELETE_ME_TXN_ID');
+
+        $this->assertDatabaseMissing('payment_logs', ['id' => $log->id]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'payment_log.deleted']);
+    }
+
+    public function test_admin_can_delete_a_payment_log_from_the_detail_page(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $log = PaymentLog::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.payment-log-detail', ['paymentLog' => $log])
+            ->call('delete')
+            ->assertRedirect(route('admin.payment-logs'));
+
+        $this->assertDatabaseMissing('payment_logs', ['id' => $log->id]);
     }
 
     // ── Packages ────────────────────────────────────────────────────────────

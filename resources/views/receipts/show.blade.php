@@ -44,7 +44,7 @@
         <div class="mt-8 flex items-start justify-between">
             <div>
                 <p class="text-xs font-bold uppercase tracking-wider text-gray-500">Billed To</p>
-                <p class="mt-2 text-base font-bold text-[#12304f]">{{ $practice?->name ?: 'Practice not yet named' }}</p>
+                <p class="mt-2 text-base font-bold text-[#12304f]">{{ $practice?->name ?: $order->user->name }}</p>
                 @if($practice?->address)
                     <p class="mt-1 text-sm text-gray-500">{{ $practice->address }}</p>
                 @endif

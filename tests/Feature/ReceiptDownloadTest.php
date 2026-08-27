@@ -28,6 +28,20 @@ class ReceiptDownloadTest extends TestCase
         $response->assertSee('PAID');
     }
 
+    public function test_receipt_falls_back_to_account_name_when_practice_has_no_name_yet(): void
+    {
+        $user = User::factory()->create(['name' => 'Jane Provider']);
+        Practice::factory()->create(['user_id' => $user->id, 'name' => '']);
+        $package = Package::factory()->create();
+        $order = Order::factory()->create(['user_id' => $user->id, 'package_id' => $package->id]);
+
+        $response = $this->withoutVite()->actingAs($user)->get(route('orders.receipt', $order));
+
+        $response->assertOk();
+        $response->assertSee('Jane Provider');
+        $response->assertDontSee('Practice not yet named');
+    }
+
     public function test_other_users_cannot_download_someone_elses_receipt(): void
     {
         $owner = User::factory()->create();

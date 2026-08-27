@@ -8,6 +8,7 @@
         'leads' => ['admin.leads', 'Leads'],
         'users' => ['admin.users', 'Users'],
         'orders' => ['admin.orders', 'Orders'],
+        'payment-logs' => ['admin.payment-logs', 'Payment Logs'],
         'activity-log' => ['admin.activity-log', 'Activity Log'],
     ] as $key => [$route, $label])
         <a href="{{ route($route) }}" wire:navigate

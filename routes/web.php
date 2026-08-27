@@ -9,6 +9,7 @@ use App\Models\IntakeSubmission;
 use App\Models\Lead;
 use App\Models\Order;
 use App\Models\Package;
+use App\Models\PaymentLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -74,4 +75,7 @@ Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function ()
     Route::get('/orders/{order}/edit', fn (Order $order) => view('admin.orders-form', compact('order')))
         ->name('orders.edit');
     Route::get('/activity-log', fn () => view('admin.activity-log'))->name('activity-log');
+    Route::get('/payment-logs', fn () => view('admin.payment-logs'))->name('payment-logs');
+    Route::get('/payment-logs/{paymentLog}', fn (PaymentLog $paymentLog) => view('admin.payment-log-detail', compact('paymentLog')))
+        ->name('payment-logs.show');
 });

@@ -15,13 +15,16 @@ use Illuminate\Support\Facades\Storage;
 
 #[Fillable([
     'user_id', 'package_id', 'checkout_batch_id', 'status', 'payment_status', 'billing_cycle',
-    'payment_reference', 'amount_paid', 'paid_at', 'completed_at',
+    'payment_reference', 'billing_address', 'amount_paid', 'paid_at', 'completed_at',
     'cancelled_at', 'notes',
 ])]
 class Order extends Model
 {
     /** @use HasFactory<OrderFactory> */
     use HasFactory;
+
+    /** Every payment_status value that means "the client's card was actually charged". */
+    public const PAID_STATUSES = [PaymentStatus::SimulatedPaid, PaymentStatus::Paid];
 
     /**
      * @return array<string, string>
@@ -31,6 +34,7 @@ class Order extends Model
         return [
             'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
+            'billing_address' => 'array',
             'amount_paid' => 'decimal:2',
             'paid_at' => 'datetime',
             'completed_at' => 'datetime',
@@ -65,7 +69,7 @@ class Order extends Model
 
     public function isPaid(): bool
     {
-        return $this->payment_status === PaymentStatus::SimulatedPaid;
+        return in_array($this->payment_status, self::PAID_STATUSES, true);
     }
 
     /**

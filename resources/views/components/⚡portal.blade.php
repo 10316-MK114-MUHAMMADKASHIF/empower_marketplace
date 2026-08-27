@@ -21,14 +21,17 @@ use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
 use App\Models\Order;
 use App\Models\Package;
+use App\Models\PaymentLog;
 use App\Models\Practice;
 use App\Models\User;
+use App\Services\CloverChargeService;
 use App\Support\Questionnaires;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
@@ -54,13 +57,19 @@ new class extends Component
 
     public string $accountEmail = '';
 
-    public string $cardName = '';
+    // Billing address for the charge — not cardholder data, safe to bind/validate normally.
+    // Card number/expiry/CVC/name are deliberately NOT properties here: Livewire serializes
+    // every public property into the page's wire:snapshot and replays it on every subsequent
+    // request, which is exactly the kind of persistent exposure raw card data must never have.
+    // They're captured from plain (non-wire:model) inputs and passed straight into pay() as
+    // method arguments instead — see the Payment Details card and pay() below.
+    public string $billingAddress1 = '';
 
-    public string $cardNumber = '';
+    public string $billingCity = '';
 
-    public string $cardExpiry = '';
+    public string $billingState = '';
 
-    public string $cardCvc = '';
+    public string $billingZip = '';
 
     // Step 2
     public $logoFile = null;
@@ -304,7 +313,7 @@ new class extends Component
     {
         $orders = $this->batchOrders;
 
-        if ($orders->isEmpty() || $orders->contains(fn ($o) => $o->payment_status !== PaymentStatus::SimulatedPaid)) {
+        if ($orders->isEmpty() || $orders->contains(fn ($o) => ! $o->isPaid())) {
             return 0;
         }
         if (! $this->practice?->is_profile_locked) {
@@ -376,8 +385,14 @@ new class extends Component
             'name' => '',
         ]);
 
+        // The practice hasn't set its own address yet — default to whatever billing address
+        // was entered at checkout, as a convenience starting point the client can still edit.
+        $checkoutBillingAddress = $practice->address
+            ? []
+            : ($user->orders()->whereNotNull('billing_address')->latest()->first()?->billing_address ?? []);
+
         $this->practiceName = $practice->name ?? '';
-        $this->practiceAddress = $practice->address ?? '';
+        $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($checkoutBillingAddress);
         $this->npiNumber = $practice->npi_number ?? '';
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
@@ -401,7 +416,7 @@ new class extends Component
 
         $latestOrder = $user->orders()->with(['package', 'intakeSubmission'])->latest()->first();
 
-        if (! $latestOrder || $latestOrder->payment_status !== PaymentStatus::SimulatedPaid) {
+        if (! $latestOrder || ! $latestOrder->isPaid()) {
             $this->step = 1;
 
             if ($latestOrder) {
@@ -425,7 +440,7 @@ new class extends Component
             ? $user->orders()->where('checkout_batch_id', $latestOrder->checkout_batch_id)->pluck('id')->all()
             : [$latestOrder->id];
 
-        $this->dashboardOrderId = $user->orders()->where('payment_status', PaymentStatus::SimulatedPaid)->latest()->value('id');
+        $this->dashboardOrderId = $user->orders()->whereIn('payment_status', Order::PAID_STATUSES)->latest()->value('id');
         $this->selectedPackageId = $latestOrder->package_id;
 
         if (! $practice?->is_profile_locked) {
@@ -537,6 +552,49 @@ new class extends Component
     private function paymentRules(): array
     {
         $rules = [
+            'selectedPackageId' => 'required|exists:packages,id',
+            'billingAddress1' => 'required|string|max:255',
+            'billingCity' => 'required|string|max:100',
+            'billingState' => 'required|string|max:50',
+            'billingZip' => 'required|string|max:20',
+        ];
+
+        if (auth()->guest()) {
+            $rules = array_merge($rules, [
+                'accountName' => 'required|string|max:100',
+                'accountEmail' => 'required|email|max:150|unique:users,email',
+            ]);
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Combines a billing address array (address1/city/state/zip, as stored on
+     * orders.billing_address) into a single comma-separated line to pre-fill the Step 2
+     * Practice Address field, so the client doesn't have to retype what they already entered
+     * at checkout.
+     *
+     * @param  array<string, mixed>  $billingAddress
+     */
+    private function formatBillingAddressLine(array $billingAddress): string
+    {
+        return collect([
+            $billingAddress['address1'] ?? null,
+            $billingAddress['city'] ?? null,
+            $billingAddress['state'] ?? null,
+            $billingAddress['zip'] ?? null,
+        ])->filter()->implode(', ');
+    }
+
+    /**
+     * Rules for the card fields — kept separate from paymentRules() because these are never
+     * bound Livewire properties (see the properties block above), so they're validated
+     * manually against the values pay() receives as method arguments, not $this->validate().
+     */
+    private function cardRules(): array
+    {
+        return [
             'cardName' => 'required|string|max:255',
             'cardNumber' => 'required|digits_between:13,19',
             'cardExpiry' => [
@@ -563,29 +621,15 @@ new class extends Component
                 },
             ],
             'cardCvc' => 'required|digits_between:3,4',
-            'selectedPackageId' => 'required|exists:packages,id',
         ];
-
-        if (auth()->guest()) {
-            $rules = array_merge($rules, [
-                'accountName' => 'required|string|max:100',
-                'accountEmail' => 'required|email|max:150|unique:users,email',
-            ]);
-        }
-
-        return $rules;
     }
 
     public function updated(string $property): void
     {
-        $paymentFields = ['cardName', 'cardNumber', 'cardExpiry', 'cardCvc', 'selectedPackageId', 'accountName', 'accountEmail'];
+        $paymentFields = ['selectedPackageId', 'accountName', 'accountEmail', 'billingAddress1', 'billingCity', 'billingState', 'billingZip'];
         $profileFields = ['practiceName', 'practiceAddress', 'npiNumber', 'specialty', 'billableProviders', 'logoFile'];
 
         if (in_array($property, $paymentFields, true)) {
-            if ($property === 'cardNumber') {
-                $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
-            }
-
             $rules = $this->paymentRules();
 
             if (array_key_exists($property, $rules)) {
@@ -604,11 +648,24 @@ new class extends Component
         }
     }
 
-    public function pay(): void
+    /**
+     * Card details arrive as method arguments, never as bound properties — see the properties
+     * block above for why. They're read once, sent to the charge API, and go out of scope the
+     * moment this method returns; they're never written to $this, logged, or persisted anywhere.
+     */
+    public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): void
     {
-        $this->cardNumber = preg_replace('/\D/', '', $this->cardNumber ?? '');
+        $this->resetErrorBag();
 
-        $this->validate($this->paymentRules());
+        $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
+
+        // One combined validation pass — billing fields (bound properties) plus card fields
+        // (method arguments) — so a client seeing errors on both at once gets shown both at
+        // once, the same as before card fields stopped being properties.
+        Validator::make(
+            [...$this->only(array_keys($this->paymentRules())), ...compact('cardName', 'cardNumber', 'cardExpiry', 'cardCvc')],
+            [...$this->paymentRules(), ...$this->cardRules()]
+        )->validate();
 
         $packages = Package::whereIn('id', array_filter([$this->selectedPackageId]))->get();
 
@@ -632,6 +689,45 @@ new class extends Component
             return;
         }
 
+        [$expMonth, $expYear] = explode('/', $cardExpiry);
+
+        $billingAddress = [
+            'name' => $cardName,
+            'address1' => $this->billingAddress1,
+            'city' => $this->billingCity,
+            'state' => $this->billingState,
+            'zip' => $this->billingZip,
+        ];
+
+        $chargeResult = app(CloverChargeService::class)->charge([
+            ...$billingAddress,
+            'product_Name' => $packages->pluck('name')->implode(', '),
+            'amount' => (float) $packages->sum('annual_price'),
+            'cardNumber' => $cardNumber,
+            'expMonth' => (int) $expMonth,
+            'expYear' => (int) ('20'.$expYear),
+            'cvv' => $cardCvc,
+        ]);
+
+        if (! $chargeResult->success) {
+            PaymentLog::record(
+                success: false,
+                amount: (float) $packages->sum('annual_price'),
+                user: auth()->user(),
+                guestEmail: auth()->guest() ? $this->accountEmail : null,
+                package: $packages->count() === 1 ? $packages->first() : null,
+                transactionId: $chargeResult->transactionId,
+                message: $chargeResult->declineMessage,
+                billingAddress: $billingAddress,
+            );
+
+            $this->addError('payment', $chargeResult->declineMessage ?? 'Your card was declined. Please check your details and try again.');
+
+            return;
+        }
+
+        // Charge succeeded — only now do we create an account or any orders, so a decline never
+        // leaves behind an orphaned guest account.
         if (auth()->guest()) {
             $generatedPassword = Str::password(16);
 
@@ -665,7 +761,9 @@ new class extends Component
                 'package_id' => $package->id,
                 'checkout_batch_id' => $batchId,
                 'status' => OrderStatus::Paid,
-                'payment_status' => PaymentStatus::SimulatedPaid,
+                'payment_status' => PaymentStatus::Paid,
+                'payment_reference' => $chargeResult->transactionId,
+                'billing_address' => $billingAddress,
                 'amount_paid' => $package->annual_price,
                 'paid_at' => now(),
             ]);
@@ -675,6 +773,16 @@ new class extends Component
                 "Payment received for {$package->name} (\${$order->amount_paid}).",
                 user: auth()->user(),
                 order: $order,
+            );
+
+            PaymentLog::record(
+                success: true,
+                amount: (float) $order->amount_paid,
+                user: auth()->user(),
+                package: $package,
+                order: $order,
+                transactionId: $chargeResult->transactionId,
+                billingAddress: $billingAddress,
             );
 
             User::where('role', UserRole::Admin)->pluck('email')->each(
@@ -701,7 +809,7 @@ new class extends Component
 
         $practice = auth()->user()->practice;
         $this->practiceName = $practice->name ?? '';
-        $this->practiceAddress = $practice->address ?? '';
+        $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($billingAddress);
         $this->npiNumber = $practice->npi_number ?? '';
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
@@ -1261,20 +1369,22 @@ $progressPct = ($milestone / 4) * 100;
         </div>
         @endauth
 
-        <div
+        <div x-data="{}"
             class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
             <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
-            <p class="text-xs text-empower-muted mb-3">Preview form only — no real payment is processed here.</p>
+            <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved or
+                logged by this form.</p>
+            @error('payment') <p class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card</label>
-                    <input wire:model.blur="cardName" type="text" placeholder="Jane Provider"
+                    <input x-ref="cardName" type="text" placeholder="Jane Provider"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('cardName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number</label>
-                    <input wire:model.blur="cardNumber" type="text" placeholder="4242 4242 4242 4242"
+                    <input x-ref="cardNumber" type="text" placeholder="4242 4242 4242 4242"
                         inputmode="numeric" maxlength="23"
                         x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 19).replace(/(.{4})(?=.)/g, '$1 ')"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
@@ -1282,7 +1392,7 @@ $progressPct = ($milestone / 4) * 100;
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry</label>
-                    <input wire:model.blur="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
+                    <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
                         maxlength="5"
                         x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
@@ -1290,20 +1400,46 @@ $progressPct = ($milestone / 4) * 100;
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC</label>
-                    <input wire:model.blur="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
+                    <input x-ref="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
                         x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
+                <div class="sm:col-span-2">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address</label>
+                    <input wire:model.live="billingAddress1" type="text" placeholder="7 Clyde Road"
+                        class="w-full rounded-xl border {{ $errors->has('billingAddress1') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('billingAddress1') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City</label>
+                    <input wire:model.live="billingCity" type="text" placeholder="Somerset"
+                        class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State</label>
+                    <input wire:model.live="billingState" type="text" placeholder="NJ" maxlength="2"
+                        x-on:input="$el.value = $el.value.toUpperCase()"
+                        class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip</label>
+                    <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric" maxlength="10"
+                        class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
             </div>
 
             <div class="mt-3 flex justify-end">
-                <button wire:click="pay"
+                <button
+                    x-on:click="$wire.pay($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value)"
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                    <span wire:loading.remove>Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }}
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="pay">
+                    <span wire:loading.remove wire:target="pay">Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }}
                         &rarr;</span>
-                    <span wire:loading>Processing…</span>
+                    <span wire:loading wire:target="pay">Processing…</span>
                 </button>
             </div>
         </div>
@@ -1386,7 +1522,7 @@ $progressPct = ($milestone / 4) * 100;
 
             <div class="sm:col-span-2">
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span
-                        class="text-red-500">*</span></label>
+                        class="text-red-500">*</span> <span class="text-xs font-normal text-[#6b7f93]">(Prefilled from your billing address — feel free to update it if your practice address is different.)</span></label>
                 <input wire:model.live="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
                     class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
                 @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
