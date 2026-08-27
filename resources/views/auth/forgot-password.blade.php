@@ -30,7 +30,7 @@
         </div>
     </nav>
 
-    <div style="background: radial-gradient(circle at top right, rgba(11,158,208,0.12), transparent 32%), linear-gradient(145deg, #f9fcff 0%, #e7f3fb 100%); padding: 1.75rem 0;">
+    <div style="background: radial-gradient(circle at 84% 18%, rgba(11, 158, 208, 0.36), transparent 34%), radial-gradient(circle at 8% 0%, rgba(34, 153, 221, 0.20), transparent 30%), linear-gradient(115deg, #f2f8fd 0%, #dff1fb 44%, #c7e7f6 100%); padding: 1.75rem 0;">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <span class="inline-flex items-center rounded-full px-3 py-1 text-[0.7rem] font-extrabold tracking-[0.08em] uppercase bg-[#e9f7fc] text-[#087fa9] mb-2">Account</span>
             <h1 class="text-2xl font-bold text-[#0e3a61] mb-1">Forgot your password?</h1>
@@ -58,12 +58,12 @@
         </div>
     </main>
 
-    <footer class="bg-[#0b2e4b] py-4">
+    <footer class="bg-white border-t border-[#d4e5f1] py-4">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3">
-            <span class="inline-flex items-center bg-white rounded-[0.6rem] px-2.5 py-[0.35rem] leading-none">
+            <span class="inline-flex items-center bg-[#f9fcff] rounded-[0.6rem] px-2.5 py-[0.35rem] leading-none ring-1 ring-[#d4e5f1]">
                 <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[22px] w-auto" onerror="this.parentElement.innerHTML='<span class=\'font-extrabold text-[#0e3a61] text-xs\'>EMPOWER</span>'">
             </span>
-            <p class="text-xs text-white/50">&copy; {{ date('Y') }} CareCloud, Inc. &middot; Empower, by CareCloud &middot; In collaboration with Frier Levitt</p>
+            <p class="text-xs text-[#5c778d]">&copy; {{ date('Y') }} CareCloud, Inc. &middot; Empower, by CareCloud &middot; In collaboration with Frier Levitt</p>
         </div>
     </footer>
 
