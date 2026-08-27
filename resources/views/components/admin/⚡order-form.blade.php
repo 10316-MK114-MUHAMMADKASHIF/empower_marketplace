@@ -78,7 +78,7 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ confirmOpen: false }">
     <a href="{{ route('admin.orders') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to orders</a>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
@@ -120,8 +120,7 @@ new class extends Component
         </div>
 
         <div class="mt-5 flex items-center justify-between">
-            <button wire:click="delete"
-                wire:confirm="Delete order #{{ $orderId }} for {{ $clientName }}? This permanently deletes its intake submission, uploads, and generated documents. This cannot be undone."
+            <button type="button" x-on:click="confirmOpen = true"
                 class="text-sm font-bold text-red-600 hover:underline">Delete Order</button>
 
             <button wire:click="save"
@@ -130,6 +129,25 @@ new class extends Component
                 <span wire:loading.remove>Save Changes &rarr;</span>
                 <span wire:loading>Saving…</span>
             </button>
+        </div>
+    </div>
+
+    <div x-show="confirmOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmOpen = false">
+            <h3 class="text-base font-semibold text-navy mb-2">Delete order #{{ $orderId }} for {{ $clientName }}?</h3>
+            <p class="text-sm text-empower-muted mb-5">This permanently deletes its intake submission, uploads, and generated documents. This cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmOpen = false"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="$wire.delete().then(() => confirmOpen = false).catch(() => {})"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
+                    Delete
+                </button>
+            </div>
         </div>
     </div>
 </div>

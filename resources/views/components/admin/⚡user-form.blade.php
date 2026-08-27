@@ -265,7 +265,7 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ confirmDeleteUser: false, confirmLocationIndex: null, confirmLocationLabel: '' }">
     <a href="{{ route('admin.users') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to users</a>
 
     @error('delete')
@@ -329,8 +329,7 @@ new class extends Component
 
         <div class="mt-5 flex items-center justify-between">
             @if($userId && ! $this->isEditingSelf())
-                <button wire:click="delete"
-                    wire:confirm="Delete {{ $name }} ({{ $email }})? This permanently deletes their practice, orders, submissions, uploads, and generated documents. This cannot be undone."
+                <button type="button" x-on:click="confirmDeleteUser = true"
                     class="text-sm font-bold text-red-600 hover:underline">Delete User</button>
             @else
                 <span></span>
@@ -494,8 +493,8 @@ new class extends Component
                                 </div>
                                 <div class="flex items-center gap-3">
                                     <button wire:click="$set('editingLocationIndex', {{ $index }})" class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</button>
-                                    <button wire:click="deleteOshaLocation({{ $index }})"
-                                        wire:confirm="Delete {{ $location['name'] ?: 'this location' }}? Any generated documents tied to it will remain but lose their location tag."
+                                    <button type="button"
+                                        x-on:click="confirmLocationIndex = {{ $index }}; confirmLocationLabel = @js($location['name'] ?: 'this location')"
                                         class="text-xs font-bold text-red-600 hover:underline">Delete</button>
                                 </div>
                             </div>
@@ -507,4 +506,42 @@ new class extends Component
             </div>
         </div>
     @endif
+
+    <div x-show="confirmDeleteUser" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmDeleteUser = false">
+            <h3 class="text-base font-semibold text-navy mb-2">Delete {{ $name }} ({{ $email }})?</h3>
+            <p class="text-sm text-empower-muted mb-5">This permanently deletes their practice, orders, submissions, uploads, and generated documents. This cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmDeleteUser = false"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="$wire.delete().then(() => confirmDeleteUser = false).catch(() => {})"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="confirmLocationIndex !== null" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmLocationIndex = null">
+            <h3 class="text-base font-semibold text-navy mb-2">Delete <span x-text="confirmLocationLabel"></span>?</h3>
+            <p class="text-sm text-empower-muted mb-5">Any generated documents tied to it will remain but lose their location tag.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmLocationIndex = null"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="$wire.deleteOshaLocation(confirmLocationIndex).then(() => confirmLocationIndex = null).catch(() => {})"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
 </div>

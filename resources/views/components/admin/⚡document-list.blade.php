@@ -52,7 +52,7 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ confirmId: null }">
     <div class="flex flex-wrap items-center gap-2">
         @foreach([
             'all' => 'All',
@@ -115,7 +115,7 @@ new class extends Component
                             @if($doc->order?->intakeSubmission)
                                 <a href="{{ route('admin.submissions.show', $doc->order->intakeSubmission) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline mr-3">Review</a>
                             @endif
-                            <button wire:click="regenerate({{ $doc->id }})" wire:confirm="Regenerate this document?"
+                            <button type="button" x-on:click="confirmId = {{ $doc->id }}"
                                 class="text-xs font-bold text-[#1a7aad] hover:underline">Regenerate</button>
                         </td>
                     </tr>
@@ -130,4 +130,23 @@ new class extends Component
     </div>
 
     <div>{{ $this->documents->links() }}</div>
+
+    <div x-show="confirmId !== null" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmId = null">
+            <h3 class="text-base font-semibold text-navy mb-2">Regenerate this document?</h3>
+            <p class="text-sm text-empower-muted mb-5">This creates a new version of the document using the practice's latest details.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmId = null"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="$wire.regenerate(confirmId).then(() => confirmId = null).catch(() => {})"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-accent text-navy-dark hover:bg-accent-dark">
+                    Regenerate
+                </button>
+            </div>
+        </div>
+    </div>
 </div>

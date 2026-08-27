@@ -59,7 +59,7 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ confirmId: null, confirmLabel: '' }">
     <div class="flex flex-wrap items-center gap-3">
         <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search email, name, transaction ID…"
             class="w-full sm:w-80 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
@@ -113,7 +113,8 @@ new class extends Component
                         </td>
                         <td class="px-5 py-3.5 text-right space-x-3 whitespace-nowrap">
                             <a href="{{ route('admin.payment-logs.show', $log) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">View</a>
-                            <button wire:click="delete({{ $log->id }})" wire:confirm="Delete this payment log? This cannot be undone."
+                            <button type="button"
+                                x-on:click="confirmId = {{ $log->id }}; confirmLabel = @js($log->transaction_id ?? $log->guest_email ?? $log->user?->name ?? "payment #{$log->id}")"
                                 class="text-xs font-bold text-red-600 hover:underline">Delete</button>
                         </td>
                     </tr>
@@ -128,4 +129,23 @@ new class extends Component
     </div>
 
     <div>{{ $this->logs->links() }}</div>
+
+    <div x-show="confirmId !== null" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmId = null">
+            <h3 class="text-base font-semibold text-navy mb-2">Delete <span x-text="confirmLabel"></span>?</h3>
+            <p class="text-sm text-empower-muted mb-5">This cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmId = null"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="$wire.delete(confirmId).then(() => confirmId = null).catch(() => {})"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
 </div>

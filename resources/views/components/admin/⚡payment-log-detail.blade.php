@@ -33,13 +33,32 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-6">
+<div class="space-y-6" x-data="{ confirmOpen: false }">
     <div class="flex items-center justify-between">
         <a href="{{ route('admin.payment-logs') }}" wire:navigate class="text-sm font-bold text-[#1a7aad] hover:underline">&larr; Back to Payment Logs</a>
-        <button wire:click="delete" wire:confirm="Delete this payment log? This cannot be undone."
+        <button type="button" x-on:click="confirmOpen = true"
             class="inline-flex items-center gap-1 rounded bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors">
             Delete Log
         </button>
+    </div>
+
+    <div x-show="confirmOpen" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmOpen = false">
+            <h3 class="text-base font-semibold text-navy mb-2">Delete this payment log?</h3>
+            <p class="text-sm text-empower-muted mb-5">This cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmOpen = false"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button"
+                    x-on:click="$wire.delete().then(() => confirmOpen = false).catch(() => {})"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
+                    Delete
+                </button>
+            </div>
+        </div>
     </div>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 space-y-6">
