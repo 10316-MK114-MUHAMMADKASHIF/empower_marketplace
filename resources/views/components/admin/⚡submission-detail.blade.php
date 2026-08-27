@@ -3,6 +3,7 @@
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentDeliverySource;
 use App\Enums\DocumentStatus;
+use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\OrderStatus;
 use App\Mail\ClientDocumentsApprovedMail;
@@ -40,6 +41,75 @@ new class extends Component
     {
         $this->submissionId = $submission->id;
         $this->reviewerNotes = $submission->reviewer_notes ?? '';
+
+        $this->ensureExpectedDocumentsExist($submission);
+    }
+
+    /**
+     * Materializes a Pending GeneratedDocument row for every document type the client's
+     * uploaded questionnaires entitle them to, so Document Review shows every expected
+     * document — and lets the admin upload a custom file for one — even before the AI
+     * generation pipeline has run, instead of only once a row already exists.
+     *
+     * Mirrors ProcessIntakeUpload::dispatchDocumentGeneration()'s branching exactly, but
+     * uses firstOrCreate() instead of dispatch(). It uses the identical key tuple as
+     * GenerateComplianceDocument::handle()'s own firstOrCreate(), so when that job actually
+     * runs it finds this same row rather than creating a duplicate.
+     */
+    private function ensureExpectedDocumentsExist(IntakeSubmission $submission): void
+    {
+        $submission->loadMissing('order.user.practice.oshaLocations', 'intakeUploads');
+        $order = $submission->order;
+        $oshaLocations = $order->user->practice?->oshaLocations ?? collect();
+        $uploadedQuestionnaireTypes = $submission->intakeUploads->map(fn ($u) => $u->upload_type)->unique();
+
+        foreach ($uploadedQuestionnaireTypes as $uploadType) {
+            $docType = DocumentType::forQuestionnaireType($uploadType);
+
+            if ($docType === null) {
+                continue;
+            }
+
+            if ($docType->isPerUpload()) {
+                $submission->intakeUploads
+                    ->where('upload_type', $uploadType)
+                    ->each(fn (IntakeUpload $upload) => GeneratedDocument::firstOrCreate([
+                        'order_id' => $order->id,
+                        'document_type' => $docType,
+                        'osha_location_id' => null,
+                        'intake_upload_id' => $upload->id,
+                    ], ['status' => DocumentStatus::Pending]));
+
+                continue;
+            }
+
+            if ($docType->isPerLocation()) {
+                foreach ($oshaLocations as $location) {
+                    GeneratedDocument::firstOrCreate([
+                        'order_id' => $order->id,
+                        'document_type' => $docType,
+                        'osha_location_id' => $location->id,
+                        'intake_upload_id' => null,
+                    ], ['status' => DocumentStatus::Pending]);
+                }
+
+                if ($oshaLocations->isEmpty()) {
+                    GeneratedDocument::firstOrCreate([
+                        'order_id' => $order->id,
+                        'document_type' => $docType,
+                        'osha_location_id' => null,
+                        'intake_upload_id' => null,
+                    ], ['status' => DocumentStatus::Pending]);
+                }
+            } else {
+                GeneratedDocument::firstOrCreate([
+                    'order_id' => $order->id,
+                    'document_type' => $docType,
+                    'osha_location_id' => null,
+                    'intake_upload_id' => null,
+                ], ['status' => DocumentStatus::Pending]);
+            }
+        }
     }
 
     #[Computed]
@@ -647,8 +717,7 @@ new class extends Component
         @endforelse
     </div>
 
-    @if($this->documentsForReview->isNotEmpty())
-        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+    <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-1">
                 <h3 class="text-sm font-semibold text-navy">Document Review</h3>
                 @if($this->documentsForReview->contains(fn ($d) => $d->canBeApproved()))
@@ -660,16 +729,17 @@ new class extends Component
                     </button>
                 @endif
             </div>
-            <p class="text-xs text-empower-muted mb-4">Review each AI-generated document. If it's correct, select it and approve. If it's wrong, upload a corrected file below and choose which version to deliver.</p>
+            <p class="text-xs text-empower-muted mb-4">Every document expected from the uploaded questionnaires, with its current AI generation status. If a document fails or takes too long to generate, upload a corrected file below and choose which version to deliver.</p>
 
             <div class="space-y-4">
-                @foreach($this->documentsForReview as $document)
+                @forelse($this->documentsForReview as $document)
                     @php
                         $badge = match(true) {
                             $document->is_stale => ['Outdated', 'bg-[#fde2e2] text-[#a53b3b]'],
                             $document->isApproved() => ['Approved', 'bg-[#dff7f0] text-[#0f7a4f]'],
                             $document->status === DocumentStatus::Completed => ['Pending Review', 'bg-[#edf2f7] text-empower-muted'],
                             $document->status === DocumentStatus::Failed => ['Failed', 'bg-[#fde2e2] text-[#a53b3b]'],
+                            $document->status === DocumentStatus::Pending => ['Not Started', 'bg-[#edf2f7] text-empower-muted'],
                             default => ['Generating', 'bg-[#fff3cd] text-[#9a6700]'],
                         };
                     @endphp
@@ -690,6 +760,10 @@ new class extends Component
                                     <p class="text-xs text-empower-muted">Approved by {{ $document->reviewedBy?->name ?? 'admin' }} &middot; {{ $document->reviewed_at->format('M j, Y') }} &middot; delivered the {{ $document->delivery_source === DocumentDeliverySource::Custom ? 'custom' : 'AI-generated' }} file</p>
                                 @elseif($document->status === DocumentStatus::Failed && $document->hasCustomDocument())
                                     <p class="text-xs text-[#9a6700]">AI generation failed — a custom file will be delivered instead.</p>
+                                @elseif($document->status === DocumentStatus::Failed)
+                                    <p class="text-xs text-[#a53b3b]">AI generation failed{{ $document->failure_reason ? ': '.$document->failure_reason : '.' }} Upload a custom file below to deliver this document.</p>
+                                @elseif(in_array($document->status, [DocumentStatus::Pending, DocumentStatus::Generating], true) && ! $document->hasCustomDocument())
+                                    <p class="text-xs text-empower-muted">Waiting on AI generation{{ $document->created_at ? ' since '.$document->created_at->diffForHumans() : '' }}. Taking too long? Upload a custom file below instead.</p>
                                 @endif
                             </div>
                             <div class="flex items-center gap-3">
@@ -755,10 +829,11 @@ new class extends Component
                             </div>
                         </div>
                     </div>
-                @endforeach
+                @empty
+                    <p class="text-sm text-empower-muted italic">No documents are expected yet — this practice hasn't uploaded a questionnaire that maps to a compliance document.</p>
+                @endforelse
             </div>
         </div>
-    @endif
 
     @if($submission->status === IntakeSubmissionStatus::Rejected)
         <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

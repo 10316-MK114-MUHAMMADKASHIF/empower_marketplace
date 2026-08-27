@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\IntakeUploadType;
@@ -97,6 +98,80 @@ class AdminPanelTest extends TestCase
         $submission = $this->makeSubmission();
 
         $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))->assertOk();
+    }
+
+    public function test_document_review_shows_an_expected_document_before_it_has_been_generated(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))
+            ->assertOk()
+            ->assertSee('Document Review')
+            ->assertSee('Compliance & Ethics Manual')
+            ->assertSee('Not Started')
+            ->assertSee('Upload a custom file below instead');
+
+        $this->assertDatabaseHas('generated_documents', [
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::ComplianceEthicsManual->value,
+            'status' => DocumentStatus::Pending->value,
+        ]);
+    }
+
+    public function test_document_review_shows_an_empty_state_with_no_expected_documents(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))
+            ->assertOk()
+            ->assertSee('Document Review')
+            ->assertSee('No documents are expected yet');
+    }
+
+    public function test_admin_can_upload_a_custom_file_for_a_document_that_has_not_generated_yet(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
+
+        $component = Livewire::actingAs($admin)->test('admin.submission-detail', ['submission' => $submission]);
+
+        $document = GeneratedDocument::where('order_id', $submission->order_id)
+            ->where('document_type', DocumentType::ComplianceEthicsManual)
+            ->firstOrFail();
+        $this->assertSame(DocumentStatus::Pending, $document->status);
+
+        $component->set("customDocumentFiles.{$document->id}", UploadedFile::fake()->create('manual.pdf', 100, 'application/pdf'))
+            ->assertHasNoErrors();
+
+        $document->refresh();
+        $this->assertNotNull($document->custom_storage_path);
+        Storage::disk('local')->assertExists($document->custom_storage_path);
+    }
+
+    public function test_revisiting_submission_detail_does_not_duplicate_expected_documents(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+        ]);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))->assertOk();
+        $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))->assertOk();
+
+        $this->assertDatabaseCount('generated_documents', 1);
     }
 
     public function test_submission_detail_shows_no_ai_extraction_banner_without_uploads(): void
