@@ -52,10 +52,12 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
-                <button type="button"
+                <button type="button" wire:target="delete"
                     x-on:click="$wire.delete().then(() => confirmOpen = false).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="delete"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
-                    Delete
+                    <span wire:loading.remove wire:target="delete">Delete</span>
+                    <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             </div>
         </div>

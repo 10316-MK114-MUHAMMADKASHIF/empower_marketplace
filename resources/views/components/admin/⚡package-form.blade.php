@@ -209,11 +209,11 @@ new class extends Component
         </div>
 
         <div class="mt-5 flex justify-end">
-            <button wire:click="save"
+            <button wire:click="save" wire:target="save"
                 class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                <span wire:loading.remove>{{ $packageId ? 'Save Changes' : 'Create Package' }} &rarr;</span>
-                <span wire:loading>Saving…</span>
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="save">
+                <span wire:loading.remove wire:target="save">{{ $packageId ? 'Save Changes' : 'Create Package' }} &rarr;</span>
+                <span wire:loading.inline-flex wire:target="save" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
             </button>
         </div>
     </div>

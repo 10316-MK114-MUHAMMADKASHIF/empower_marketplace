@@ -65,10 +65,14 @@ new class extends Component
             IntakeSubmissionStatus::Rejected->value => 'Rejected',
         ] as $value => $label)
             @php $count = $value === 'all' ? array_sum($this->statusCounts) : ($this->statusCounts[$value] ?? 0); @endphp
-            <button type="button" wire:click="$set('status', '{{ $value }}')"
+            <button type="button" wire:click="$set('status', '{{ $value }}')" wire:target="$set('status', '{{ $value }}')"
+                wire:loading.attr="disabled" wire:target="$set('status', '{{ $value }}')"
                 class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $status === $value ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
-                {{ $label }}
-                <span class="{{ $status === $value ? 'text-white/70' : 'text-empower-muted/70' }}">{{ $count }}</span>
+                <span wire:loading.remove wire:target="$set('status', '{{ $value }}')" class="inline-flex items-center gap-1.5">
+                    {{ $label }}
+                    <span class="{{ $status === $value ? 'text-white/70' : 'text-empower-muted/70' }}">{{ $count }}</span>
+                </span>
+                <span wire:loading wire:target="$set('status', '{{ $value }}')"><x-spinner class="h-3 w-3" /></span>
             </button>
         @endforeach
 
