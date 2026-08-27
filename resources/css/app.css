@@ -17,3 +17,9 @@
     --color-empower-muted: #5c778d;
     --color-empower-border: #d4e5f1;
 }
+
+@layer base {
+    [x-cloak] {
+        display: none !important;
+    }
+}
