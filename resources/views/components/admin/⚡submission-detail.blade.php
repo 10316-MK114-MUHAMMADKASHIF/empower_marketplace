@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentDeliverySource;
 use App\Enums\DocumentStatus;
 use App\Enums\IntakeSubmissionStatus;
@@ -50,6 +51,47 @@ new class extends Component
             'intakeUploads',
             'reviewer',
         ])->findOrFail($this->submissionId);
+    }
+
+    /** Aggregate AI-extraction status across every uploaded file, for the prominent banner at
+     *  the top of the page — failed takes priority, then in-progress, then complete. */
+    #[Computed]
+    public function aiExtractionBanner(): ?array
+    {
+        $statuses = $this->submission->intakeUploads->pluck('ai_extraction_status');
+
+        if ($statuses->isEmpty()) {
+            return null;
+        }
+
+        $total = $statuses->count();
+        $failed = $statuses->filter(fn ($s) => $s === AiExtractionStatus::Failed)->count();
+        $inProgress = $statuses->filter(fn ($s) => in_array($s, [AiExtractionStatus::Pending, AiExtractionStatus::Processing], true))->count();
+
+        return match (true) {
+            $failed > 0 => [
+                'style' => 'danger',
+                'icon' => '⚠️',
+                'title' => 'AI Extraction Failed',
+                'message' => $failed === $total
+                    ? 'AI extraction failed for all uploaded files. Review and consider regenerating.'
+                    : "AI extraction failed for {$failed} of {$total} uploaded files. Review and consider regenerating.",
+            ],
+            $inProgress > 0 => [
+                'style' => 'warning',
+                'icon' => '⏳',
+                'title' => 'AI Extraction In Progress',
+                'message' => $inProgress === $total
+                    ? 'The AI is still processing the uploaded file(s). This page will reflect the latest status once complete.'
+                    : "The AI is still processing {$inProgress} of {$total} uploaded files.",
+            ],
+            default => [
+                'style' => 'success',
+                'icon' => '✅',
+                'title' => 'AI Extraction Complete',
+                'message' => 'All uploaded files have been successfully processed by AI extraction.',
+            ],
+        };
     }
 
     /** Every generated document for this submission's order, paired with whether its
@@ -535,6 +577,18 @@ new class extends Component
     @endif
 
     @php $submission = $this->submission; $practice = $submission->order?->user?->practice; @endphp
+
+    @if($this->aiExtractionBanner)
+        @php $banner = $this->aiExtractionBanner; @endphp
+        <div class="rounded-xl px-4 py-3 flex items-center gap-2 text-sm {{ match ($banner['style']) {
+            'danger' => 'bg-red-50 text-red-800',
+            'warning' => 'bg-amber-50 text-amber-800',
+            'success' => 'bg-[#dff7f0] text-[#0f7a4f]',
+        } }}">
+            <span class="leading-none">{{ $banner['icon'] }}</span>
+            <p><span class="font-bold">{{ $banner['title'] }}</span> — {{ $banner['message'] }}</p>
+        </div>
+    @endif
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-4">

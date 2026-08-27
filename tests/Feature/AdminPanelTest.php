@@ -99,6 +99,51 @@ class AdminPanelTest extends TestCase
         $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))->assertOk();
     }
 
+    public function test_submission_detail_shows_no_ai_extraction_banner_without_uploads(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->assertDontSee('AI Extraction');
+    }
+
+    public function test_submission_detail_shows_a_pending_ai_extraction_banner(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->create(['intake_submission_id' => $submission->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->assertSee('AI Extraction In Progress');
+    }
+
+    public function test_submission_detail_shows_a_failed_ai_extraction_banner(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->completed()->create(['intake_submission_id' => $submission->id]);
+        IntakeUpload::factory()->failed()->create(['intake_submission_id' => $submission->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->assertSee('AI Extraction Failed')
+            ->assertSee('1 of 2');
+    }
+
+    public function test_submission_detail_shows_a_completed_ai_extraction_banner(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->completed()->create(['intake_submission_id' => $submission->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->assertSee('AI Extraction Complete');
+    }
+
     public function test_admin_can_approve_a_submission(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
