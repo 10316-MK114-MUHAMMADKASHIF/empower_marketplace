@@ -620,7 +620,7 @@ new class extends Component
     {
         return [
             'cardName' => 'required|string|max:255',
-            'cardNumber' => 'required|digits_between:13,19',
+            'cardNumber' => 'required|digits:16',
             'cardExpiry' => [
                 'required',
                 'string',
@@ -1418,9 +1418,9 @@ $progressPct = ($milestone / 4) * 100;
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span class="text-red-500">*</span></label>
-                    <input x-ref="cardNumber" type="text" placeholder="4242 4242 4242 4242"
-                        inputmode="numeric" maxlength="23"
-                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 19); $el.value = digits.replace(/(.{4})(?=.)/g, '$1 '); cardNumberValid = digits.length >= 13"
+                    <input x-ref="cardNumber" type="text" placeholder="4242424242424242"
+                        inputmode="numeric" maxlength="16"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 16); cardNumberValid = $el.value.length === 16"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('cardNumber') <p x-show="!cardNumberValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
@@ -1454,8 +1454,7 @@ $progressPct = ($milestone / 4) * 100;
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span class="text-red-500">*</span></label>
-                        <input wire:model.live="billingState" type="text" placeholder="NJ" maxlength="2"
-                            x-on:input="$el.value = $el.value.toUpperCase()"
+                        <input wire:model.live="billingState" type="text" placeholder="NJ or New Jersey" maxlength="50"
                             class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>

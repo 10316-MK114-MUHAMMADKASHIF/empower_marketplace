@@ -497,6 +497,25 @@ class PortalTest extends TestCase
             ->assertHasErrors(['cardNumber']);
     }
 
+    public function test_pay_rejects_a_card_number_that_is_not_exactly_16_digits(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->call('pay', 'Jane Provider', '424242424242424', '12/27', '123')
+            ->assertHasErrors(['cardNumber']);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->call('pay', 'Jane Provider', '42424242424242424', '12/27', '123')
+            ->assertHasErrors(['cardNumber']);
+    }
+
     public function test_pay_accepts_a_spaced_out_card_number(): void
     {
         $this->fakeSuccessfulCharge();
