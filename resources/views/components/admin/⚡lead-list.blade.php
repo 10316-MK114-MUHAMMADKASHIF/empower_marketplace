@@ -95,12 +95,12 @@ new class extends Component
                             @else
                                 <button wire:click="markContacted({{ $lead->id }})" wire:target="markContacted({{ $lead->id }})"
                                     wire:loading.attr="disabled" wire:loading.class="opacity-70" wire:target="markContacted({{ $lead->id }})"
-                                    class="text-xs font-bold text-[#1a7aad] hover:underline">
+                                    class="text-xs font-bold text-[#0b9ed0] hover:underline">
                                     <span wire:loading.remove wire:target="markContacted({{ $lead->id }})">Mark Contacted</span>
                                     <span wire:loading.inline-flex wire:target="markContacted({{ $lead->id }})" class="inline-flex items-center gap-1"><x-spinner class="h-3 w-3" /> Marking…</span>
                                 </button>
                             @endif
-                            <a href="{{ route('admin.leads.edit', $lead) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
+                            <a href="{{ route('admin.leads.edit', $lead) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
                             <button type="button" x-on:click="confirmId = {{ $lead->id }}; confirmLabel = @js($lead->name)"
                                 class="text-xs font-bold text-red-600 hover:underline">Delete</button>
                         </td>

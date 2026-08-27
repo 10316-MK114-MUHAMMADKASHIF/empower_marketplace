@@ -635,7 +635,7 @@ new class extends Component
     },
 }">
     <div class="flex items-center justify-between">
-        <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to submissions</a>
+        <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm font-semibold text-[#0b9ed0] hover:underline">&larr; Back to submissions</a>
         <button type="button" x-on:click="confirmAction = 'deleteSubmission'" class="text-xs font-bold text-red-600 hover:underline">Delete Submission</button>
     </div>
 
@@ -671,7 +671,7 @@ new class extends Component
                     IntakeSubmissionStatus::Approved => 'bg-[#dff7f0] text-[#0f7a4f]',
                     IntakeSubmissionStatus::Rejected => 'bg-[#fde2e2] text-[#a53b3b]',
                     IntakeSubmissionStatus::UnderReview => 'bg-[#fff3cd] text-[#9a6700]',
-                    default => 'bg-[#edf2f7] text-empower-muted',
+                    default => 'bg-[#eef6fb] text-empower-muted',
                 };
             @endphp
             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider {{ $badgeClasses }}">
@@ -707,7 +707,7 @@ new class extends Component
                     <p class="text-xs text-empower-muted">{{ $upload->upload_type->value }} &middot; {{ $upload->fileSizeForHumans() }} &middot; AI extraction: {{ $upload->ai_extraction_status->value }}</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <a href="{{ route('admin.uploads.download', $upload) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download</a>
+                    <a href="{{ route('admin.uploads.download', $upload) }}" class="text-xs font-bold text-[#0b9ed0] hover:underline">Download</a>
                     <button type="button" x-on:click="confirmAction = 'deleteUpload'; confirmUploadId = {{ $upload->id }}"
                         class="text-xs font-bold text-red-600 hover:underline">Delete</button>
                 </div>
@@ -737,7 +737,7 @@ new class extends Component
                         $badge = match(true) {
                             $document->is_stale => ['Outdated', 'bg-[#fde2e2] text-[#a53b3b]'],
                             $document->isApproved() => ['Approved', 'bg-[#dff7f0] text-[#0f7a4f]'],
-                            $document->status === DocumentStatus::Completed => ['Pending Review', 'bg-[#edf2f7] text-empower-muted'],
+                            $document->status === DocumentStatus::Completed => ['Pending Review', 'bg-[#eef6fb] text-empower-muted'],
                             $document->status === DocumentStatus::Failed => ['Failed', 'bg-[#fde2e2] text-[#a53b3b]'],
                             $document->status === DocumentStatus::Pending => ['Not Started', 'bg-[#edf2f7] text-empower-muted'],
                             default => ['Generating', 'bg-[#fff3cd] text-[#9a6700]'],
@@ -778,7 +778,7 @@ new class extends Component
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div class="rounded-lg border {{ $aiSelected ? 'border-accent ring-1 ring-accent' : 'border-empower-border' }} bg-[#f8fafc] p-3">
+                            <div class="rounded-lg border {{ $aiSelected ? 'border-accent ring-1 ring-accent' : 'border-empower-border' }} bg-[#f9fcff] p-3">
                                 @if($reviewable && ($document->pdf_storage_path || $document->docx_storage_path))
                                     <label class="flex items-center gap-2 cursor-pointer mb-2">
                                         <input type="checkbox" wire:click="setDeliverySource({{ $document->id }}, 'ai_generated')" @checked($aiSelected) class="h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
@@ -788,13 +788,13 @@ new class extends Component
                                     <p class="text-[0.65rem] font-extrabold uppercase tracking-wider text-empower-muted mb-2">AI-Generated File</p>
                                 @endif
                                 @if($document->pdf_storage_path || $document->docx_storage_path)
-                                    <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'ai']) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download AI-Generated File</a>
+                                    <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'ai']) }}" class="text-xs font-bold text-[#0b9ed0] hover:underline">Download AI-Generated File</a>
                                 @else
                                     <p class="text-xs text-empower-muted">Not yet generated.</p>
                                 @endif
                             </div>
 
-                            <div class="rounded-lg border {{ $customSelected ? 'border-accent ring-1 ring-accent' : 'border-empower-border' }} bg-[#f8fafc] p-3">
+                            <div class="rounded-lg border {{ $customSelected ? 'border-accent ring-1 ring-accent' : 'border-empower-border' }} bg-[#f9fcff] p-3">
                                 @if($reviewable && $document->hasCustomDocument())
                                     <label class="flex items-center gap-2 cursor-pointer mb-2">
                                         <input type="checkbox" wire:click="setDeliverySource({{ $document->id }}, 'custom')" @checked($customSelected) class="h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
@@ -805,7 +805,7 @@ new class extends Component
                                 @endif
                                 @if($document->hasCustomDocument())
                                     <div class="flex items-center gap-3 mb-2">
-                                        <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'custom']) }}" class="text-xs font-bold text-[#1a7aad] hover:underline">Download Custom File</a>
+                                        <a href="{{ route('admin.generated-documents.download', ['document' => $document->id, 'source' => 'custom']) }}" class="text-xs font-bold text-[#0b9ed0] hover:underline">Download Custom File</a>
                                         @if($reviewable)
                                             <button type="button" x-on:click="confirmAction = 'deleteCustom'; confirmDocumentId = {{ $document->id }}"
                                                 class="text-xs font-bold text-red-600 hover:underline">
@@ -819,7 +819,7 @@ new class extends Component
                                     <div class="flex flex-wrap items-center gap-2">
                                         <input wire:model="customDocumentFiles.{{ $document->id }}" type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                                             wire:loading.attr="disabled" wire:target="customDocumentFiles.{{ $document->id }}"
-                                            class="block text-xs text-[#5d6e7f] file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
+                                            class="block text-xs text-[#5c778d] file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#0e3a61] file:text-white hover:file:bg-[#0b2e4b] cursor-pointer">
                                         <span wire:loading wire:target="customDocumentFiles.{{ $document->id }}" class="text-xs font-semibold text-empower-muted">Uploading…</span>
                                     </div>
                                     @error("customDocumentFiles.{$document->id}") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -854,6 +854,7 @@ new class extends Component
             <h3 class="text-sm font-semibold text-navy mb-3">Review Decision</h3>
 
             @if($submission->status === IntakeSubmissionStatus::Submitted)
+                <button wire:click="startReview" class="mb-4 text-xs font-bold text-[#0b9ed0] hover:underline">Mark as Under Review</button>
                 <button wire:click="startReview" wire:target="startReview" wire:loading.attr="disabled" wire:target="startReview"
                     class="mb-4 text-xs font-bold text-[#1a7aad] hover:underline">
                     <span wire:loading.remove wire:target="startReview">Mark as Under Review</span>
@@ -862,7 +863,7 @@ new class extends Component
             @endif
 
             <div class="mb-4">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Reviewer notes (required to reject)</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Reviewer notes (required to reject)</label>
                 <textarea wire:model="reviewerNotes" rows="3" placeholder="Explain what the practice needs to fix…"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition"></textarea>
                 @error('reviewerNotes') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror

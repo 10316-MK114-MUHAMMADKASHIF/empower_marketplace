@@ -106,13 +106,13 @@ new class extends Component
                         </td>
                         <td class="px-5 py-3.5 text-empower-text">
                             @if($log->order)
-                                <a href="{{ route('admin.orders.edit', $log->order) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">#{{ $log->order_id }}</a>
+                                <a href="{{ route('admin.orders.edit', $log->order) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">#{{ $log->order_id }}</a>
                             @else
                                 —
                             @endif
                         </td>
                         <td class="px-5 py-3.5 text-right space-x-3 whitespace-nowrap">
-                            <a href="{{ route('admin.payment-logs.show', $log) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">View</a>
+                            <a href="{{ route('admin.payment-logs.show', $log) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">View</a>
                             <button type="button"
                                 x-on:click="confirmId = {{ $log->id }}; confirmLabel = @js($log->transaction_id ?? $log->guest_email ?? $log->user?->name ?? "payment #{$log->id}")"
                                 class="text-xs font-bold text-red-600 hover:underline">Delete</button>

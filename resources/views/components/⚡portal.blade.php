@@ -1558,7 +1558,7 @@ $progressPct = ($milestone / 4) * 100;
                     $this->practice?->is_profile_locked ? 'disabled' : '' }}
                 class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' : 'border-[#dbe4ee]'
                 }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4
-                py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0]
+                py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde]
                 focus:border-transparent transition">
                 @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
@@ -1567,7 +1567,7 @@ $progressPct = ($milestone / 4) * 100;
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span
                         class="text-red-500">*</span> <span class="text-xs font-normal text-[#6b7f93]">(Prefilled from your billing address — feel free to update it if your practice address is different.)</span></label>
                 <input wire:model.live="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
-                    class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
@@ -1576,7 +1576,7 @@ $progressPct = ($milestone / 4) * 100;
                         class="text-red-500">*</span></label>
                 <input wire:model.live="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
                     placeholder="1234567890" x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
-                    class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 @error('npiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
@@ -1584,7 +1584,7 @@ $progressPct = ($milestone / 4) * 100;
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span
                         class="text-red-500">*</span></label>
                 <select wire:model.live="specialty"
-                    class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                     @foreach(Practice::SPECIALTIES as $s)
                     <option value="{{ $s }}" @selected($specialty===$s)>{{ $s }}</option>
                     @endforeach
@@ -1596,7 +1596,7 @@ $progressPct = ($milestone / 4) * 100;
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers <span
                         class="text-red-500">*</span></label>
                 <input wire:model.live="billableProviders" type="number" min="1"
-                    class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    class="w-full rounded-xl border {{ $errors->has('billableProviders') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
         </div>
@@ -1813,7 +1813,7 @@ $progressPct = ($milestone / 4) * 100;
             <button wire:click="{{ $profileSubmitMethod }}" wire:target="{{ $profileSubmitMethod }}" @unless($isReviewUpload)
                 :disabled="!allRequiredDownloaded"
                 :class="!allRequiredDownloaded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#5bb2aa]'" @endunless
-                class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] transition-colors"
+                class="inline-flex items-center gap-1 rounded bg-[#009bde] px-5 py-2 text-sm font-bold text-[#0a2037] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="{{ $profileSubmitMethod }}">
                 <span wire:loading.remove wire:target="{{ $profileSubmitMethod }}">{{ $editingProfile ? 'Save Changes' : ($isReviewUpload ? 'Submit Documents for
                     Review' : 'Submit Profile & Continue') }}
@@ -1927,7 +1927,7 @@ $progressPct = ($milestone / 4) * 100;
 
         <div class="flex justify-end">
             <button wire:click="submitIntake" wire:target="submitIntake"
-                class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
+                class="inline-flex items-center gap-1 rounded bg-[#009bde] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="submitIntake">
                 <span wire:loading.remove wire:target="submitIntake">Submit for Review &rarr;</span>
                 <span wire:loading.inline-flex wire:target="submitIntake" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Submitting…</span>
@@ -1997,7 +1997,7 @@ $progressPct = ($milestone / 4) * 100;
 
         @if($milestone >= 4)
         <button wire:click="goToStep(5)" wire:target="goToStep(5)" wire:loading.attr="disabled" wire:target="goToStep(5)"
-            class="mt-4 inline-flex items-center gap-1 rounded bg-[#76c8c0] px-4 py-1.5 text-xs font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
+            class="mt-4 inline-flex items-center gap-1 rounded bg-[#009bde] px-4 py-1.5 text-xs font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
             <span wire:loading.remove wire:target="goToStep(5)">Go to Dashboard &rarr;</span>
             <span wire:loading.inline-flex wire:target="goToStep(5)" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
         </button>
@@ -2162,7 +2162,7 @@ $progressPct = ($milestone / 4) * 100;
     </div>
 
     {{-- Add-on promo --}}
-    <div class="rounded-2xl bg-gradient-to-r from-[#76c8c0]/12 to-white border border-[#dbe4ee] p-5">
+    <div class="rounded-2xl bg-gradient-to-r from-[#009bde]/12 to-white border border-[#dbe4ee] p-5">
         <div class="flex items-start gap-3">
             <span
                 class="flex-shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#12304f] text-white text-sm">🛡</span>

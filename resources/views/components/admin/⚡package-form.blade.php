@@ -113,17 +113,17 @@ new class extends Component
 ?>
 
 <div class="space-y-4">
-    <a href="{{ route('admin.packages') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to packages</a>
+    <a href="{{ route('admin.packages') }}" wire:navigate class="text-sm font-semibold text-[#0b9ed0] hover:underline">&larr; Back to packages</a>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <h2 class="text-lg font-semibold text-navy mb-4">{{ $packageId ? 'Edit Package' : 'New Package' }}</h2>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Tier / Slug</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Tier / Slug</label>
                 @if($packageId)
                     <input type="text" value="{{ $slug }}" disabled
-                        class="w-full rounded-xl border border-empower-border bg-[#f0f4f8] px-4 py-2.5 text-sm text-empower-muted cursor-not-allowed">
+                        class="w-full rounded-xl border border-empower-border bg-[#eef6fb] px-4 py-2.5 text-sm text-empower-muted cursor-not-allowed">
                     <p class="mt-1 text-xs text-empower-muted">The tier can't change once a package exists — it drives which compliance documents are generated.</p>
                 @else
                     <select wire:model="slug"
@@ -141,21 +141,21 @@ new class extends Component
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Name</label>
                 <input wire:model="name" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Tagline</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Tagline</label>
                 <input wire:model="tagline" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('tagline') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing Type</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Billing Type</label>
                 <select wire:model="billingType"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     <option value="monthly">Monthly</option>
@@ -166,35 +166,35 @@ new class extends Component
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Sort Order</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Sort Order</label>
                 <input wire:model="sortOrder" type="number" min="0"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('sortOrder') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Monthly Price ($)</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Monthly Price ($)</label>
                 <input wire:model="monthlyPrice" type="number" step="0.01" min="0" placeholder="Leave blank for custom quote"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('monthlyPrice') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Annual Price ($)</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Annual Price ($)</label>
                 <input wire:model="annualPrice" type="number" step="0.01" min="0" placeholder="Leave blank for custom quote"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('annualPrice') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Description</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Description</label>
                 <textarea wire:model="description" rows="3"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition resize-none"></textarea>
                 @error('description') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Features (one per line)</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Features (one per line)</label>
                 <textarea wire:model="featuresText" rows="5" placeholder="Employee Handbook (Basic)&#10;OSHA Safety Plan"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition"></textarea>
                 <p class="mt-1 text-xs text-empower-muted">Shown on the pricing page and in each client's dashboard.</p>
@@ -203,7 +203,7 @@ new class extends Component
             <div class="sm:col-span-2">
                 <label class="inline-flex items-center gap-2">
                     <input wire:model="isActive" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                    <span class="text-sm font-semibold text-[#31465b]">Active (visible on the pricing page)</span>
+                    <span class="text-sm font-semibold text-[#173a59]">Active (visible on the pricing page)</span>
                 </label>
             </div>
         </div>

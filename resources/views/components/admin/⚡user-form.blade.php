@@ -266,7 +266,7 @@ new class extends Component
 ?>
 
 <div class="space-y-4" x-data="{ confirmDeleteUser: false, confirmLocationIndex: null, confirmLocationLabel: '' }">
-    <a href="{{ route('admin.users') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to users</a>
+    <a href="{{ route('admin.users') }}" wire:navigate class="text-sm font-semibold text-[#0b9ed0] hover:underline">&larr; Back to users</a>
 
     @error('delete')
         <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
@@ -277,23 +277,23 @@ new class extends Component
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Name</label>
                 <input wire:model="name" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Email</label>
                 <input wire:model="email" type="email"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Role</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Role</label>
                 <select wire:model="role" @disabled($this->isEditingSelf())
-                    class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition disabled:cursor-not-allowed disabled:bg-[#f0f4f8]">
+                    class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition disabled:cursor-not-allowed disabled:bg-[#eef6fb]">
                     @foreach(UserRole::cases() as $case)
                         <option value="{{ $case->value }}">{{ ucfirst($case->value) }}</option>
                     @endforeach
@@ -305,7 +305,7 @@ new class extends Component
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">
                     {{ $userId ? 'New Password' : 'Password' }}
                 </label>
                 <input wire:model="password" type="password" placeholder="{{ $userId ? 'Leave blank to keep current password' : '' }}"
@@ -318,7 +318,7 @@ new class extends Component
                     <label class="inline-flex items-center gap-2 {{ $this->isEditingSelf() ? 'opacity-50 cursor-not-allowed' : '' }}">
                         <input wire:model="isActive" type="checkbox" @disabled($this->isEditingSelf())
                             class="rounded border-empower-border text-navy focus:ring-accent">
-                        <span class="text-sm font-semibold text-[#31465b]">Active (can log in)</span>
+                        <span class="text-sm font-semibold text-[#173a59]">Active (can log in)</span>
                     </label>
                     @if($this->isEditingSelf())
                         <p class="mt-1 text-xs text-empower-muted">You can't deactivate your own account.</p>
@@ -350,28 +350,28 @@ new class extends Component
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Name</label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Practice Name</label>
                     <input wire:model="practiceName" type="text"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Address</label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Address</label>
                     <input wire:model="practiceAddress" type="text"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number</label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">NPI Number</label>
                     <input wire:model="practiceNpiNumber" type="text"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceNpiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty</label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Specialty</label>
                     <select wire:model="practiceSpecialty"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         @if($practiceSpecialty !== '' && ! in_array($practiceSpecialty, Practice::SPECIALTIES, true))
@@ -385,7 +385,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billable Providers</label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Billable Providers</label>
                     <input wire:model="practiceBillableProvidersCount" type="number" min="0"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceBillableProvidersCount') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -394,7 +394,7 @@ new class extends Component
                 <div class="sm:col-span-2">
                     <label class="inline-flex items-center gap-2">
                         <input wire:model="practiceIsLocked" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                        <span class="text-sm font-semibold text-[#31465b]">Profile locked (client can no longer edit their intake)</span>
+                        <span class="text-sm font-semibold text-[#173a59]">Profile locked (client can no longer edit their intake)</span>
                     </label>
                 </div>
             </div>
@@ -403,6 +403,7 @@ new class extends Component
         <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-navy">OSHA Locations</h2>
+                <button wire:click="addOshaLocation" class="text-sm font-bold text-[#0b9ed0] hover:underline">+ Add Location</button>
                 <button wire:click="addOshaLocation" wire:target="addOshaLocation"
                     wire:loading.attr="disabled" wire:target="addOshaLocation"
                     class="text-sm font-bold text-[#1a7aad] hover:underline">
@@ -417,51 +418,51 @@ new class extends Component
                         @if($editingLocationIndex === $index)
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div class="sm:col-span-2">
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Location Name</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Location Name</label>
                                     <input wire:model="oshaLocations.{{ $index }}.name" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                     @error("oshaLocations.{$index}.name") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                 </div>
 
                                 <div class="sm:col-span-2">
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Address</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Address</label>
                                     <input wire:model="oshaLocations.{{ $index }}.address" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">OSHA Officer</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">OSHA Officer</label>
                                     <input wire:model="oshaLocations.{{ $index }}.osha_officer" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Safety Coordinator</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Safety Coordinator</label>
                                     <input wire:model="oshaLocations.{{ $index }}.safety_coordinator" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Cleaning Provider</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Cleaning Provider</label>
                                     <input wire:model="oshaLocations.{{ $index }}.cleaning_provider" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Cleaning Frequency</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Cleaning Frequency</label>
                                     <input wire:model="oshaLocations.{{ $index }}.cleaning_frequency" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Employees / Year</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Employees / Year</label>
                                     <input wire:model="oshaLocations.{{ $index }}.employees_per_year" type="number" min="0"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                     @error("oshaLocations.{$index}.employees_per_year") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-semibold text-[#31465b] mb-1">Waste Hauler</label>
+                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Waste Hauler</label>
                                     <input wire:model="oshaLocations.{{ $index }}.waste_hauler" type="text"
                                         class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                                 </div>
@@ -469,25 +470,26 @@ new class extends Component
                                 <div class="sm:col-span-2 flex flex-wrap gap-4">
                                     <label class="inline-flex items-center gap-2">
                                         <input wire:model="oshaLocations.{{ $index }}.uses_hazardous_drugs" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#31465b]">Uses hazardous drugs</span>
+                                        <span class="text-xs font-semibold text-[#173a59]">Uses hazardous drugs</span>
                                     </label>
                                     <label class="inline-flex items-center gap-2">
                                         <input wire:model="oshaLocations.{{ $index }}.has_operating_rooms" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#31465b]">Has operating rooms</span>
+                                        <span class="text-xs font-semibold text-[#173a59]">Has operating rooms</span>
                                     </label>
                                     <label class="inline-flex items-center gap-2">
                                         <input wire:model="oshaLocations.{{ $index }}.offers_hep_b_vaccination" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#31465b]">Offers Hep B vaccination</span>
+                                        <span class="text-xs font-semibold text-[#173a59]">Offers Hep B vaccination</span>
                                     </label>
                                     <label class="inline-flex items-center gap-2">
                                         <input wire:model="oshaLocations.{{ $index }}.offers_tb_screening" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#31465b]">Offers TB screening</span>
+                                        <span class="text-xs font-semibold text-[#173a59]">Offers TB screening</span>
                                     </label>
                                 </div>
                             </div>
 
                             <div class="mt-3 flex justify-end gap-3">
                                 <button wire:click="$set('editingLocationIndex', null)" class="text-sm font-semibold text-empower-muted hover:underline">Cancel</button>
+                                <button wire:click="saveOshaLocation({{ $index }})" class="text-sm font-bold text-[#0b9ed0] hover:underline">Save Location</button>
                                 <button wire:click="saveOshaLocation({{ $index }})" wire:target="saveOshaLocation({{ $index }})"
                                     wire:loading.attr="disabled" wire:target="saveOshaLocation({{ $index }})"
                                     class="text-sm font-bold text-[#1a7aad] hover:underline">
@@ -502,7 +504,7 @@ new class extends Component
                                     <div class="text-xs text-empower-muted">{{ $location['address'] ?: 'No address on file' }}</div>
                                 </div>
                                 <div class="flex items-center gap-3">
-                                    <button wire:click="$set('editingLocationIndex', {{ $index }})" class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</button>
+                                    <button wire:click="$set('editingLocationIndex', {{ $index }})" class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</button>
                                     <button type="button"
                                         x-on:click="confirmLocationIndex = {{ $index }}; confirmLocationLabel = @js($location['name'] ?: 'this location')"
                                         class="text-xs font-bold text-red-600 hover:underline">Delete</button>

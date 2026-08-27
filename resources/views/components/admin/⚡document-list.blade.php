@@ -103,7 +103,7 @@ new class extends Component
                                 $badgeClasses = match(true) {
                                     $doc->is_stale => 'bg-[#fde2e2] text-[#a53b3b]',
                                     $doc->isApproved() => 'bg-[#dff7f0] text-[#0f7a4f]',
-                                    $doc->status === DocumentStatus::Completed => 'bg-[#edf2f7] text-empower-muted',
+                                    $doc->status === DocumentStatus::Completed => 'bg-[#eef6fb] text-empower-muted',
                                     $doc->status === DocumentStatus::Failed => 'bg-[#fde2e2] text-[#a53b3b]',
                                     default => 'bg-[#fff3cd] text-[#9a6700]',
                                 };
@@ -115,10 +115,10 @@ new class extends Component
                         <td class="px-5 py-3.5 text-empower-muted text-xs">{{ $doc->generated_at?->diffForHumans() ?? '—' }}</td>
                         <td class="px-5 py-3.5 text-right">
                             @if($doc->order?->intakeSubmission)
-                                <a href="{{ route('admin.submissions.show', $doc->order->intakeSubmission) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline mr-3">Review</a>
+                                <a href="{{ route('admin.submissions.show', $doc->order->intakeSubmission) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline mr-3">Review</a>
                             @endif
                             <button type="button" x-on:click="confirmId = {{ $doc->id }}"
-                                class="text-xs font-bold text-[#1a7aad] hover:underline">Regenerate</button>
+                                class="text-xs font-bold text-[#0b9ed0] hover:underline">Regenerate</button>
                         </td>
                     </tr>
                 @empty

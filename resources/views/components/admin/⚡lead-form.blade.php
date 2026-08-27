@@ -72,49 +72,49 @@ new class extends Component
 ?>
 
 <div class="space-y-4">
-    <a href="{{ route('admin.leads') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to leads</a>
+    <a href="{{ route('admin.leads') }}" wire:navigate class="text-sm font-semibold text-[#0b9ed0] hover:underline">&larr; Back to leads</a>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <h2 class="text-lg font-semibold text-navy mb-4">{{ $leadId ? 'Edit Lead' : 'New Lead' }}</h2>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Name</label>
                 <input wire:model="name" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Email</label>
                 <input wire:model="email" type="email"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Phone</label>
                 <input wire:model="phone" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Package Interest</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Package Interest</label>
                 <input wire:model="packageInterest" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('packageInterest') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Message</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Message</label>
                 <textarea wire:model="message" rows="3"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition resize-none"></textarea>
                 @error('message') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Admin Notes</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Admin Notes</label>
                 <textarea wire:model="adminNotes" rows="3" placeholder="Internal notes, not visible to the lead"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition resize-none"></textarea>
                 @error('adminNotes') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror

@@ -106,7 +106,7 @@ new class extends Component
                                     IntakeSubmissionStatus::Approved => 'bg-[#dff7f0] text-[#0f7a4f]',
                                     IntakeSubmissionStatus::Rejected => 'bg-[#fde2e2] text-[#a53b3b]',
                                     IntakeSubmissionStatus::UnderReview => 'bg-[#fff3cd] text-[#9a6700]',
-                                    default => 'bg-[#edf2f7] text-empower-muted',
+                                    default => 'bg-[#eef6fb] text-empower-muted',
                                 };
                             @endphp
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider {{ $badgeClasses }}">
@@ -116,7 +116,7 @@ new class extends Component
                         <td class="px-5 py-3.5 text-empower-muted text-xs">{{ $submission->submitted_at?->diffForHumans() ?? '—' }}</td>
                         <td class="px-5 py-3.5 text-right">
                             <a href="{{ route('admin.submissions.show', $submission) }}" wire:navigate
-                                class="text-xs font-bold text-[#1a7aad] hover:underline">Review &rarr;</a>
+                                class="text-xs font-bold text-[#0b9ed0] hover:underline">Review &rarr;</a>
                         </td>
                     </tr>
                 @empty

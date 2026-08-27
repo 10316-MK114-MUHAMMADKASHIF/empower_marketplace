@@ -11,30 +11,30 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
-<body class="min-h-screen bg-gray-100 font-sans antialiased">
+<body class="min-h-screen bg-page font-sans antialiased">
 
-    <nav class="sticky top-0 z-50 bg-[#1a2e4a] shadow">
+    <nav class="sticky top-0 z-50 bg-white/96 backdrop-blur border-b border-empower-border shadow-sm">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between">
                 <div class="flex items-center gap-6">
                     <a href="{{ route('home') }}" class="flex items-center gap-2">
-                        <span class="text-lg font-semibold text-white">Empower</span>
-                        <span class="rounded bg-[#1a7aad] px-2 py-0.5 text-xs font-bold text-white uppercase tracking-wider">Admin</span>
+                        <span class="text-lg font-semibold text-navy">Empower</span>
+                        <span class="rounded bg-[#e9f7fc] px-2 py-0.5 text-xs font-bold text-[#087fa9] uppercase tracking-wider">Admin</span>
                     </a>
 
                     <div class="hidden md:flex items-center gap-6">
-                        <a href="{{ route('admin.dashboard') }}" wire:navigate class="text-sm text-gray-300 hover:text-white transition-colors">Dashboard</a>
-                        <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm text-gray-300 hover:text-white transition-colors">Submissions</a>
-                        <a href="{{ route('admin.documents') }}" wire:navigate class="text-sm text-gray-300 hover:text-white transition-colors">Documents</a>
-                        <a href="{{ route('admin.leads') }}" wire:navigate class="text-sm text-gray-300 hover:text-white transition-colors">Leads</a>
+                        <a href="{{ route('admin.dashboard') }}" wire:navigate class="text-sm text-empower-muted hover:text-navy transition-colors">Dashboard</a>
+                        <a href="{{ route('admin.submissions') }}" wire:navigate class="text-sm text-empower-muted hover:text-navy transition-colors">Submissions</a>
+                        <a href="{{ route('admin.documents') }}" wire:navigate class="text-sm text-empower-muted hover:text-navy transition-colors">Documents</a>
+                        <a href="{{ route('admin.leads') }}" wire:navigate class="text-sm text-empower-muted hover:text-navy transition-colors">Leads</a>
                     </div>
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <span class="text-sm text-gray-400">{{ auth()->user()->name }}</span>
+                    <span class="text-sm text-empower-muted">{{ auth()->user()->name }}</span>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
-                        <button type="submit" class="text-sm text-gray-400 hover:text-white transition-colors">Log out</button>
+                        <button type="submit" class="text-sm text-empower-muted hover:text-navy transition-colors">Log out</button>
                     </form>
                 </div>
             </div>

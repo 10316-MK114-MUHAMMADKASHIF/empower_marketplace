@@ -56,14 +56,14 @@ new class extends Component
                         <td class="px-5 py-3.5 text-empower-muted text-xs whitespace-nowrap">{{ $log->created_at?->format('M j, Y g:ia') }}</td>
                         <td class="px-5 py-3.5 text-empower-text">{{ $log->user?->name ?? 'System' }}</td>
                         <td class="px-5 py-3.5">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.65rem] font-extrabold uppercase tracking-wider bg-[#edf2f7] text-empower-muted">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.65rem] font-extrabold uppercase tracking-wider bg-[#eef6fb] text-empower-muted">
                                 {{ $log->event_type }}
                             </span>
                         </td>
                         <td class="px-5 py-3.5 text-empower-text">{{ $log->description }}</td>
                         <td class="px-5 py-3.5 text-empower-text">
                             @if($log->order)
-                                <a href="{{ route('admin.orders.edit', $log->order) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">#{{ $log->order_id }}</a>
+                                <a href="{{ route('admin.orders.edit', $log->order) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">#{{ $log->order_id }}</a>
                             @else
                                 —
                             @endif
