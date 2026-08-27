@@ -47,7 +47,7 @@
 <main>
 
     {{-- Hero --}}
-    <section id="home" class="py-16 lg:py-20" style="background: radial-gradient(circle at 84% 18%, rgba(11, 158, 208, 0.28), transparent 34%), radial-gradient(circle at 8% 0%, rgba(240, 138, 45, 0.16), transparent 30%), linear-gradient(115deg, #ffffff 0%, #f2f8fd 42%, #d9eff9 100%);">
+    <section id="home" class="py-16 lg:py-20" style="background: radial-gradient(circle at 84% 18%, rgba(11, 158, 208, 0.36), transparent 34%), radial-gradient(circle at 8% 0%, rgba(34, 153, 221, 0.20), transparent 30%), linear-gradient(115deg, #f2f8fd 0%, #dff1fb 44%, #c7e7f6 100%);">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="w-full">
                 <span class="inline-block rounded-full border border-[#0b9ed0]/30 bg-[#e9f7fc] px-4 py-1.5 text-xs font-semibold text-[#087fa9] tracking-wide mb-5">
