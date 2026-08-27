@@ -215,6 +215,11 @@ new class extends Component
             Storage::disk('local')->delete($upload->storage_path);
         }
 
+        // generated_documents.intake_upload_id is nullOnDelete (not cascade), so without this
+        // the document generated from this upload would survive as an orphan — its FK nulled
+        // out, but the row still showing up forever in Document Review with no filename.
+        $this->deleteGeneratedDocumentsForUploads([$upload->id]);
+
         $filename = $upload->original_filename;
         $upload->delete();
 
@@ -225,7 +230,7 @@ new class extends Component
             order: $submission->order,
         );
 
-        unset($this->submission);
+        unset($this->submission, $this->documentsForReview);
     }
 
     public function deleteSubmission(): void
@@ -239,11 +244,45 @@ new class extends Component
             }
         }
 
+        // Every generated document only exists because of this submission's uploads — without
+        // them, none can be regenerated, so leaving the rows behind would just orphan them (see
+        // deleteIntakeUpload()'s comment). A fresh submission will recreate whatever's expected.
+        $this->deleteGeneratedDocumentsForOrder($orderId);
+
         $submission->delete();
 
         ActivityLog::record('submission.deleted', "Intake submission for order #{$orderId} was deleted by an admin.", user: auth()->user());
 
         $this->redirect(route('admin.submissions'), navigate: true);
+    }
+
+    /** @param  array<int, int>  $uploadIds */
+    private function deleteGeneratedDocumentsForUploads(array $uploadIds): void
+    {
+        $documents = GeneratedDocument::whereIn('intake_upload_id', $uploadIds)->get();
+
+        $this->deleteGeneratedDocumentFiles($documents);
+        GeneratedDocument::whereIn('id', $documents->pluck('id'))->delete();
+    }
+
+    private function deleteGeneratedDocumentsForOrder(int $orderId): void
+    {
+        $documents = GeneratedDocument::where('order_id', $orderId)->get();
+
+        $this->deleteGeneratedDocumentFiles($documents);
+        GeneratedDocument::where('order_id', $orderId)->delete();
+    }
+
+    /** @param  Collection<int, GeneratedDocument>  $documents */
+    private function deleteGeneratedDocumentFiles(Collection $documents): void
+    {
+        foreach ($documents as $document) {
+            foreach ([$document->pdf_storage_path, $document->docx_storage_path, $document->custom_storage_path] as $path) {
+                if ($path) {
+                    Storage::disk('local')->delete($path);
+                }
+            }
+        }
     }
 
     public function revokeApproval(int $documentId): void

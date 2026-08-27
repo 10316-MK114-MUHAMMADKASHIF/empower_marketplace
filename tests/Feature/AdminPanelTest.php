@@ -378,6 +378,68 @@ class AdminPanelTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'submission.deleted']);
     }
 
+    /** generated_documents.intake_upload_id is nullOnDelete, not cascade — without explicit
+     *  cleanup, deleting an upload would orphan its generated document instead of removing it. */
+    public function test_deleting_an_intake_upload_also_deletes_its_generated_document(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+        ]);
+        $document = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $upload->id,
+        ]);
+        Storage::disk('local')->put($document->pdf_storage_path, 'fake-pdf');
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteIntakeUpload', $upload->id);
+
+        $this->assertDatabaseMissing('generated_documents', ['id' => $document->id]);
+        Storage::disk('local')->assertMissing($document->pdf_storage_path);
+    }
+
+    /** deleteSubmission() must clean up every generated document for the order too — otherwise
+     *  they survive as permanent orphans (nulled intake_upload_id) and keep reappearing in
+     *  Document Review with no source file, duplicating whatever a later resubmission creates. */
+    public function test_deleting_a_submission_also_deletes_its_generated_documents(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+        ]);
+        $perUploadDoc = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::PolishedClientDocument,
+            'intake_upload_id' => $upload->id,
+        ]);
+        $orderScopedDoc = GeneratedDocument::factory()->completed()->create([
+            'order_id' => $submission->order_id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+        ]);
+        Storage::disk('local')->put($perUploadDoc->pdf_storage_path, 'fake-pdf');
+        Storage::disk('local')->put($orderScopedDoc->pdf_storage_path, 'fake-pdf');
+
+        Livewire::actingAs($admin)
+            ->test('admin.submission-detail', ['submission' => $submission])
+            ->call('deleteSubmission');
+
+        $this->assertDatabaseMissing('generated_documents', ['id' => $perUploadDoc->id]);
+        $this->assertDatabaseMissing('generated_documents', ['id' => $orderScopedDoc->id]);
+        Storage::disk('local')->assertMissing($perUploadDoc->pdf_storage_path);
+        Storage::disk('local')->assertMissing($orderScopedDoc->pdf_storage_path);
+    }
+
     public function test_rejecting_a_submission_emails_the_client(): void
     {
         Mail::fake();
