@@ -35,7 +35,7 @@ new class extends Component
 
 <div class="space-y-6" x-data="{ confirmOpen: false }">
     <div class="flex items-center justify-between">
-        <a href="{{ route('admin.payment-logs') }}" wire:navigate class="text-sm font-bold text-[#1a7aad] hover:underline">&larr; Back to Payment Logs</a>
+        <a href="{{ route('admin.payment-logs') }}" wire:navigate class="text-sm font-bold text-[#0b9ed0] hover:underline">&larr; Back to Payment Logs</a>
         <button type="button" x-on:click="confirmOpen = true"
             class="inline-flex items-center gap-1 rounded bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors">
             Delete Log
@@ -101,7 +101,7 @@ new class extends Component
                 <dt class="text-xs font-extrabold uppercase tracking-wider text-empower-muted">Order</dt>
                 <dd class="mt-1 text-empower-text">
                     @if($this->log->order)
-                        <a href="{{ route('admin.orders.edit', $this->log->order) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">#{{ $this->log->order_id }}</a>
+                        <a href="{{ route('admin.orders.edit', $this->log->order) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">#{{ $this->log->order_id }}</a>
                     @else
                         —
                     @endif

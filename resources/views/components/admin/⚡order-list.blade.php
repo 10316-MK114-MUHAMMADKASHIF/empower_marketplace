@@ -80,7 +80,7 @@ new class extends Component
                         </td>
                         <td class="px-5 py-3.5 text-empower-text">{{ $order->package->name }}</td>
                         <td class="px-5 py-3.5">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider bg-[#edf2f7] text-empower-muted">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider bg-[#eef6fb] text-empower-muted">
                                 {{ ucwords(str_replace('_', ' ', $order->status->value)) }}
                             </span>
                         </td>
@@ -89,7 +89,7 @@ new class extends Component
                         </td>
                         <td class="px-5 py-3.5 text-empower-muted text-xs">{{ $order->created_at?->diffForHumans() }}</td>
                         <td class="px-5 py-3.5 text-right">
-                            <a href="{{ route('admin.orders.edit', $order) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
+                            <a href="{{ route('admin.orders.edit', $order) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
                         </td>
                     </tr>
                 @empty

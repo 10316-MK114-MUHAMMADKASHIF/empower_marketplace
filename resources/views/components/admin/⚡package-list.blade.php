@@ -86,12 +86,12 @@ new class extends Component
                         </td>
                         <td class="px-5 py-3.5">
                             <button wire:click="toggleActive({{ $package->id }})"
-                                class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider transition-colors {{ $package->is_active ? 'bg-[#dff7f0] text-[#0f7a4f]' : 'bg-[#edf2f7] text-empower-muted' }}">
+                                class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider transition-colors {{ $package->is_active ? 'bg-[#dff7f0] text-[#0f7a4f]' : 'bg-[#eef6fb] text-empower-muted' }}">
                                 {{ $package->is_active ? 'Active' : 'Inactive' }}
                             </button>
                         </td>
                         <td class="px-5 py-3.5 text-right space-x-3">
-                            <a href="{{ route('admin.packages.edit', $package) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
+                            <a href="{{ route('admin.packages.edit', $package) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
                             <button type="button" x-on:click="confirmId = {{ $package->id }}; confirmLabel = @js($package->name)"
                                 class="text-xs font-bold text-red-600 hover:underline">Delete</button>
                         </td>

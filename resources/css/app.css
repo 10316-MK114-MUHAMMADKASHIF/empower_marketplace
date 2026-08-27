@@ -7,13 +7,13 @@
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 
-    /* Empower brand palette */
-    --color-navy: #12304f;
-    --color-navy-dark: #0a2037;
-    --color-accent: #76c8c0;
-    --color-accent-dark: #5bb2aa;
-    --color-page: #f4f7fb;
-    --color-empower-text: #173045;
-    --color-empower-muted: #5d6e7f;
-    --color-empower-border: #dbe4ee;
+    /* CareCloud-inspired brand palette */
+    --color-navy: #0e3a61;
+    --color-navy-dark: #0b2e4b;
+    --color-accent: #0b9ed0;
+    --color-accent-dark: #087fa9;
+    --color-page: #f2f8fd;
+    --color-empower-text: #173a59;
+    --color-empower-muted: #5c778d;
+    --color-empower-border: #d4e5f1;
 }

@@ -99,7 +99,7 @@ new class extends Component
                             </span>
                         </td>
                         <td class="px-5 py-3.5 text-right">
-                            <a href="{{ route('admin.users.edit', $user) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
+                            <a href="{{ route('admin.users.edit', $user) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
                         </td>
                     </tr>
                 @empty

@@ -15,7 +15,7 @@
     </tr>
 </table>
 
-<div style="border-top: 2px solid #76c8c0; margin-top: 16px;"></div>
+<div style="border-top: 2px solid #009bde; margin-top: 16px;"></div>
 
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 20px;">
     <tr>

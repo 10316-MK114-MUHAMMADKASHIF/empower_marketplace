@@ -79,7 +79,7 @@ new class extends Component
 ?>
 
 <div class="space-y-4" x-data="{ confirmOpen: false }">
-    <a href="{{ route('admin.orders') }}" wire:navigate class="text-sm font-semibold text-[#1a7aad] hover:underline">&larr; Back to orders</a>
+    <a href="{{ route('admin.orders') }}" wire:navigate class="text-sm font-semibold text-[#0b9ed0] hover:underline">&larr; Back to orders</a>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <h2 class="text-lg font-semibold text-navy mb-1">Order #{{ $orderId }}</h2>
@@ -87,7 +87,7 @@ new class extends Component
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Status</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Status</label>
                 <select wire:model="status"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @foreach(OrderStatus::cases() as $case)
@@ -98,21 +98,21 @@ new class extends Component
             </div>
 
             <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Amount Paid ($)</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Amount Paid ($)</label>
                 <input wire:model="amountPaid" type="number" step="0.01" min="0"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('amountPaid') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Payment Reference</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Payment Reference</label>
                 <input wire:model="paymentReference" type="text"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('paymentReference') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Notes</label>
+                <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Notes</label>
                 <textarea wire:model="notes" rows="3"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition resize-none"></textarea>
                 @error('notes') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror

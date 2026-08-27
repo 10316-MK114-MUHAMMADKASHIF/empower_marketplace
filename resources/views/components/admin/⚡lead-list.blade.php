@@ -93,9 +93,9 @@ new class extends Component
                             @if($lead->is_contacted)
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Contacted</span>
                             @else
-                                <button wire:click="markContacted({{ $lead->id }})" class="text-xs font-bold text-[#1a7aad] hover:underline">Mark Contacted</button>
+                                <button wire:click="markContacted({{ $lead->id }})" class="text-xs font-bold text-[#0b9ed0] hover:underline">Mark Contacted</button>
                             @endif
-                            <a href="{{ route('admin.leads.edit', $lead) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
+                            <a href="{{ route('admin.leads.edit', $lead) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
                             <button type="button" x-on:click="confirmId = {{ $lead->id }}; confirmLabel = @js($lead->name)"
                                 class="text-xs font-bold text-red-600 hover:underline">Delete</button>
                         </td>

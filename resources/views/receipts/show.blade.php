@@ -39,7 +39,7 @@
             </div>
         </div>
 
-        <div class="mt-8 border-t-2 border-[#76c8c0]"></div>
+        <div class="mt-8 border-t-2 border-[#009bde]"></div>
 
         <div class="mt-8 flex items-start justify-between">
             <div>
