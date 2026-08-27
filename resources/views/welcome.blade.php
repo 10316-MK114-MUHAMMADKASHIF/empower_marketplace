@@ -14,7 +14,7 @@
 <body class="bg-[#f2f8fd] text-[#173a59] antialiased font-sans">
 
 {{-- Sticky Nav --}}
-<nav class="sticky top-0 z-50 bg-white/96 backdrop-blur border-b border-[#d4e5f1] shadow-sm">
+<nav x-data="{ open: false }" class="sticky top-0 z-50 bg-white/96 backdrop-blur border-b border-[#d4e5f1] shadow-sm">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
             <a href="{{ route('home') }}" class="flex items-center gap-2.5">
@@ -33,12 +33,30 @@
             </div>
 
             <div class="flex items-center gap-2">
+                <button type="button" class="inline-flex md:hidden items-center justify-center rounded-lg border border-[#9ed3e9] bg-white p-2 text-[#087fa9] hover:bg-[#eef8fd] transition-colors" x-on:click="open = !open" x-bind:aria-expanded="open.toString()" aria-controls="mobile-menu" aria-label="Toggle navigation menu">
+                    <svg x-show="!open" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <svg x-show="open" x-cloak class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
                 @auth
                     <a href="{{ route('portal') }}" class="rounded-lg bg-[#2299dd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors">My Portal</a>
                 @else
                     <a href="{{ route('login') }}" class="text-sm font-medium text-[#5c778d] hover:text-[#0e3a61] transition-colors">Log in</a>
                     <a href="#pricing" class="rounded-lg bg-[#2299dd] px-4 py-2 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors">Get Started</a>
                 @endauth
+            </div>
+        </div>
+
+        <div id="mobile-menu" x-show="open" x-transition x-cloak class="md:hidden border-t border-[#d4e5f1] py-3">
+            <div class="flex flex-col gap-1">
+                <a href="#home" x-on:click="open = false" class="rounded-lg px-3 py-2 text-sm font-medium text-[#5c778d] hover:bg-[#eef8fd] hover:text-[#0e3a61] transition-colors">Home</a>
+                <a href="#services" x-on:click="open = false" class="rounded-lg px-3 py-2 text-sm font-medium text-[#5c778d] hover:bg-[#eef8fd] hover:text-[#0e3a61] transition-colors">Services</a>
+                <a href="#process" x-on:click="open = false" class="rounded-lg px-3 py-2 text-sm font-medium text-[#5c778d] hover:bg-[#eef8fd] hover:text-[#0e3a61] transition-colors">Process</a>
+                <a href="#pricing" x-on:click="open = false" class="rounded-lg px-3 py-2 text-sm font-medium text-[#5c778d] hover:bg-[#eef8fd] hover:text-[#0e3a61] transition-colors">Pricing</a>
+                <a href="{{ route('contact') }}" class="rounded-lg px-3 py-2 text-sm font-medium text-[#5c778d] hover:bg-[#eef8fd] hover:text-[#0e3a61] transition-colors">Contact</a>
             </div>
         </div>
     </div>
