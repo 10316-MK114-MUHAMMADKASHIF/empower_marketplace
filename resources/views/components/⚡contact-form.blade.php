@@ -120,7 +120,7 @@ new class extends Component
                 class="inline-flex items-center gap-2 rounded-xl bg-[#76c8c0] px-6 py-3 text-sm font-semibold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
                 <span wire:loading.remove>Send Message</span>
-                <span wire:loading>Sending…</span>
+                <span wire:loading.inline-flex class="items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Sending…</span>
                 <svg wire:loading.remove class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                 </svg>

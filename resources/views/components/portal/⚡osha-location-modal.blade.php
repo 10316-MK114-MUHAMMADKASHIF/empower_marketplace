@@ -244,9 +244,11 @@ new class extends Component
         {{-- Modal footer --}}
         <div class="flex items-center justify-between px-6 py-4 border-t border-[#dbe4ee]">
             @if($locationId)
-                <button wire:click="delete" wire:confirm="Delete this OSHA location?"
+                <button wire:click="delete" wire:confirm="Delete this OSHA location?" wire:target="delete"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="delete"
                     class="text-sm font-semibold text-red-600 hover:text-red-700 transition-colors">
-                    Delete location
+                    <span wire:loading.remove wire:target="delete">Delete location</span>
+                    <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             @else
                 <span></span>
@@ -256,11 +258,11 @@ new class extends Component
                     class="rounded-lg border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
                     Cancel
                 </button>
-                <button wire:click="save"
+                <button wire:click="save" wire:target="save"
                     class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="save">
                     <span wire:loading.remove wire:target="save">Save Location</span>
-                    <span wire:loading wire:target="save">Saving…</span>
+                    <span wire:loading.inline-flex wire:target="save" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
                 </button>
             </div>
         </div>

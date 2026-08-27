@@ -779,7 +779,11 @@ new class extends Component
             <h3 class="text-sm font-semibold text-navy mb-3">Review Decision</h3>
 
             @if($submission->status === IntakeSubmissionStatus::Submitted)
-                <button wire:click="startReview" class="mb-4 text-xs font-bold text-[#1a7aad] hover:underline">Mark as Under Review</button>
+                <button wire:click="startReview" wire:target="startReview" wire:loading.attr="disabled" wire:target="startReview"
+                    class="mb-4 text-xs font-bold text-[#1a7aad] hover:underline">
+                    <span wire:loading.remove wire:target="startReview">Mark as Under Review</span>
+                    <span wire:loading.inline-flex wire:target="startReview" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Updating…</span>
+                </button>
             @endif
 
             <div class="mb-4">
@@ -816,6 +820,7 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
+                @php $modalTargets = 'approve,reject,deleteCustom,reopen,approveDocuments,revokeApproval,deleteDocument,deleteUpload,deleteSubmission'; @endphp
                 <button type="button"
                     x-on:click="(confirmAction === 'approve' ? $wire.approve()
                         : confirmAction === 'reject' ? $wire.reject()
@@ -827,9 +832,11 @@ new class extends Component
                         : confirmAction === 'deleteUpload' ? $wire.deleteIntakeUpload(confirmUploadId)
                         : $wire.deleteSubmission()
                     ).then(() => confirmAction = null).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="{{ $modalTargets }}"
                     x-bind:class="modalText[confirmAction]?.danger ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-accent text-navy-dark hover:bg-accent-dark'"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors">
-                    <span x-text="modalText[confirmAction]?.label"></span>
+                    <span wire:loading.remove wire:target="{{ $modalTargets }}" x-text="modalText[confirmAction]?.label"></span>
+                    <span wire:loading.inline-flex wire:target="{{ $modalTargets }}" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Processing…</span>
                 </button>
             </div>
         </div>

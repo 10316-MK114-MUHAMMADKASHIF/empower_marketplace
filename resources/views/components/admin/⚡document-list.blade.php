@@ -61,9 +61,11 @@ new class extends Component
             DocumentStatus::Failed->value => 'Failed',
             'stale' => 'Stale',
         ] as $value => $label)
-            <button type="button" wire:click="$set('status', '{{ $value }}')"
-                class="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $status === $value ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
-                {{ $label }}
+            <button type="button" wire:click="$set('status', '{{ $value }}')" wire:target="$set('status', '{{ $value }}')"
+                wire:loading.attr="disabled" wire:target="$set('status', '{{ $value }}')"
+                class="inline-flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $status === $value ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
+                <span wire:loading.remove wire:target="$set('status', '{{ $value }}')">{{ $label }}</span>
+                <span wire:loading wire:target="$set('status', '{{ $value }}')"><x-spinner class="h-3 w-3" /></span>
             </button>
         @endforeach
     </div>
@@ -141,10 +143,12 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
-                <button type="button"
+                <button type="button" wire:target="regenerate"
                     x-on:click="$wire.regenerate(confirmId).then(() => confirmId = null).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="regenerate"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-accent text-navy-dark hover:bg-accent-dark">
-                    Regenerate
+                    <span wire:loading.remove wire:target="regenerate">Regenerate</span>
+                    <span wire:loading.inline-flex wire:target="regenerate" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Regenerating…</span>
                 </button>
             </div>
         </div>

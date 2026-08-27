@@ -73,7 +73,7 @@ new class extends Component
             class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
             wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
             <span wire:loading.remove>Log In &rarr;</span>
-            <span wire:loading>Signing in…</span>
+            <span wire:loading.inline-flex class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Signing in…</span>
         </button>
     </form>
 

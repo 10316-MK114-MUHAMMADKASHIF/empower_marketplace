@@ -93,7 +93,12 @@ new class extends Component
                             @if($lead->is_contacted)
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">Contacted</span>
                             @else
-                                <button wire:click="markContacted({{ $lead->id }})" class="text-xs font-bold text-[#1a7aad] hover:underline">Mark Contacted</button>
+                                <button wire:click="markContacted({{ $lead->id }})" wire:target="markContacted({{ $lead->id }})"
+                                    wire:loading.attr="disabled" wire:loading.class="opacity-70" wire:target="markContacted({{ $lead->id }})"
+                                    class="text-xs font-bold text-[#1a7aad] hover:underline">
+                                    <span wire:loading.remove wire:target="markContacted({{ $lead->id }})">Mark Contacted</span>
+                                    <span wire:loading.inline-flex wire:target="markContacted({{ $lead->id }})" class="inline-flex items-center gap-1"><x-spinner class="h-3 w-3" /> Marking…</span>
+                                </button>
                             @endif
                             <a href="{{ route('admin.leads.edit', $lead) }}" wire:navigate class="text-xs font-bold text-[#1a7aad] hover:underline">Edit</a>
                             <button type="button" x-on:click="confirmId = {{ $lead->id }}; confirmLabel = @js($lead->name)"
@@ -122,10 +127,12 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
-                <button type="button"
+                <button type="button" wire:target="delete"
                     x-on:click="$wire.delete(confirmId).then(() => confirmId = null).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="delete"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
-                    Delete
+                    <span wire:loading.remove wire:target="delete">Delete</span>
+                    <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             </div>
         </div>

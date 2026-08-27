@@ -335,11 +335,11 @@ new class extends Component
                 <span></span>
             @endif
 
-            <button wire:click="save"
+            <button wire:click="save" wire:target="save"
                 class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
-                <span wire:loading.remove>{{ $userId ? 'Save Changes' : 'Create User' }} &rarr;</span>
-                <span wire:loading>Saving…</span>
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="save">
+                <span wire:loading.remove wire:target="save">{{ $userId ? 'Save Changes' : 'Create User' }} &rarr;</span>
+                <span wire:loading.inline-flex wire:target="save" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
             </button>
         </div>
     </div>
@@ -403,7 +403,12 @@ new class extends Component
         <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-navy">OSHA Locations</h2>
-                <button wire:click="addOshaLocation" class="text-sm font-bold text-[#1a7aad] hover:underline">+ Add Location</button>
+                <button wire:click="addOshaLocation" wire:target="addOshaLocation"
+                    wire:loading.attr="disabled" wire:target="addOshaLocation"
+                    class="text-sm font-bold text-[#1a7aad] hover:underline">
+                    <span wire:loading.remove wire:target="addOshaLocation">+ Add Location</span>
+                    <span wire:loading.inline-flex wire:target="addOshaLocation" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Adding…</span>
+                </button>
             </div>
 
             <div class="space-y-3">
@@ -483,7 +488,12 @@ new class extends Component
 
                             <div class="mt-3 flex justify-end gap-3">
                                 <button wire:click="$set('editingLocationIndex', null)" class="text-sm font-semibold text-empower-muted hover:underline">Cancel</button>
-                                <button wire:click="saveOshaLocation({{ $index }})" class="text-sm font-bold text-[#1a7aad] hover:underline">Save Location</button>
+                                <button wire:click="saveOshaLocation({{ $index }})" wire:target="saveOshaLocation({{ $index }})"
+                                    wire:loading.attr="disabled" wire:target="saveOshaLocation({{ $index }})"
+                                    class="text-sm font-bold text-[#1a7aad] hover:underline">
+                                    <span wire:loading.remove wire:target="saveOshaLocation({{ $index }})">Save Location</span>
+                                    <span wire:loading.inline-flex wire:target="saveOshaLocation({{ $index }})" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
+                                </button>
                             </div>
                         @else
                             <div class="flex items-center justify-between">
@@ -517,10 +527,12 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
-                <button type="button"
+                <button type="button" wire:target="delete"
                     x-on:click="$wire.delete().then(() => confirmDeleteUser = false).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="delete"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
-                    Delete
+                    <span wire:loading.remove wire:target="delete">Delete</span>
+                    <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             </div>
         </div>
@@ -536,10 +548,12 @@ new class extends Component
                     class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                     Cancel
                 </button>
-                <button type="button"
+                <button type="button" wire:target="deleteOshaLocation"
                     x-on:click="$wire.deleteOshaLocation(confirmLocationIndex).then(() => confirmLocationIndex = null).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="deleteOshaLocation"
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
-                    Delete
+                    <span wire:loading.remove wire:target="deleteOshaLocation">Delete</span>
+                    <span wire:loading.inline-flex wire:target="deleteOshaLocation" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             </div>
         </div>
