@@ -19,7 +19,7 @@
             <div class="flex h-16 items-center justify-between">
                 <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                     <span class="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5">
-                        <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[22px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-navy text-sm\'>EMPOWER</span>'">
+                        <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[45px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-navy text-sm\'>EMPOWER</span>'">
                     </span>
                     <span class="hidden sm:block text-[0.6rem] font-extrabold tracking-widest uppercase text-empower-muted">Marketplace</span>
                 </a>
@@ -67,7 +67,7 @@
     <footer class="bg-white border-t border-empower-border py-4 mt-10">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3">
             <span class="inline-flex items-center bg-white rounded-[0.6rem] px-2.5 py-[0.35rem] leading-none">
-                <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[22px] w-auto" onerror="this.parentElement.innerHTML='<span class=\'font-extrabold text-navy text-xs\'>EMPOWER</span>'">
+                <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[45px] w-auto" onerror="this.parentElement.innerHTML='<span class=\'font-extrabold text-navy text-xs\'>EMPOWER</span>'">
             </span>
             <p class="text-xs text-empower-muted">&copy; {{ date('Y') }} CareCloud, Inc. &middot; Empower, by CareCloud &middot; In collaboration with Frier Levitt</p>
         </div>
