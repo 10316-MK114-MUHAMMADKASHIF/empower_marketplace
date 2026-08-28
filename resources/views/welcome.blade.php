@@ -152,6 +152,20 @@
         </div>
     </section>
 
+    {{-- CTA (repeated above Pricing) --}}
+    <section class="py-14 lg:py-16 bg-gradient-to-br from-[#0b2e4b] via-[#0e3a61] to-[#16638e]">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-2xl text-center">
+                <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Ready to get started?</span>
+                <h2 class="mt-3 text-3xl font-bold text-white">Proactive Compliance by Empower launches September 8, 2026.</h2>
+                <p class="mt-4 text-white/70 leading-relaxed">
+                    Select your package and begin the 5-step onboarding flow today, or contact us to map the right tier and legal review options for your practice.
+                </p>
+                <a href="{{ route('contact') }}" class="mt-8 inline-block rounded-xl bg-[#2299dd] px-8 py-3.5 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors shadow-lg">Contact Us</a>
+            </div>
+        </div>
+    </section>
+
     {{-- Pricing --}}
     <section id="pricing" class="py-14 lg:py-16 bg-white">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
