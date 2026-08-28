@@ -821,7 +821,6 @@ new class extends Component
             <h3 class="text-sm font-semibold text-navy mb-3">Review Decision</h3>
 
             @if($submission->status === IntakeSubmissionStatus::Submitted)
-                <button wire:click="startReview" class="mb-4 text-xs font-bold text-[#0b9ed0] hover:underline">Mark as Under Review</button>
                 <button wire:click="startReview" wire:target="startReview" wire:loading.attr="disabled" wire:target="startReview"
                     class="mb-4 text-xs font-bold text-[#1a7aad] hover:underline">
                     <span wire:loading.remove wire:target="startReview">Mark as Under Review</span>

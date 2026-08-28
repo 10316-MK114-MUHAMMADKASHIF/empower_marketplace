@@ -527,6 +527,14 @@ new class extends Component
         $this->step = $step;
     }
 
+    /** Handles the intake-method radio picks in Step 2. A plain wire:model wouldn't let the
+     *  "download" option be gated behind a confirm dialog first, since wire:confirm only
+     *  intercepts action calls (wire:click), not property-binding updates. */
+    public function setIntakeMethod(string $method): void
+    {
+        $this->intakeMethod = $method;
+    }
+
     public function editProfile(): void
     {
         abort_unless(auth()->check(), 403);
@@ -1602,24 +1610,15 @@ $progressPct = ($milestone / 4) * 100;
         </div>
 
         @unless($editingProfile)
-        <div class="mt-5 pt-5">
+        <div class="mt-5 pt-5" x-data="{ confirmDownload: false }">
             <label class="block text-sm font-semibold text-[#31465b] mb-2">
                 Do you want to upload your documents for review or do you want to download our questionnaires?
                 <span class="text-red-500">*</span>
             </label>
             <div class="flex gap-3">
                 <label
-                    class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" wire:model.live="intakeMethod" value="download" class="mt-0.5">
-                    <span>
-                        <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
-                        <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
-                            them back for us to build your documents.</span>
-                    </span>
-                </label>
-                <label
                     class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'upload_for_review' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" wire:model.live="intakeMethod" value="upload_for_review" class="mt-0.5">
+                    <input type="radio" wire:click="setIntakeMethod('upload_for_review')" @checked($intakeMethod === 'upload_for_review') class="mt-0.5">
                     <span>
                         <span class="block text-sm font-semibold text-[#12304f]">Upload your existing documents for
                             review</span>
@@ -1627,8 +1626,36 @@ $progressPct = ($milestone / 4) * 100;
                             we'll review, refine, and finalize them for you.</span>
                     </span>
                 </label>
+                <label
+                    class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
+                    <input type="radio" x-on:click.prevent="confirmDownload = true" @checked($intakeMethod === 'download') class="mt-0.5">
+                    <span>
+                        <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
+                        <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
+                            them back for us to build your documents.</span>
+                    </span>
+                </label>
             </div>
             @error('intakeMethod') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+
+            <div x-show="confirmDownload" x-cloak
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmDownload = false">
+                    <h3 class="text-base font-semibold text-[#12304f] mb-2">Are you sure you don't have anything ready to upload?</h3>
+                    <p class="text-sm text-[#5d6e7f] mb-5">If you already have a compliance document, choose "Upload your existing documents for review" instead — it's usually faster than filling out a blank questionnaire.</p>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" x-on:click="confirmDownload = false"
+                            class="rounded-lg border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                            Cancel
+                        </button>
+                        <button type="button"
+                            x-on:click="$wire.setIntakeMethod('download'); confirmDownload = false"
+                            class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
+                            Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             @if($intakeMethod === 'upload_for_review')
             <div class="mt-4">

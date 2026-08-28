@@ -1368,6 +1368,32 @@ class PortalTest extends TestCase
             ->assertHasErrors(['intakeMethod']);
     }
 
+    /**
+     * The intake-method radios call setIntakeMethod() via wire:click rather than binding
+     * with wire:model, specifically so the "download" option's wire:confirm can gate it —
+     * wire:confirm only intercepts action calls, not property-binding updates.
+     */
+    public function test_choosing_an_intake_method_sets_it_via_the_dedicated_method(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->call('setIntakeMethod', 'download')
+            ->assertSet('intakeMethod', 'download')
+            ->call('setIntakeMethod', 'upload_for_review')
+            ->assertSet('intakeMethod', 'upload_for_review');
+    }
+
     public function test_submit_for_review_requires_at_least_one_file(): void
     {
         $user = User::factory()->create();

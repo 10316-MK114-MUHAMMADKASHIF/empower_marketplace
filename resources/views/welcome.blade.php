@@ -152,6 +152,20 @@
         </div>
     </section>
 
+    {{-- CTA (repeated above Pricing) --}}
+    <section class="py-14 lg:py-16 bg-gradient-to-br from-[#0b2e4b] via-[#0e3a61] to-[#16638e]">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-2xl text-center">
+                <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Ready to get started?</span>
+                <h2 class="mt-3 text-3xl font-bold text-white">Proactive Compliance by Empower launches September 8, 2026.</h2>
+                <p class="mt-4 text-white/70 leading-relaxed">
+                    Select your package and begin the 5-step onboarding flow today, or contact us to map the right tier and legal review options for your practice.
+                </p>
+                <a href="{{ route('contact') }}" class="mt-8 inline-block rounded-xl bg-[#2299dd] px-8 py-3.5 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors shadow-lg">Contact Us</a>
+            </div>
+        </div>
+    </section>
+
     {{-- Pricing --}}
     <section id="pricing" class="py-14 lg:py-16 bg-white">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -166,8 +180,23 @@
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
 
                 {{-- Essential --}}
-                <div class="rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
-                    <div class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-3">Essential</div>
+                <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
+                    <div class="flex items-center gap-1.5 mb-3">
+                        <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Essential</span>
+                        @if($packages['essential']->description ?? null)
+                        <div class="relative" x-data="{ open: false }">
+                            <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
+                                class="flex h-5 w-5 items-center justify-center text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
+                                aria-label="Package description">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                            </button>
+                            <div x-show="open" x-cloak x-transition
+                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">{{ $packages['essential']->description }}</div>
+                        </div>
+                        @endif
+                    </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{ number_format($packages['essential']->annual_price ?? 0) }}</div>
                     <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / year</div>
                     <div class="text-xs text-[#5c778d] mb-6">${{ number_format($packages['essential']->monthly_price ?? 0) }}/mo billed monthly</div>
@@ -180,8 +209,23 @@
                 </div>
 
                 {{-- Professional --}}
-                <div class="rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
-                    <div class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-3">Professional</div>
+                <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
+                    <div class="flex items-center gap-1.5 mb-3">
+                        <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Professional</span>
+                        @if($packages['professional']->description ?? null)
+                        <div class="relative" x-data="{ open: false }">
+                            <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
+                                class="flex h-5 w-5 items-center justify-center text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
+                                aria-label="Package description">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                            </button>
+                            <div x-show="open" x-cloak x-transition
+                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">{{ $packages['professional']->description }}</div>
+                        </div>
+                        @endif
+                    </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{ number_format($packages['professional']->annual_price ?? 0) }}</div>
                     <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / year</div>
                     <div class="text-xs text-[#5c778d] mb-6">${{ number_format($packages['professional']->monthly_price ?? 0) }}/mo billed monthly</div>
@@ -198,7 +242,22 @@
                     <div class="absolute -top-3.5 left-1/2 -translate-x-1/2">
                         <span class="rounded-full bg-[#0b9ed0] px-4 py-1 text-xs font-bold text-white shadow">Popular</span>
                     </div>
-                    <div class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2] mb-3">Advanced</div>
+                    <div class="flex items-center gap-1.5 mb-3">
+                        <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Advanced</span>
+                        @if($packages['advanced']->description ?? null)
+                        <div class="relative" x-data="{ open: false }">
+                            <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
+                                class="flex h-5 w-5 items-center justify-center text-white/60 hover:text-white transition-colors"
+                                aria-label="Package description">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                            </button>
+                            <div x-show="open" x-cloak x-transition
+                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">{{ $packages['advanced']->description }}</div>
+                        </div>
+                        @endif
+                    </div>
                     <div class="text-4xl font-extrabold text-white">${{ number_format($packages['advanced']->annual_price ?? 0) }}</div>
                     <div class="text-sm text-white/60 mt-1 mb-1">/ billable provider / year</div>
                     <div class="text-xs text-white/50 mb-6">${{ number_format($packages['advanced']->monthly_price ?? 0) }}/mo billed monthly</div>
@@ -211,8 +270,23 @@
                 </div>
 
                 {{-- Complete --}}
-                <div class="rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
-                    <div class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-3">Complete</div>
+                <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
+                    <div class="flex items-center gap-1.5 mb-3">
+                        <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Complete</span>
+                        @if($packages['complete']->description ?? null)
+                        <div class="relative" x-data="{ open: false }">
+                            <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
+                                class="flex h-5 w-5 items-center justify-center text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
+                                aria-label="Package description">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                            </button>
+                            <div x-show="open" x-cloak x-transition
+                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">{{ $packages['complete']->description }}</div>
+                        </div>
+                        @endif
+                    </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">Call</div>
                     <div class="text-sm text-[#5c778d] mt-1 mb-6">for pricing</div>
                     <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
