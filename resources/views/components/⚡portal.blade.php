@@ -1609,15 +1609,6 @@ $progressPct = ($milestone / 4) * 100;
             </label>
             <div class="flex gap-3">
                 <label
-                    class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" wire:model.live="intakeMethod" value="download" class="mt-0.5">
-                    <span>
-                        <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
-                        <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
-                            them back for us to build your documents.</span>
-                    </span>
-                </label>
-                <label
                     class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'upload_for_review' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
                     <input type="radio" wire:model.live="intakeMethod" value="upload_for_review" class="mt-0.5">
                     <span>
@@ -1625,6 +1616,15 @@ $progressPct = ($milestone / 4) * 100;
                             review</span>
                         <span class="block text-xs text-[#5d6e7f]">Already have compliance documents? Upload them and
                             we'll review, refine, and finalize them for you.</span>
+                    </span>
+                </label>
+                <label
+                    class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
+                    <input type="radio" wire:model.live="intakeMethod" value="download" class="mt-0.5">
+                    <span>
+                        <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
+                        <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
+                            them back for us to build your documents.</span>
                     </span>
                 </label>
             </div>
