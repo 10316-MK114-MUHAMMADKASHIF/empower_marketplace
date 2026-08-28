@@ -265,7 +265,7 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4" x-data="{ confirmDeleteUser: false, confirmLocationIndex: null, confirmLocationLabel: '' }">
+<div class="space-y-4" x-data="{ confirmDeleteUser: false }">
     <a href="{{ route('admin.users') }}" wire:navigate class="text-sm font-semibold text-[#0b9ed0] hover:underline">&larr; Back to users</a>
 
     @error('delete')
@@ -400,123 +400,6 @@ new class extends Component
             </div>
         </div>
 
-        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-semibold text-navy">OSHA Locations</h2>
-                <button wire:click="addOshaLocation" class="text-sm font-bold text-[#0b9ed0] hover:underline">+ Add Location</button>
-                <button wire:click="addOshaLocation" wire:target="addOshaLocation"
-                    wire:loading.attr="disabled" wire:target="addOshaLocation"
-                    class="text-sm font-bold text-[#1a7aad] hover:underline">
-                    <span wire:loading.remove wire:target="addOshaLocation">+ Add Location</span>
-                    <span wire:loading.inline-flex wire:target="addOshaLocation" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Adding…</span>
-                </button>
-            </div>
-
-            <div class="space-y-3">
-                @forelse($oshaLocations as $index => $location)
-                    <div class="border border-empower-border rounded-xl p-4">
-                        @if($editingLocationIndex === $index)
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div class="sm:col-span-2">
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Location Name</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.name" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                    @error("oshaLocations.{$index}.name") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                                </div>
-
-                                <div class="sm:col-span-2">
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Address</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.address" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">OSHA Officer</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.osha_officer" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Safety Coordinator</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.safety_coordinator" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Cleaning Provider</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.cleaning_provider" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Cleaning Frequency</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.cleaning_frequency" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Employees / Year</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.employees_per_year" type="number" min="0"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                    @error("oshaLocations.{$index}.employees_per_year") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                                </div>
-
-                                <div>
-                                    <label class="block text-xs font-semibold text-[#173a59] mb-1">Waste Hauler</label>
-                                    <input wire:model="oshaLocations.{{ $index }}.waste_hauler" type="text"
-                                        class="w-full rounded-lg border border-empower-border bg-page px-3 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                                </div>
-
-                                <div class="sm:col-span-2 flex flex-wrap gap-4">
-                                    <label class="inline-flex items-center gap-2">
-                                        <input wire:model="oshaLocations.{{ $index }}.uses_hazardous_drugs" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#173a59]">Uses hazardous drugs</span>
-                                    </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input wire:model="oshaLocations.{{ $index }}.has_operating_rooms" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#173a59]">Has operating rooms</span>
-                                    </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input wire:model="oshaLocations.{{ $index }}.offers_hep_b_vaccination" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#173a59]">Offers Hep B vaccination</span>
-                                    </label>
-                                    <label class="inline-flex items-center gap-2">
-                                        <input wire:model="oshaLocations.{{ $index }}.offers_tb_screening" type="checkbox" class="rounded border-empower-border text-navy focus:ring-accent">
-                                        <span class="text-xs font-semibold text-[#173a59]">Offers TB screening</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="mt-3 flex justify-end gap-3">
-                                <button wire:click="$set('editingLocationIndex', null)" class="text-sm font-semibold text-empower-muted hover:underline">Cancel</button>
-                                <button wire:click="saveOshaLocation({{ $index }})" class="text-sm font-bold text-[#0b9ed0] hover:underline">Save Location</button>
-                                <button wire:click="saveOshaLocation({{ $index }})" wire:target="saveOshaLocation({{ $index }})"
-                                    wire:loading.attr="disabled" wire:target="saveOshaLocation({{ $index }})"
-                                    class="text-sm font-bold text-[#1a7aad] hover:underline">
-                                    <span wire:loading.remove wire:target="saveOshaLocation({{ $index }})">Save Location</span>
-                                    <span wire:loading.inline-flex wire:target="saveOshaLocation({{ $index }})" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
-                                </button>
-                            </div>
-                        @else
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <div class="font-semibold text-navy">{{ $location['name'] ?: 'Untitled location' }}</div>
-                                    <div class="text-xs text-empower-muted">{{ $location['address'] ?: 'No address on file' }}</div>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <button wire:click="$set('editingLocationIndex', {{ $index }})" class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</button>
-                                    <button type="button"
-                                        x-on:click="confirmLocationIndex = {{ $index }}; confirmLocationLabel = @js($location['name'] ?: 'this location')"
-                                        class="text-xs font-bold text-red-600 hover:underline">Delete</button>
-                                </div>
-                            </div>
-                        @endif
-                    </div>
-                @empty
-                    <p class="text-sm text-empower-muted italic">No OSHA locations yet.</p>
-                @endforelse
-            </div>
-        </div>
     @endif
 
     <div x-show="confirmDeleteUser" x-cloak
@@ -535,27 +418,6 @@ new class extends Component
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
                     <span wire:loading.remove wire:target="delete">Delete</span>
                     <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div x-show="confirmLocationIndex !== null" x-cloak
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmLocationIndex = null">
-            <h3 class="text-base font-semibold text-navy mb-2">Delete <span x-text="confirmLocationLabel"></span>?</h3>
-            <p class="text-sm text-empower-muted mb-5">Any generated documents tied to it will remain but lose their location tag.</p>
-            <div class="flex justify-end gap-3">
-                <button type="button" x-on:click="confirmLocationIndex = null"
-                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
-                    Cancel
-                </button>
-                <button type="button" wire:target="deleteOshaLocation"
-                    x-on:click="$wire.deleteOshaLocation(confirmLocationIndex).then(() => confirmLocationIndex = null).catch(() => {})"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="deleteOshaLocation"
-                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
-                    <span wire:loading.remove wire:target="deleteOshaLocation">Delete</span>
-                    <span wire:loading.inline-flex wire:target="deleteOshaLocation" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             </div>
         </div>
