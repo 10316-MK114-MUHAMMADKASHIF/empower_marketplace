@@ -23,7 +23,7 @@ class WelcomePageTest extends TestCase
         $response = $this->withoutVite()->get('/');
 
         $response->assertOk();
-        $response->assertSee('Select Package');
+        $response->assertSeeText('Select Package');
     }
 
     public function test_authenticated_user_can_see_a_select_package_link_on_the_pricing_page(): void
@@ -34,7 +34,7 @@ class WelcomePageTest extends TestCase
         $response = $this->withoutVite()->actingAs($user)->get('/');
 
         $response->assertOk();
-        $response->assertSee('Select Package');
+        $response->assertSeeText('Select Package');
     }
 
     public function test_pricing_card_features_come_from_the_package_record(): void
