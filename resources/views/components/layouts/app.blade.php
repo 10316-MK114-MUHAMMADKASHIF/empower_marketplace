@@ -22,7 +22,7 @@
             <div class="flex h-16 items-center justify-between">
                 <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                     <span class="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5">
-                        <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[45px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-navy text-sm\'>EMPOWER</span>'">
+                        <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[34px] sm:h-[45px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-navy text-sm\'>EMPOWER</span>'">
                     </span>
                     <span class="hidden sm:block text-[0.6rem] font-extrabold tracking-widest uppercase text-empower-muted">Marketplace</span>
                 </a>

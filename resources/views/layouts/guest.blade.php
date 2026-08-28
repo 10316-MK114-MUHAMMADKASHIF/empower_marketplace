@@ -18,7 +18,7 @@
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between">
                 <a href="{{ route('home') }}" class="flex items-center gap-2">
-                    <img src="{{ asset('images/logo.png') }}" alt="Empower" class="h-8 w-auto" onerror="this.style.display='none'">
+                    <img src="{{ asset('images/logo.png') }}" alt="Empower" class="h-[34px] sm:h-[45px] w-auto" onerror="this.style.display='none'">
                     <span class="text-xl font-semibold text-navy">Empower</span>
                 </a>
 
