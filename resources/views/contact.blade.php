@@ -83,11 +83,11 @@
 </section>
 
 <footer class="bg-white border-t border-[#d4e5f1] py-8 mt-8">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
         <span class="inline-flex items-center rounded-lg bg-[#f9fcff] px-2.5 py-1.5 ring-1 ring-[#d4e5f1]">
-            <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[45px]" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-[#0e3a61] text-sm\'>EMPOWER</span>'">
+            <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[34px] sm:h-[45px] w-auto" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-[#0e3a61] text-sm\'>EMPOWER</span>'">
         </span>
-        <p class="text-xs text-[#5c778d] text-center">&copy; {{ date('Y') }} CareCloud, Inc. &middot; Empower, by CareCloud &middot; In collaboration with Frier Levitt</p>
+        <p class="text-xs text-[#5c778d]">&copy; {{ date('Y') }} CareCloud, Inc. &middot; Empower, by CareCloud &middot; In collaboration with Frier Levitt</p>
     </div>
 </footer>
 
