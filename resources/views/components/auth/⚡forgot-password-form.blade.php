@@ -6,7 +6,7 @@ use Livewire\Component;
 
 new class extends Component
 {
-    #[Validate('required|email')]
+    #[Validate('required|email:rfc,filter')]
     public string $email = '';
 
     public bool $sent = false;

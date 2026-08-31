@@ -14,7 +14,7 @@ new class extends Component
     #[Validate('required|string|max:100')]
     public string $name = '';
 
-    #[Validate('required|email|max:150')]
+    #[Validate('required|email:rfc,filter|max:150')]
     public string $email = '';
 
     #[Validate('required|string|max:30')]

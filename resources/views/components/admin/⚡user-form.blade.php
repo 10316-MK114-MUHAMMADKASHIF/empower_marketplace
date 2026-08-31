@@ -100,7 +100,7 @@ new class extends Component
     {
         $rules = [
             'name' => 'required|string|max:150',
-            'email' => 'required|email|max:255|unique:users,email'.($this->userId ? ",{$this->userId}" : ''),
+            'email' => 'required|email:rfc,filter|max:255|unique:users,email'.($this->userId ? ",{$this->userId}" : ''),
             'role' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, UserRole::cases())),
             'password' => $this->userId ? 'nullable|string|min:8' : 'required|string|min:8',
         ];

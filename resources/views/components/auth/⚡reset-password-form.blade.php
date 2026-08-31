@@ -9,7 +9,7 @@ new class extends Component
 {
     public string $token = '';
 
-    #[Validate('required|email')]
+    #[Validate('required|email:rfc,filter')]
     public string $email = '';
 
     #[Validate('required|string|min:8|confirmed')]

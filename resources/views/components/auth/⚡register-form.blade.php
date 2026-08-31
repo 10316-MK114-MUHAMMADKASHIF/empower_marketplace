@@ -19,7 +19,7 @@ new class extends Component
     #[Validate('required|string|max:100')]
     public string $name = '';
 
-    #[Validate('required|email|max:150|unique:users,email')]
+    #[Validate('required|email:rfc,filter|max:150|unique:users,email')]
     public string $email = '';
 
     public function register(): void

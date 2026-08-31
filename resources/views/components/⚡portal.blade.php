@@ -594,7 +594,7 @@ new class extends Component
         if (auth()->guest()) {
             $rules = array_merge($rules, [
                 'accountName' => 'required|string|max:100',
-                'accountEmail' => 'required|email|max:150|unique:users,email',
+                'accountEmail' => 'required|email:rfc,filter|max:150|unique:users,email',
             ]);
         }
 
@@ -647,7 +647,10 @@ new class extends Component
                         return;
                     }
 
-                    if ((int) ('20'.$year) < (int) date('Y')) {
+                    $expiryYear = (int) ('20'.$year);
+                    $expiryMonth = (int) $month;
+
+                    if ($expiryYear < (int) date('Y') || ($expiryYear === (int) date('Y') && $expiryMonth < (int) date('n'))) {
                         $fail('The card has expired.');
                     }
                 },
@@ -1442,7 +1445,7 @@ $progressPct = ($milestone / 4) * 100;
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span class="text-red-500">*</span></label>
                     <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
                         maxlength="5"
-                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits; let mm = parseInt(digits.slice(0, 2), 10); let yyyy = 2000 + parseInt(digits.slice(2, 4), 10); cardExpiryValid = digits.length === 4 && mm >= 1 && mm <= 12 && yyyy >= new Date().getFullYear()"
+                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits; let mm = parseInt(digits.slice(0, 2), 10); let yyyy = 2000 + parseInt(digits.slice(2, 4), 10); let now = new Date(); let notExpired = yyyy > now.getFullYear() || (yyyy === now.getFullYear() && mm >= now.getMonth() + 1); cardExpiryValid = digits.length === 4 && mm >= 1 && mm <= 12 && notExpired"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('cardExpiry') <p x-show="!cardExpiryValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>

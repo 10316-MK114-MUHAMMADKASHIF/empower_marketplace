@@ -39,7 +39,7 @@ new class extends Component
     {
         $this->validate([
             'name' => 'required|string|max:150',
-            'email' => 'required|email|max:255',
+            'email' => 'required|email:rfc,filter|max:255',
             'phone' => 'nullable|string|max:30',
             'message' => 'required|string|max:2000',
             'packageInterest' => 'nullable|string|max:150',

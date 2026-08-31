@@ -484,6 +484,21 @@ class PortalTest extends TestCase
             ->assertHasNoErrors(['accountEmail']);
     }
 
+    /** Regression test: Laravel's default "email" rule uses lenient RFC validation, which
+     *  allows a domain with no TLD at all (e.g. "jane@gmail" passes). Requiring the "filter"
+     *  driver too (PHP's filter_var) catches this. */
+    public function test_account_email_requires_a_full_domain_with_a_tld(): void
+    {
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountEmail', 'jane@gmail')
+            ->assertHasErrors(['accountEmail'])
+            ->set('accountEmail', 'jane@gmail.com')
+            ->assertHasNoErrors(['accountEmail']);
+    }
+
     public function test_pay_rejects_a_card_number_with_the_wrong_digit_count(): void
     {
         $user = User::factory()->create();
@@ -558,6 +573,43 @@ class PortalTest extends TestCase
             ->set('selectedPackageId', $package->id)
             ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '01/20', '123')
             ->assertHasErrors(['cardExpiry']);
+    }
+
+    /** Regression test: the expiry check used to compare only the year, so a card expiring
+     *  earlier in the *current* year (e.g. May when it's now August) was never flagged. */
+    public function test_pay_rejects_a_card_that_expired_earlier_this_year(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        $expiry = now()->subMonth()->format('m/y');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', $expiry, '123')
+            ->assertHasErrors(['cardExpiry']);
+    }
+
+    public function test_pay_accepts_a_card_expiring_this_month(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        $expiry = now()->format('m/y');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', $expiry, '123')
+            ->assertHasNoErrors(['cardExpiry']);
     }
 
     public function test_pay_rejects_a_cvc_that_is_too_short(): void
