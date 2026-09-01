@@ -1419,7 +1419,7 @@ $progressPct = ($milestone / 4) * 100;
         </div>
         @endauth
 
-        <div x-data="{ cardNameValid: false, cardNumberValid: false, cardExpiryValid: false, cardCvcValid: false }"
+        <div x-data="{ cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false }"
             class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
             <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
             <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved or
@@ -1445,9 +1445,27 @@ $progressPct = ($milestone / 4) * 100;
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span class="text-red-500">*</span></label>
                     <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
                         maxlength="5"
-                        x-on:input="let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4); let deleting = ($event.inputType || '').startsWith('delete'); $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits; let mm = parseInt(digits.slice(0, 2), 10); let yyyy = 2000 + parseInt(digits.slice(2, 4), 10); let now = new Date(); let notExpired = yyyy > now.getFullYear() || (yyyy === now.getFullYear() && mm >= now.getMonth() + 1); cardExpiryValid = digits.length === 4 && mm >= 1 && mm <= 12 && notExpired"
-                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardExpiry') <p x-show="!cardExpiryValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        x-on:input="
+                            let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4);
+                            let deleting = ($event.inputType || '').startsWith('delete');
+                            $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+                            let mm = parseInt(digits.slice(0, 2), 10);
+                            let yyyy = 2000 + parseInt(digits.slice(2, 4), 10);
+                            let now = new Date();
+                            if (digits.length < 4) {
+                                cardExpiryError = '';
+                            } else if (mm < 1 || mm > 12) {
+                                cardExpiryError = 'The card expiry month must be between 01 and 12.';
+                            } else if (yyyy < now.getFullYear() || (yyyy === now.getFullYear() && mm < now.getMonth() + 1)) {
+                                cardExpiryError = 'The card has expired.';
+                            } else {
+                                cardExpiryError = '';
+                            }
+                        "
+                        x-bind:class="cardExpiryError ? 'border-red-400' : 'border-empower-border'"
+                        class="w-full rounded-xl border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <p x-show="cardExpiryError" x-text="cardExpiryError" class="mt-1 text-xs text-red-600"></p>
+                    @error('cardExpiry') <p x-show="!cardExpiryError" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC <span class="text-red-500">*</span></label>
@@ -1621,7 +1639,7 @@ $progressPct = ($milestone / 4) * 100;
             <div class="flex gap-3">
                 <label
                     class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'upload_for_review' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" wire:click="setIntakeMethod('upload_for_review')" @checked($intakeMethod === 'upload_for_review') class="mt-0.5">
+                    <input type="radio" name="intakeMethod" wire:click="setIntakeMethod('upload_for_review')" @checked($intakeMethod === 'upload_for_review') class="mt-0.5">
                     <span>
                         <span class="block text-sm font-semibold text-[#12304f]">Upload your existing documents for
                             review</span>
@@ -1631,7 +1649,7 @@ $progressPct = ($milestone / 4) * 100;
                 </label>
                 <label
                     class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" x-on:click.prevent="confirmDownload = true" @checked($intakeMethod === 'download') class="mt-0.5">
+                    <input type="radio" name="intakeMethod" x-ref="downloadRadio" x-on:click.prevent="confirmDownload = true" @checked($intakeMethod === 'download') class="mt-0.5">
                     <span>
                         <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
                         <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
@@ -1652,7 +1670,7 @@ $progressPct = ($milestone / 4) * 100;
                             Cancel
                         </button>
                         <button type="button"
-                            x-on:click="$wire.setIntakeMethod('download'); confirmDownload = false"
+                            x-on:click="$refs.downloadRadio.checked = true; $wire.setIntakeMethod('download'); confirmDownload = false"
                             class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
                             Continue
                         </button>
