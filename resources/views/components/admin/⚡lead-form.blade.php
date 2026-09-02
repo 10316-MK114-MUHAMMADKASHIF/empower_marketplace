@@ -40,10 +40,12 @@ new class extends Component
         $this->validate([
             'name' => 'required|string|max:150',
             'email' => 'required|email:rfc,filter|max:255',
-            'phone' => 'nullable|string|max:30',
+            'phone' => 'nullable|regex:/^\+?[1-9]\d{7,14}$/',
             'message' => 'required|string|max:2000',
             'packageInterest' => 'nullable|string|max:150',
             'adminNotes' => 'nullable|string|max:2000',
+        ], [
+            'phone.regex' => 'Please enter a valid international phone number, digits only (e.g. +15551234567).',
         ]);
 
         $data = [
@@ -94,7 +96,7 @@ new class extends Component
 
             <div>
                 <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Phone</label>
-                <input wire:model="phone" type="text"
+                <input wire:model="phone" type="tel" inputmode="tel" placeholder="+15551234567" maxlength="16"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                 @error('phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>

@@ -17,7 +17,7 @@ new class extends Component
     #[Validate('required|email:rfc,filter|max:150')]
     public string $email = '';
 
-    #[Validate('required|string|max:30')]
+    #[Validate('required|regex:/^\+?[1-9]\d{7,14}$/')]
     public string $phone = '';
 
     #[Validate('required|string|max:2000')]
@@ -26,6 +26,16 @@ new class extends Component
     public string $packageInterest = '';
 
     public bool $submitted = false;
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'phone.regex' => 'Please enter a valid international phone number, digits only (e.g. +15551234567).',
+        ];
+    }
 
     public function mount(): void
     {
@@ -103,7 +113,7 @@ new class extends Component
 
             <div class="mb-4">
                 <label class="block text-sm font-medium text-[#173a59] mb-1.5" for="cf-phone">Phone Number</label>
-                <input wire:model="phone" id="cf-phone" type="tel" placeholder="(555) 123-4567"
+                <input wire:model="phone" id="cf-phone" type="tel" inputmode="tel" placeholder="+15551234567" maxlength="16"
                     class="w-full rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] placeholder-[#5c778d]/60 focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
                 @error('phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>

@@ -74,6 +74,41 @@ class ContactFormTest extends TestCase
             ->assertHasErrors(['email']);
     }
 
+    public function test_phone_number_rejects_alphabetic_characters(): void
+    {
+        Livewire::test('contact-form')
+            ->set('name', 'Jane')
+            ->set('email', 'jane@practice.com')
+            ->set('phone', '555-CALL-NOW')
+            ->set('message', 'Hello.')
+            ->call('submit')
+            ->assertHasErrors(['phone']);
+
+        $this->assertDatabaseCount('leads', 0);
+    }
+
+    public function test_phone_number_accepts_a_leading_international_dialing_code(): void
+    {
+        Livewire::test('contact-form')
+            ->set('name', 'Jane')
+            ->set('email', 'jane@practice.com')
+            ->set('phone', '+15551234567')
+            ->set('message', 'Hello.')
+            ->call('submit')
+            ->assertHasNoErrors(['phone']);
+    }
+
+    public function test_phone_number_rejects_a_number_that_is_too_short(): void
+    {
+        Livewire::test('contact-form')
+            ->set('name', 'Jane')
+            ->set('email', 'jane@practice.com')
+            ->set('phone', '12345')
+            ->set('message', 'Hello.')
+            ->call('submit')
+            ->assertHasErrors(['phone']);
+    }
+
     public function test_package_interest_stored_from_query_string(): void
     {
         Livewire::withQueryParams(['package' => 'advanced'])
