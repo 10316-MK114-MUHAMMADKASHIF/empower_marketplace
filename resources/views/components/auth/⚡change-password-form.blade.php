@@ -10,12 +10,22 @@ new class extends Component
     #[Validate('required|current_password')]
     public string $currentPassword = '';
 
-    #[Validate('required|string|min:8|confirmed')]
+    #[Validate('required|string|min:8|confirmed|different:currentPassword')]
     public string $password = '';
 
     public string $password_confirmation = '';
 
     public bool $updated = false;
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'password.different' => 'Your new password must be different from your current password.',
+        ];
+    }
 
     public function updatePassword(): void
     {

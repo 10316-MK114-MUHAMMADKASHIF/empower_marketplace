@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Livewire\Attributes\Validate;
@@ -28,6 +29,14 @@ new class extends Component
     public function resetPassword(): void
     {
         $this->validate();
+
+        $user = User::where('email', $this->email)->first();
+
+        if ($user && Hash::check($this->password, $user->password)) {
+            $this->addError('password', 'Your new password must be different from your current password.');
+
+            return;
+        }
 
         $status = Password::reset(
             [
