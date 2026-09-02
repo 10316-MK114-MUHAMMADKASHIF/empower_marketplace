@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Mail\AdminNewSignupMail;
 use App\Mail\ResetPasswordMail;
 use App\Mail\WelcomeCredentialsMail;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -28,9 +29,21 @@ class AuthTest extends TestCase
             ->assertSee('Welcome back');
     }
 
-    public function test_login_with_valid_credentials_redirects_to_portal(): void
+    public function test_login_with_valid_credentials_and_no_orders_redirects_to_home(): void
     {
         $user = User::factory()->create(['password' => 'secret123']);
+
+        Livewire::test('auth.login-form')
+            ->set('email', $user->email)
+            ->set('password', 'secret123')
+            ->call('login')
+            ->assertRedirect(route('home'));
+    }
+
+    public function test_login_redirects_a_client_with_an_existing_order_to_portal(): void
+    {
+        $user = User::factory()->create(['password' => 'secret123']);
+        Order::factory()->create(['user_id' => $user->id]);
 
         Livewire::test('auth.login-form')
             ->set('email', $user->email)
@@ -174,7 +187,7 @@ class AuthTest extends TestCase
             ->set('email', $user->email)
             ->set('password', $capturedPassword)
             ->call('login')
-            ->assertRedirect(route('portal'));
+            ->assertRedirect(route('home'));
     }
 
     public function test_registration_with_package_redirects_to_portal_with_package(): void
@@ -285,7 +298,7 @@ class AuthTest extends TestCase
             ->set('email', $user->email)
             ->set('password', 'new-secret-123')
             ->call('login')
-            ->assertRedirect(route('portal'));
+            ->assertRedirect(route('home'));
     }
 
     public function test_reset_password_with_invalid_token_shows_error(): void

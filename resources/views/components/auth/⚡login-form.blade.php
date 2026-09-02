@@ -33,7 +33,16 @@ new class extends Component
 
         session()->regenerate();
 
-        $destination = Auth::user()->isAdmin() ? route('admin.dashboard') : route('portal');
+        $user = Auth::user();
+
+        $destination = match (true) {
+            $user->isAdmin() => route('admin.dashboard'),
+            // A fresh client who has never chosen a package or completed a payment (orders
+            // are only ever created after a successful charge — see pay() in the portal
+            // component) has nothing to do in the portal yet, so send them to the home page.
+            $user->orders()->doesntExist() => route('home'),
+            default => route('portal'),
+        };
 
         $this->redirect($destination, navigate: true);
     }
