@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 #[Fillable([
     'user_id', 'package_id', 'checkout_batch_id', 'status', 'payment_status', 'billing_cycle',
     'payment_reference', 'billing_address', 'amount_paid', 'paid_at', 'completed_at',
-    'cancelled_at', 'notes',
+    'cancelled_at', 'notes', 'terms_accepted_at', 'terms_accepted_ip',
 ])]
 class Order extends Model
 {
@@ -39,6 +39,7 @@ class Order extends Model
             'paid_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
         ];
     }
 

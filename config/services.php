@@ -26,6 +26,10 @@ return [
         'business_name' => env('CLOVER_MTBC_BUSINESS_NAME', config('app.name')),
     ],
 
+    'carecloud' => [
+        'msa_url' => env('CARECLOUD_MSA_URL', '#'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

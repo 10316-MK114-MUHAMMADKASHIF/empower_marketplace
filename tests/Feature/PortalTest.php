@@ -149,7 +149,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertSee('Payment received');
 
         $user = User::where('email', 'jane@practice.com')->first();
@@ -190,7 +190,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123');
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
 
         $capturedPassword = null;
 
@@ -258,7 +258,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasNoErrors();
     }
 
@@ -280,7 +280,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertSet('step', 1)
             ->assertSee('Payment received');
 
@@ -314,7 +314,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123');
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
 
         Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($admin->email));
         Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
@@ -337,7 +337,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123');
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
 
         Mail::assertSent(ClientPaymentReceiptMail::class, fn ($mail) => $mail->hasTo($user->email));
     }
@@ -545,7 +545,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasNoErrors(['cardNumber']);
     }
 
@@ -608,7 +608,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', $expiry, '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', $expiry, '123', true)
             ->assertHasNoErrors(['cardExpiry']);
     }
 
@@ -646,7 +646,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasErrors(['payment']);
 
         $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
@@ -675,7 +675,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasErrors(['payment']);
 
         $this->assertDatabaseMissing('users', ['email' => 'jane@practice.com']);
@@ -710,7 +710,7 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasNoErrors();
 
         Http::assertSentCount(1);
@@ -731,8 +731,105 @@ class PortalTest extends TestCase
             ->set('billingCity', 'Somerset')
             ->set('billingState', 'NJ')
             ->set('billingZip', '08873')
-            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertSet('practiceAddress', '7 Clyde Road, Somerset, NJ, 08873');
+    }
+
+    public function test_pay_requires_terms_to_be_accepted(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->assertHasErrors(['termsAccepted']);
+
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+    }
+
+    public function test_pay_succeeds_when_terms_are_accepted(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+    }
+
+    public function test_accepting_terms_is_recorded_on_the_order(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertNotNull($order->terms_accepted_at);
+        $this->assertSame('127.0.0.1', $order->terms_accepted_ip);
+    }
+
+    public function test_validate_payment_passes_and_charges_nothing_when_fields_are_valid(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('validatePayment', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123')
+            ->assertHasNoErrors();
+
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+    }
+
+    public function test_validate_payment_reports_an_invalid_card_number_without_opening_the_terms_step(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('validatePayment', 'Jane Provider', '4242', '12/27', '123')
+            ->assertHasErrors(['cardNumber']);
     }
 
     public function test_revisiting_portal_before_saving_profile_prefills_practice_address_from_checkout(): void

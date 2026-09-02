@@ -667,6 +667,7 @@ new class extends Component
         return [
             'accountName.regex' => 'Please enter a valid name using letters only.',
             'cardName.regex' => 'Please enter a valid name using letters only.',
+            'termsAccepted.accepted' => 'Please agree to the Terms & Conditions before completing payment.',
         ];
     }
 
@@ -698,17 +699,19 @@ new class extends Component
      * Card details arrive as method arguments, never as bound properties — see the properties
      * block above for why. They're read once, sent to the charge API, and go out of scope the
      * moment this method returns; they're never written to $this, logged, or persisted anywhere.
+     *
+     * One combined validation pass — billing fields (bound properties) plus card fields (method
+     * arguments) — so a client seeing errors on both at once gets shown both at once, the same
+     * as before card fields stopped being properties. Shared by validatePayment() (the pre-check
+     * that gates whether the Terms & Conditions popup even opens) and pay() (which re-validates
+     * the same fields immediately before actually charging the card, rather than trusting that
+     * nothing changed between the two calls).
      */
-    public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): void
+    private function validateBillingAndCardFields(string $cardName, string $cardNumber, string $cardExpiry, string $cardCvc): void
     {
         $this->resetErrorBag();
         $this->cardErrors = [];
 
-        $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
-
-        // One combined validation pass — billing fields (bound properties) plus card fields
-        // (method arguments) — so a client seeing errors on both at once gets shown both at
-        // once, the same as before card fields stopped being properties.
         try {
             Validator::make(
                 [...$this->only(array_keys($this->paymentRules())), ...compact('cardName', 'cardNumber', 'cardExpiry', 'cardCvc')],
@@ -719,6 +722,51 @@ new class extends Component
             // Persist just the card-field messages (see $cardErrors) so they're still visible
             // after the client's next keystroke on an unrelated, live-validated field.
             $this->cardErrors = Arr::only($e->validator->errors()->messages(), array_keys($this->cardRules()));
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Validates billing + card fields only — no charge, no Terms & Conditions check. This is
+     * what the "Pay" button calls first; the Terms & Conditions popup (the actual trigger for
+     * pay()) only opens once this passes, so the client never has to accept the agreement
+     * before finding out they mistyped their card number.
+     *
+     * Returns a plain boolean instead of letting the ValidationException propagate: Livewire's
+     * own validation-exception handling stops the exception from ever reaching the browser as a
+     * rejected promise (it's caught and turned into a normal, successful response with the error
+     * bag populated instead — see SupportValidation::exception()), so a client-side .then()/
+     * .catch() can't tell success from failure. A returned boolean can.
+     */
+    public function validatePayment(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): bool
+    {
+        try {
+            $this->validateBillingAndCardFields($cardName, preg_replace('/\D/', '', $cardNumber ?? ''), $cardExpiry, $cardCvc);
+        } catch (ValidationException $e) {
+            // Replicate what Livewire's own exception handling would have done had this been
+            // allowed to propagate, so @error() blocks still render normally.
+            $this->setErrorBag($e->validator->errors());
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
+    {
+        $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
+
+        $this->validateBillingAndCardFields($cardName, $cardNumber, $cardExpiry, $cardCvc);
+
+        // Checked separately from the fields above: the popup that sets this can only ever be
+        // reached after validateBillingAndCardFields() already passed once, so a failure here
+        // only happens via a bypass attempt (e.g. calling pay() directly, skipping the popup).
+        try {
+            Validator::make(compact('termsAccepted'), ['termsAccepted' => 'accepted'], $this->messages())->validate();
+        } catch (ValidationException $e) {
+            $this->cardErrors = array_merge($this->cardErrors, $e->validator->errors()->messages());
 
             throw $e;
         }
@@ -822,6 +870,8 @@ new class extends Component
                 'billing_address' => $billingAddress,
                 'amount_paid' => $package->annual_price,
                 'paid_at' => now(),
+                'terms_accepted_at' => now(),
+                'terms_accepted_ip' => request()->ip(),
             ]);
 
             ActivityLog::record(
@@ -1431,12 +1481,13 @@ $progressPct = ($milestone / 4) * 100;
         </div>
         @endauth
 
-        <div x-data="{ cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false }"
+        <div x-data="{ cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false, showTerms: false, termsAccepted: false }"
             class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
             <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
             <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved or
                 logged by this form.</p>
             @error('payment') <p class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
+            @error('termsAccepted') <p x-show="!termsAccepted" class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span class="text-red-500">*</span></label>
@@ -1516,13 +1567,45 @@ $progressPct = ($milestone / 4) * 100;
 
             <div class="mt-3 flex justify-end">
                 <button
-                    x-on:click="$wire.pay($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value)"
+                    x-on:click="$wire.validatePayment($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then((valid) => { if (valid) showTerms = true })"
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="pay">
-                    <span wire:loading.remove wire:target="pay">Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }}
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="validatePayment">
+                    <span wire:loading.remove wire:target="validatePayment">Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }}
                         &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="pay" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Processing…</span>
+                    <span wire:loading.inline-flex wire:target="validatePayment" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Checking…</span>
                 </button>
+            </div>
+
+            <div x-show="showTerms" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div class="w-full max-w-md bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="showTerms = false">
+                    <h3 class="text-base font-semibold text-navy mb-2">Review &amp; Accept Terms &amp; Conditions</h3>
+                    <p class="text-sm text-empower-muted mb-4">Before we process your payment, please confirm you agree
+                        to our Terms &amp; Conditions and the CareCloud Master Services Agreement (MSA).</p>
+                    <a href="{{ config('services.carecloud.msa_url') }}" target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 text-sm font-semibold text-[#1a7aad] hover:underline mb-4">
+                        Read the CareCloud MSA &#8599;
+                    </a>
+                    <label class="flex items-start gap-2.5 mb-5 cursor-pointer">
+                        <input type="checkbox" x-model="termsAccepted"
+                            class="mt-0.5 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                        <span class="text-sm text-empower-text">I agree to the Terms &amp; Conditions.</span>
+                    </label>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" x-on:click="showTerms = false"
+                            class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                            Cancel
+                        </button>
+                        <button type="button"
+                            x-on:click="$wire.pay($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)"
+                            :disabled="!termsAccepted"
+                            :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
+                            class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
+                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="pay">
+                            <span wire:loading.remove wire:target="pay">I Agree — Pay &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="pay" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Processing…</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
         @endif
