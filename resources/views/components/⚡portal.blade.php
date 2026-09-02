@@ -593,7 +593,7 @@ new class extends Component
 
         if (auth()->guest()) {
             $rules = array_merge($rules, [
-                'accountName' => 'required|string|max:100',
+                'accountName' => 'required|string|max:100|regex:/^[\p{L}\s.\'-]+$/u',
                 'accountEmail' => 'required|email:rfc,filter|max:150|unique:users,email',
             ]);
         }
@@ -627,7 +627,7 @@ new class extends Component
     private function cardRules(): array
     {
         return [
-            'cardName' => 'required|string|max:255',
+            'cardName' => 'required|string|max:255|regex:/^[\p{L}\s.\'-]+$/u',
             'cardNumber' => 'required|digits:16',
             'cardExpiry' => [
                 'required',
@@ -656,6 +656,17 @@ new class extends Component
                 },
             ],
             'cardCvc' => 'required|digits_between:3,4',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'accountName.regex' => 'Please enter a valid name using letters only.',
+            'cardName.regex' => 'Please enter a valid name using letters only.',
         ];
     }
 
@@ -701,7 +712,8 @@ new class extends Component
         try {
             Validator::make(
                 [...$this->only(array_keys($this->paymentRules())), ...compact('cardName', 'cardNumber', 'cardExpiry', 'cardCvc')],
-                [...$this->paymentRules(), ...$this->cardRules()]
+                [...$this->paymentRules(), ...$this->cardRules()],
+                $this->messages()
             )->validate();
         } catch (ValidationException $e) {
             // Persist just the card-field messages (see $cardErrors) so they're still visible

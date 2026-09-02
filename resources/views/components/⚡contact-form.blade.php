@@ -11,7 +11,7 @@ use Livewire\Component;
 
 new class extends Component
 {
-    #[Validate('required|string|max:100')]
+    #[Validate('required|string|max:100|regex:/^[\p{L}\s.\'-]+$/u')]
     public string $name = '';
 
     #[Validate('required|email:rfc,filter|max:150')]
@@ -33,6 +33,7 @@ new class extends Component
     public function messages(): array
     {
         return [
+            'name.regex' => 'Please enter a valid name using letters only.',
             'phone.regex' => 'Please enter a valid international phone number, digits only (e.g. +15551234567).',
         ];
     }

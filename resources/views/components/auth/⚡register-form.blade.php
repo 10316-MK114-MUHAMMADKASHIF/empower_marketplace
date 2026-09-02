@@ -16,11 +16,21 @@ new class extends Component
 {
     public ?string $package = null;
 
-    #[Validate('required|string|max:100')]
+    #[Validate('required|string|max:100|regex:/^[\p{L}\s.\'-]+$/u')]
     public string $name = '';
 
     #[Validate('required|email:rfc,filter|max:150|unique:users,email')]
     public string $email = '';
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'name.regex' => 'Please enter a valid name using letters only.',
+        ];
+    }
 
     public function register(): void
     {

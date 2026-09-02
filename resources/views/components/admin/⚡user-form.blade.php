@@ -99,13 +99,15 @@ new class extends Component
     public function save(): void
     {
         $rules = [
-            'name' => 'required|string|max:150',
+            'name' => 'required|string|max:150|regex:/^[\p{L}\s.\'-]+$/u',
             'email' => 'required|email:rfc,filter|max:255|unique:users,email'.($this->userId ? ",{$this->userId}" : ''),
             'role' => 'required|in:'.implode(',', array_map(fn ($case) => $case->value, UserRole::cases())),
             'password' => $this->userId ? 'nullable|string|min:8' : 'required|string|min:8',
         ];
 
-        $this->validate($rules);
+        $this->validate($rules, [
+            'name.regex' => 'Please enter a valid name using letters only.',
+        ]);
 
         if ($this->isEditingSelf() && $this->role !== UserRole::Admin->value) {
             $this->addError('role', "You can't change your own role.");

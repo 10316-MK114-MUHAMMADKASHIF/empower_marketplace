@@ -74,6 +74,30 @@ class ContactFormTest extends TestCase
             ->assertHasErrors(['email']);
     }
 
+    public function test_name_rejects_numeric_characters(): void
+    {
+        Livewire::test('contact-form')
+            ->set('name', 'Jane123')
+            ->set('email', 'jane@practice.com')
+            ->set('phone', '5551234567')
+            ->set('message', 'Hello.')
+            ->call('submit')
+            ->assertHasErrors(['name']);
+
+        $this->assertDatabaseCount('leads', 0);
+    }
+
+    public function test_name_accepts_letters_spaces_hyphens_apostrophes_and_periods(): void
+    {
+        Livewire::test('contact-form')
+            ->set('name', "Dr. Mary-Jane O'Brien")
+            ->set('email', 'jane@practice.com')
+            ->set('phone', '5551234567')
+            ->set('message', 'Hello.')
+            ->call('submit')
+            ->assertHasNoErrors(['name']);
+    }
+
     public function test_phone_number_rejects_alphabetic_characters(): void
     {
         Livewire::test('contact-form')

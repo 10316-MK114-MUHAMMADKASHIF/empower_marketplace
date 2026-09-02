@@ -38,13 +38,14 @@ new class extends Component
     public function save(): void
     {
         $this->validate([
-            'name' => 'required|string|max:150',
+            'name' => 'required|string|max:150|regex:/^[\p{L}\s.\'-]+$/u',
             'email' => 'required|email:rfc,filter|max:255',
             'phone' => 'nullable|regex:/^\+?[1-9]\d{7,14}$/',
             'message' => 'required|string|max:2000',
             'packageInterest' => 'nullable|string|max:150',
             'adminNotes' => 'nullable|string|max:2000',
         ], [
+            'name.regex' => 'Please enter a valid name using letters only.',
             'phone.regex' => 'Please enter a valid international phone number, digits only (e.g. +15551234567).',
         ]);
 
