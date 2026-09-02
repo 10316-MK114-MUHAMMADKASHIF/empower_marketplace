@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
@@ -11,7 +12,9 @@ use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Mail\ClientDocumentsApprovedMail;
 use App\Mail\ClientSubmissionStatusMail;
+use App\Mail\DiscountCodeSharedMail;
 use App\Models\ActivityLog;
+use App\Models\DiscountCode;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -1269,6 +1272,234 @@ class AdminPanelTest extends TestCase
             ->assertHasErrors('delete');
 
         $this->assertDatabaseHas('packages', ['id' => $package->id]);
+    }
+
+    // ── Discount codes ──────────────────────────────────────────────────────
+
+    public function test_admin_can_view_discount_codes_list(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        DiscountCode::factory()->create(['code' => 'SAVE20']);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.discount-codes'))
+            ->assertOk()
+            ->assertSee('SAVE20');
+    }
+
+    public function test_client_cannot_access_discount_codes_list(): void
+    {
+        $client = User::factory()->create(['role' => UserRole::Client]);
+
+        $this->withoutVite()->actingAs($client)->get(route('admin.discount-codes'))->assertRedirect(route('login'));
+    }
+
+    public function test_admin_can_create_a_percentage_discount_code(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('code', 'save20')
+            ->set('type', DiscountType::Percentage->value)
+            ->set('percentage', '20')
+            ->call('save')
+            ->assertRedirect(route('admin.discount-codes'));
+
+        $this->assertDatabaseHas('discount_codes', [
+            'code' => 'SAVE20',
+            'type' => DiscountType::Percentage->value,
+            'percentage' => 20,
+            'trial_days' => null,
+        ]);
+
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'discount_code.created']);
+    }
+
+    public function test_admin_can_create_a_free_trial_discount_code(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('code', 'TRIAL30')
+            ->set('type', DiscountType::FreeTrial->value)
+            ->set('trialDays', '30')
+            ->call('save')
+            ->assertRedirect(route('admin.discount-codes'));
+
+        $this->assertDatabaseHas('discount_codes', [
+            'code' => 'TRIAL30',
+            'type' => DiscountType::FreeTrial->value,
+            'percentage' => null,
+            'trial_days' => 30,
+        ]);
+    }
+
+    public function test_creating_a_percentage_code_requires_a_percentage(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('code', 'SAVE20')
+            ->set('type', DiscountType::Percentage->value)
+            ->call('save')
+            ->assertHasErrors(['percentage']);
+
+        $this->assertDatabaseMissing('discount_codes', ['code' => 'SAVE20']);
+    }
+
+    public function test_creating_a_free_trial_code_requires_trial_days(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('code', 'TRIAL30')
+            ->set('type', DiscountType::FreeTrial->value)
+            ->call('save')
+            ->assertHasErrors(['trialDays']);
+
+        $this->assertDatabaseMissing('discount_codes', ['code' => 'TRIAL30']);
+    }
+
+    public function test_creating_a_discount_code_rejects_a_duplicate_code(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        DiscountCode::factory()->create(['code' => 'SAVE20']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('code', 'save20')
+            ->set('type', DiscountType::Percentage->value)
+            ->set('percentage', '10')
+            ->call('save')
+            ->assertHasErrors(['code']);
+
+        $this->assertSame(1, DiscountCode::where('code', 'SAVE20')->count());
+    }
+
+    public function test_admin_can_edit_an_existing_discount_code(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $discountCode = DiscountCode::factory()->create(['code' => 'SAVE20', 'percentage' => 20]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-form', ['discountCode' => $discountCode])
+            ->assertSet('code', 'SAVE20')
+            ->set('percentage', '30')
+            ->call('save')
+            ->assertRedirect(route('admin.discount-codes'));
+
+        $this->assertDatabaseHas('discount_codes', ['id' => $discountCode->id, 'percentage' => 30]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'discount_code.updated']);
+    }
+
+    public function test_admin_can_toggle_a_discount_codes_active_status(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $discountCode = DiscountCode::factory()->create(['is_active' => true]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-list')
+            ->call('toggleActive', $discountCode->id);
+
+        $this->assertFalse($discountCode->fresh()->is_active);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'discount_code.deactivated']);
+    }
+
+    public function test_admin_can_delete_a_discount_code(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $discountCode = DiscountCode::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-list')
+            ->call('delete', $discountCode->id);
+
+        $this->assertDatabaseMissing('discount_codes', ['id' => $discountCode->id]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'discount_code.deleted']);
+    }
+
+    public function test_admin_can_send_a_discount_code_to_a_selected_user(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client, 'email' => 'jane@practice.com']);
+        $discountCode = DiscountCode::factory()->create(['code' => 'SAVE20']);
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-send', ['discountCode' => $discountCode])
+            ->set('selectedUserIds', [$client->id])
+            ->call('send')
+            ->assertHasNoErrors();
+
+        Mail::assertSent(DiscountCodeSharedMail::class, fn ($mail) => $mail->hasTo('jane@practice.com') && $mail->discountCode->is($discountCode));
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'discount_code.shared']);
+    }
+
+    public function test_admin_can_send_a_discount_code_to_a_selected_lead(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $lead = Lead::factory()->create(['email' => 'lead@practice.com']);
+        $discountCode = DiscountCode::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-send', ['discountCode' => $discountCode])
+            ->set('selectedLeadIds', [$lead->id])
+            ->call('send')
+            ->assertHasNoErrors();
+
+        Mail::assertSent(DiscountCodeSharedMail::class, fn ($mail) => $mail->hasTo('lead@practice.com'));
+    }
+
+    public function test_admin_can_send_a_discount_code_to_a_freeform_email_address(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $discountCode = DiscountCode::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-send', ['discountCode' => $discountCode])
+            ->set('additionalEmails', 'custom@practice.com')
+            ->call('send')
+            ->assertHasNoErrors();
+
+        Mail::assertSent(DiscountCodeSharedMail::class, fn ($mail) => $mail->hasTo('custom@practice.com'));
+    }
+
+    public function test_sending_a_discount_code_dedupes_recipients_across_all_sources(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client, 'email' => 'jane@practice.com']);
+        $lead = Lead::factory()->create(['email' => 'lead@practice.com']);
+        $discountCode = DiscountCode::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-send', ['discountCode' => $discountCode])
+            ->set('selectedUserIds', [$client->id])
+            ->set('selectedLeadIds', [$lead->id])
+            ->set('additionalEmails', "jane@practice.com\nextra@practice.com")
+            ->call('send')
+            ->assertHasNoErrors();
+
+        Mail::assertSentCount(3);
+    }
+
+    public function test_sending_a_discount_code_requires_at_least_one_recipient(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $discountCode = DiscountCode::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.discount-code-send', ['discountCode' => $discountCode])
+            ->call('send')
+            ->assertHasErrors(['recipients']);
+
+        Mail::assertNothingSent();
     }
 
     // ── Intake upload download ───────────────────────────────────────────────

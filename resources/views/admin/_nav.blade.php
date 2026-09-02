@@ -5,6 +5,7 @@
         'submissions' => ['admin.submissions', 'Submissions'],
         'documents' => ['admin.documents', 'Documents'],
         'packages' => ['admin.packages', 'Packages'],
+        'discount-codes' => ['admin.discount-codes', 'Discount Codes'],
         'leads' => ['admin.leads', 'Leads'],
         'users' => ['admin.users', 'Users'],
         'orders' => ['admin.orders', 'Orders'],

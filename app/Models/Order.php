@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
     'user_id', 'package_id', 'checkout_batch_id', 'status', 'payment_status', 'billing_cycle',
     'payment_reference', 'billing_address', 'amount_paid', 'paid_at', 'completed_at',
     'cancelled_at', 'notes', 'terms_accepted_at', 'terms_accepted_ip',
+    'discount_code_id', 'discount_code', 'discount_percentage', 'original_price', 'discount_amount',
 ])]
 class Order extends Model
 {
@@ -40,6 +41,9 @@ class Order extends Model
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'terms_accepted_at' => 'datetime',
+            'original_price' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
+            'discount_percentage' => 'integer',
         ];
     }
 
@@ -51,6 +55,11 @@ class Order extends Model
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
+    }
+
+    public function discountCode(): BelongsTo
+    {
+        return $this->belongsTo(DiscountCode::class);
     }
 
     public function intakeSubmission(): HasOne

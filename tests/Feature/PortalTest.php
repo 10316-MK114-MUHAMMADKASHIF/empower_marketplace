@@ -15,6 +15,7 @@ use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
 use App\Mail\ClientPaymentReceiptMail;
 use App\Mail\WelcomeCredentialsMail;
+use App\Models\DiscountCode;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -830,6 +831,202 @@ class PortalTest extends TestCase
             ->set('billingZip', '08873')
             ->call('validatePayment', 'Jane Provider', '4242', '12/27', '123')
             ->assertHasErrors(['cardNumber']);
+    }
+
+    // ── Discount codes ──────────────────────────────────────────────────────
+
+    public function test_applying_a_valid_discount_code_reduces_the_total(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $discountCode = DiscountCode::factory()->create(['code' => 'SAVE20', 'percentage' => 20]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'save20')
+            ->call('applyDiscountCode')
+            ->assertHasNoErrors()
+            ->assertSet('appliedDiscountCodeId', $discountCode->id)
+            ->assertSee('-$199.80')
+            ->assertSee('$799.20');
+    }
+
+    public function test_removing_a_discount_code_restores_the_full_total(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $discountCode = DiscountCode::factory()->create(['code' => 'SAVE20', 'percentage' => 20]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'SAVE20')
+            ->call('applyDiscountCode')
+            ->assertSet('appliedDiscountCodeId', $discountCode->id)
+            ->call('removeDiscountCode')
+            ->assertSet('appliedDiscountCodeId', null)
+            ->assertSee('$999');
+    }
+
+    public function test_applying_an_invalid_discount_code_shows_an_error(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'NOPE123')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSee('This discount code is invalid.');
+    }
+
+    public function test_applying_an_expired_discount_code_shows_an_error(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->create(['code' => 'OLD10', 'percentage' => 10, 'expires_at' => now()->subDay()]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'OLD10')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSee('This discount code has expired.');
+    }
+
+    public function test_applying_an_inactive_discount_code_shows_an_error(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->create(['code' => 'OFF10', 'percentage' => 10, 'is_active' => false]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'OFF10')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSee('This discount code is inactive.');
+    }
+
+    public function test_applying_a_discount_code_that_reached_its_usage_limit_shows_an_error(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->create(['code' => 'LIMIT1', 'percentage' => 10, 'max_uses' => 1, 'used_count' => 1]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'LIMIT1')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSee('This discount code has reached its usage limit.');
+    }
+
+    public function test_applying_a_discount_code_that_is_not_yet_active_shows_an_error(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->create(['code' => 'FUTURE10', 'percentage' => 10, 'starts_at' => now()->addWeek()]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'FUTURE10')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSee('This discount code is not yet active.');
+    }
+
+    public function test_applying_a_free_trial_code_at_checkout_is_not_available_yet(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial()->create(['code' => 'TRIAL30']);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSee('Free trial codes');
+    }
+
+    public function test_paying_with_a_valid_discount_code_charges_the_discounted_amount_and_records_it(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $discountCode = DiscountCode::factory()->create(['code' => 'SAVE20', 'percentage' => 20]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'SAVE20')
+            ->call('applyDiscountCode')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        Http::assertSent(fn ($request) => $request['amount'] === 799.2);
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame('799.20', $order->amount_paid);
+        $this->assertSame('999.00', $order->original_price);
+        $this->assertSame('199.80', $order->discount_amount);
+        $this->assertSame('SAVE20', $order->discount_code);
+        $this->assertSame(20, $order->discount_percentage);
+        $this->assertSame($discountCode->id, $order->discount_code_id);
+
+        $this->assertSame(1, $discountCode->fresh()->used_count);
+    }
+
+    public function test_paying_rejects_a_discount_code_that_was_deactivated_after_being_applied(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $discountCode = DiscountCode::factory()->create(['code' => 'SAVE20', 'percentage' => 20]);
+
+        $component = Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'SAVE20')
+            ->call('applyDiscountCode')
+            ->assertHasNoErrors();
+
+        // Simulates an admin deactivating the code in the time between the client applying it
+        // and actually submitting payment — pay() must re-check, not trust the earlier apply.
+        $discountCode->update(['is_active' => false]);
+
+        $component->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasErrors(['discountCodeInput']);
+
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+        Http::assertNothingSent();
     }
 
     public function test_revisiting_portal_before_saving_profile_prefills_practice_address_from_checkout(): void

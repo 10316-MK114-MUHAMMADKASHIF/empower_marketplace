@@ -38,8 +38,14 @@
     </tr>
     <tr style="border-bottom: 1px solid #e5e7eb;">
         <td style="font-size: 10px; color: #374151;">{{ $order->package?->name ?? 'Compliance Package' }} — Annual Subscription</td>
-        <td style="font-size: 10px; color: #374151; text-align: right;">${{ number_format((float) $order->amount_paid, 2) }}</td>
+        <td style="font-size: 10px; color: #374151; text-align: right;">${{ number_format((float) ($order->original_price ?? $order->amount_paid), 2) }}</td>
     </tr>
+    @if($order->discount_code)
+    <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="font-size: 10px; color: #374151;">Discount ({{ $order->discount_code }})</td>
+        <td style="font-size: 10px; color: #374151; text-align: right;">-${{ number_format((float) $order->discount_amount, 2) }}</td>
+    </tr>
+    @endif
     <tr style="background-color: #f9fafb;">
         <td style="font-size: 11px; font-weight: bold; color: #12304f;">Total Paid</td>
         <td style="font-size: 11px; font-weight: bold; color: #12304f; text-align: right;">${{ number_format((float) $order->amount_paid, 2) }}</td>

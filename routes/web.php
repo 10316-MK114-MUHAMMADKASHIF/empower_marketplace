@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\IntakeUploadDownloadController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\ReceiptController;
+use App\Models\DiscountCode;
 use App\Models\IntakeSubmission;
 use App\Models\Lead;
 use App\Models\Order;
@@ -65,6 +66,12 @@ Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function ()
     Route::get('/packages/create', fn () => view('admin.packages-form'))->name('packages.create');
     Route::get('/packages/{package}/edit', fn (Package $package) => view('admin.packages-form', compact('package')))
         ->name('packages.edit');
+    Route::get('/discount-codes', fn () => view('admin.discount-codes'))->name('discount-codes');
+    Route::get('/discount-codes/create', fn () => view('admin.discount-codes-form'))->name('discount-codes.create');
+    Route::get('/discount-codes/{discountCode}/edit', fn (DiscountCode $discountCode) => view('admin.discount-codes-form', compact('discountCode')))
+        ->name('discount-codes.edit');
+    Route::get('/discount-codes/{discountCode}/send', fn (DiscountCode $discountCode) => view('admin.discount-codes-send', compact('discountCode')))
+        ->name('discount-codes.send');
     Route::get('/intake-uploads/{upload}/download', [IntakeUploadDownloadController::class, 'show'])
         ->name('uploads.download');
     Route::get('/users', fn () => view('admin.users'))->name('users');

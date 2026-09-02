@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AiExtractionStatus;
+use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
 use App\Enums\IntakeMethod;
@@ -16,6 +17,7 @@ use App\Mail\AdminPaymentReceivedMail;
 use App\Mail\ClientPaymentReceiptMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\ActivityLog;
+use App\Models\DiscountCode;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -54,6 +56,10 @@ new class extends Component
 
     // Step 1
     public ?int $selectedPackageId = null;
+
+    public string $discountCodeInput = '';
+
+    public ?int $appliedDiscountCodeId = null;
 
     public string $accountName = '';
 
@@ -132,6 +138,28 @@ new class extends Component
     public function selectedPackage(): ?Package
     {
         return $this->selectedPackageId ? Package::find($this->selectedPackageId) : null;
+    }
+
+    #[Computed]
+    public function appliedDiscountCode(): ?DiscountCode
+    {
+        return $this->appliedDiscountCodeId ? DiscountCode::find($this->appliedDiscountCodeId) : null;
+    }
+
+    #[Computed]
+    public function discountAmount(): float
+    {
+        if (! $this->selectedPackage || ! $this->appliedDiscountCode) {
+            return 0.0;
+        }
+
+        return round(((float) $this->selectedPackage->annual_price) * $this->appliedDiscountCode->percentage / 100, 2);
+    }
+
+    #[Computed]
+    public function discountedTotal(): float
+    {
+        return max(0, (float) ($this->selectedPackage?->annual_price ?? 0) - $this->discountAmount);
     }
 
     /** Every order created by the checkout batch currently being walked through Steps 1/3/4. */
@@ -580,6 +608,66 @@ new class extends Component
         unset($this->generatedDocuments, $this->expectedDocuments);
     }
 
+    public function applyDiscountCode(): void
+    {
+        $this->resetErrorBag('discountCodeInput');
+        $code = strtoupper(trim($this->discountCodeInput));
+
+        if ($code === '') {
+            $this->addError('discountCodeInput', 'Please enter a discount code.');
+
+            return;
+        }
+
+        $discountCode = DiscountCode::whereRaw('UPPER(code) = ?', [$code])->first();
+
+        if (! $discountCode) {
+            $this->addError('discountCodeInput', 'This discount code is invalid.');
+
+            return;
+        }
+
+        if ($discountCode->type !== DiscountType::Percentage) {
+            $this->addError('discountCodeInput', "Free trial codes aren't available at checkout yet — please contact us.");
+
+            return;
+        }
+
+        if (! $discountCode->is_active) {
+            $this->addError('discountCodeInput', 'This discount code is inactive.');
+
+            return;
+        }
+
+        if ($discountCode->isExpired()) {
+            $this->addError('discountCodeInput', 'This discount code has expired.');
+
+            return;
+        }
+
+        if ($discountCode->starts_at?->isFuture()) {
+            $this->addError('discountCodeInput', 'This discount code is not yet active.');
+
+            return;
+        }
+
+        if ($discountCode->hasReachedUsageLimit()) {
+            $this->addError('discountCodeInput', 'This discount code has reached its usage limit.');
+
+            return;
+        }
+
+        $this->appliedDiscountCodeId = $discountCode->id;
+        $this->discountCodeInput = $discountCode->code;
+    }
+
+    public function removeDiscountCode(): void
+    {
+        $this->appliedDiscountCodeId = null;
+        $this->discountCodeInput = '';
+        $this->resetErrorBag('discountCodeInput');
+    }
+
     /** @return array<string, mixed> */
     private function paymentRules(): array
     {
@@ -793,6 +881,25 @@ new class extends Component
             return;
         }
 
+        // Re-checked here rather than trusting the client-side applyDiscountCode() call — the
+        // code could have been deactivated, expired, or hit its usage limit in the meantime.
+        $discountCode = null;
+
+        if ($this->appliedDiscountCodeId) {
+            $discountCode = DiscountCode::find($this->appliedDiscountCodeId);
+
+            if (! $discountCode || $discountCode->type !== DiscountType::Percentage || ! $discountCode->isCurrentlyValid()) {
+                $this->appliedDiscountCodeId = null;
+                $this->addError('discountCodeInput', 'This discount code is no longer valid. Please remove it and try again.');
+
+                return;
+            }
+        }
+
+        $originalAmount = (float) $packages->sum('annual_price');
+        $discountAmount = $discountCode ? round($originalAmount * $discountCode->percentage / 100, 2) : 0.0;
+        $chargeAmount = max(0, $originalAmount - $discountAmount);
+
         [$expMonth, $expYear] = explode('/', $cardExpiry);
 
         $billingAddress = [
@@ -806,7 +913,7 @@ new class extends Component
         $chargeResult = app(CloverChargeService::class)->charge([
             ...$billingAddress,
             'product_Name' => $packages->pluck('name')->implode(', '),
-            'amount' => (float) $packages->sum('annual_price'),
+            'amount' => $chargeAmount,
             'cardNumber' => $cardNumber,
             'expMonth' => (int) $expMonth,
             'expYear' => (int) ('20'.$expYear),
@@ -816,7 +923,7 @@ new class extends Component
         if (! $chargeResult->success) {
             PaymentLog::record(
                 success: false,
-                amount: (float) $packages->sum('annual_price'),
+                amount: $chargeAmount,
                 user: auth()->user(),
                 guestEmail: auth()->guest() ? $this->accountEmail : null,
                 package: $packages->count() === 1 ? $packages->first() : null,
@@ -860,6 +967,8 @@ new class extends Component
         $orderIds = [];
 
         foreach ($packages as $package) {
+            $packageShare = $originalAmount > 0 ? $package->annual_price / $originalAmount * $discountAmount : 0.0;
+
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'package_id' => $package->id,
@@ -868,7 +977,12 @@ new class extends Component
                 'payment_status' => PaymentStatus::Paid,
                 'payment_reference' => $chargeResult->transactionId,
                 'billing_address' => $billingAddress,
-                'amount_paid' => $package->annual_price,
+                'amount_paid' => $package->annual_price - $packageShare,
+                'original_price' => $package->annual_price,
+                'discount_amount' => $packageShare,
+                'discount_code_id' => $discountCode?->id,
+                'discount_code' => $discountCode?->code,
+                'discount_percentage' => $discountCode?->percentage,
                 'paid_at' => now(),
                 'terms_accepted_at' => now(),
                 'terms_accepted_ip' => request()->ip(),
@@ -910,6 +1024,9 @@ new class extends Component
             $orderIds[] = $order->id;
         }
 
+        $discountCode?->increment('used_count');
+        $this->appliedDiscountCodeId = null;
+
         $this->orderIds = $orderIds;
         $this->dashboardOrderId = end($orderIds);
 
@@ -920,7 +1037,10 @@ new class extends Component
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
 
-        unset($this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders);
+        unset(
+            $this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders,
+            $this->appliedDiscountCode, $this->discountAmount, $this->discountedTotal,
+        );
     }
 
     /** @return array<string, mixed> */
@@ -1445,9 +1565,34 @@ $progressPct = ($milestone / 4) * 100;
                 <a href="{{ route('home') }}#pricing"
                     class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
             </div>
+
+            <div class="py-2.5 border-b border-[#eef2f6] mb-2">
+                @if(! $this->appliedDiscountCode)
+                    <div class="flex gap-2">
+                        <input wire:model="discountCodeInput" type="text" placeholder="Discount code"
+                            class="flex-1 min-w-0 rounded-lg border border-empower-border bg-[#f8fbfd] px-3 py-2 text-sm uppercase text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        <button type="button" wire:click="applyDiscountCode" wire:target="applyDiscountCode"
+                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="applyDiscountCode"
+                            class="rounded-lg border border-empower-border px-3.5 py-2 text-xs font-bold text-[#173045] hover:bg-page transition-colors">
+                            <span wire:loading.remove wire:target="applyDiscountCode">Apply</span>
+                            <span wire:loading wire:target="applyDiscountCode"><x-spinner class="h-3.5 w-3.5" /></span>
+                        </button>
+                    </div>
+                    @error('discountCodeInput') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                @else
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $this->appliedDiscountCode->code }})</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format($this->discountAmount, 2) }}</span>
+                            <button type="button" wire:click="removeDiscountCode" class="text-xs text-empower-muted hover:underline">Remove</button>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
             <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                 <span class="text-sm font-semibold text-[#173045]">Total</span>
-                <span class="text-lg font-extrabold text-navy">${{ number_format($this->selectedPackage->annual_price)
+                <span class="text-lg font-extrabold text-navy">${{ number_format($this->discountedTotal, 2)
                     }}</span>
             </div>
             @endif
@@ -1570,7 +1715,7 @@ $progressPct = ($milestone / 4) * 100;
                     x-on:click="$wire.validatePayment($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then((valid) => { if (valid) showTerms = true })"
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
                     wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="validatePayment">
-                    <span wire:loading.remove wire:target="validatePayment">Pay ${{ number_format($this->selectedPackage?->annual_price ?? 0) }}
+                    <span wire:loading.remove wire:target="validatePayment">Pay ${{ number_format($this->discountedTotal, 2) }}
                         &rarr;</span>
                     <span wire:loading.inline-flex wire:target="validatePayment" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Checking…</span>
                 </button>

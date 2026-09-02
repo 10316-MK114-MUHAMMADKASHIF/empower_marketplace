@@ -5,6 +5,9 @@ We've received your payment for **{{ $order->package?->name ?? 'your compliance 
 
 <x-mail::panel>
 **Order #:** {{ $order->id }}<br>
+@if($order->discount_code)
+**Discount ({{ $order->discount_code }}):** -${{ number_format((float) $order->discount_amount, 2) }}<br>
+@endif
 **Amount Paid:** ${{ number_format((float) $order->amount_paid, 2) }}<br>
 **Date:** {{ $order->paid_at?->format('F j, Y') ?? now()->format('F j, Y') }}
 </x-mail::panel>

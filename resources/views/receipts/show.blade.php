@@ -66,8 +66,14 @@
             <tbody>
                 <tr class="border-b border-gray-200">
                     <td class="px-4 py-3 text-sm text-gray-700">{{ $order->package?->name ?? 'Compliance Package' }} — Annual Subscription</td>
-                    <td class="px-4 py-3 text-sm text-gray-700 text-right">${{ number_format((float) $order->amount_paid, 2) }}</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 text-right">${{ number_format((float) ($order->original_price ?? $order->amount_paid), 2) }}</td>
                 </tr>
+                @if($order->discount_code)
+                <tr class="border-b border-gray-200">
+                    <td class="px-4 py-3 text-sm text-gray-700">Discount ({{ $order->discount_code }})</td>
+                    <td class="px-4 py-3 text-sm text-gray-700 text-right">-${{ number_format((float) $order->discount_amount, 2) }}</td>
+                </tr>
+                @endif
                 <tr class="bg-gray-50">
                     <td class="px-4 py-3 text-base font-bold text-[#12304f]">Total Paid</td>
                     <td class="px-4 py-3 text-base font-bold text-[#12304f] text-right">${{ number_format((float) $order->amount_paid, 2) }}</td>
