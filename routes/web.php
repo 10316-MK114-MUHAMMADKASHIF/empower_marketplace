@@ -86,3 +86,7 @@ Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function ()
     Route::get('/payment-logs/{paymentLog}', fn (PaymentLog $paymentLog) => view('admin.payment-log-detail', compact('paymentLog')))
         ->name('payment-logs.show');
 });
+
+// Any URL that doesn't match a route above (typo, stale link, etc.) — send the visitor home
+// instead of showing the default 404 page.
+Route::fallback(fn () => redirect()->route('home'));

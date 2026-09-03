@@ -51,4 +51,11 @@ class WelcomePageTest extends TestCase
         $response->assertSee('A custom feature set by the admin');
         $response->assertSee('Another admin-defined feature');
     }
+
+    public function test_an_unmatched_url_redirects_to_the_home_page(): void
+    {
+        $response = $this->get('/this-page-does-not-exist');
+
+        $response->assertRedirect(route('home'));
+    }
 }
