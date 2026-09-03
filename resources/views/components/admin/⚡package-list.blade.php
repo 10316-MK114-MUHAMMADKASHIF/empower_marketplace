@@ -82,7 +82,7 @@ new class extends Component
                         </td>
                         <td class="px-5 py-3.5 text-empower-text capitalize">{{ $package->billing_type }}</td>
                         <td class="px-5 py-3.5 text-empower-text">
-                            {{ $package->annual_price !== null ? '$'.number_format($package->annual_price) : 'Custom quote' }}
+                            {{ $package->annual_price !== null ? '$'.number_format($package->annual_price, 2) : 'Custom quote' }}
                         </td>
                         <td class="px-5 py-3.5">
                             <button wire:click="toggleActive({{ $package->id }})" wire:target="toggleActive({{ $package->id }})"

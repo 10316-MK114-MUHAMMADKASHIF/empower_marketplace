@@ -143,6 +143,9 @@
 
     {{-- Pricing --}}
     <section id="pricing" class="py-14 lg:py-16 bg-white">
+        @php
+            $formatPrice = fn (?float $price) => number_format($price ?? 0, ((int) ($price ?? 0)) == ($price ?? 0) ? 0 : 2);
+        @endphp
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Pricing</span>
@@ -176,10 +179,10 @@
                         @endif
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{
-                        number_format($packages['essential']->annual_price ?? 0) }}</div>
+                        $formatPrice($packages['essential']->annual_price ?? null) }}</div>
                     <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / year</div>
-                    <div class="text-xs text-[#5c778d] mb-6">${{ number_format($packages['essential']->monthly_price ??
-                        0) }}/mo billed monthly</div>
+                    <div class="text-xs text-[#5c778d] mb-6">${{ $formatPrice($packages['essential']->monthly_price ??
+                        null) }}/mo billed monthly</div>
                     <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
                         @foreach($packages['essential']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
@@ -216,10 +219,10 @@
                         @endif
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{
-                        number_format($packages['professional']->annual_price ?? 0) }}</div>
+                        $formatPrice($packages['professional']->annual_price ?? null) }}</div>
                     <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / year</div>
-                    <div class="text-xs text-[#5c778d] mb-6">${{ number_format($packages['professional']->monthly_price
-                        ?? 0) }}/mo billed monthly</div>
+                    <div class="text-xs text-[#5c778d] mb-6">${{ $formatPrice($packages['professional']->monthly_price
+                        ?? null) }}/mo billed monthly</div>
                     <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
                         @foreach($packages['professional']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
@@ -260,10 +263,10 @@
                         @endif
                     </div>
                     <div class="text-4xl font-extrabold text-white">${{
-                        number_format($packages['advanced']->annual_price ?? 0) }}</div>
+                        $formatPrice($packages['advanced']->annual_price ?? null) }}</div>
                     <div class="text-sm text-white/60 mt-1 mb-1">/ billable provider / year</div>
-                    <div class="text-xs text-white/50 mb-6">${{ number_format($packages['advanced']->monthly_price ?? 0)
-                        }}/mo billed monthly</div>
+                    <div class="text-xs text-white/50 mb-6">${{ $formatPrice($packages['advanced']->monthly_price ??
+                        null) }}/mo billed monthly</div>
                     <ul class="space-y-2.5 text-sm text-white/85 mb-8 grow">
                         @foreach($packages['advanced']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#8ddaf2]"
