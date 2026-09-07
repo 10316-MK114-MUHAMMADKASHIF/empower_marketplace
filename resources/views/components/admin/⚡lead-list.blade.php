@@ -57,7 +57,7 @@ new class extends Component
 ?>
 
 <div class="space-y-4" x-data="{ confirmId: null, confirmLabel: '' }">
-    <div class="flex flex-wrap items-center gap-3 justify-between">
+    <div class="flex flex-wrap items-center gap-3 justify-end">
         <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search name or email…"
             class="w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
 
