@@ -141,26 +141,26 @@ new class extends Component
             <div>
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Location Name <span class="text-red-500">*</span></label>
                 <input wire:model="name" type="text" placeholder="e.g. Main Office"
-                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 @error('name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Address</label>
                 <input wire:model="address" type="text" placeholder="123 Main St, Springfield, IL"
-                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">OSHA Officer</label>
                     <input wire:model="oshaOfficer" type="text"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Safety Coordinator</label>
                     <input wire:model="safetyCoordinator" type="text"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 </div>
             </div>
 
@@ -169,10 +169,10 @@ new class extends Component
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Does the facility utilize hazardous drugs?</label>
                     <div class="flex items-center gap-4">
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="usesHazardousDrugs" value="1" class="text-[#76c8c0] focus:ring-[#76c8c0]"> Yes
+                            <input type="radio" wire:model="usesHazardousDrugs" value="1" class="text-[#009bde] focus:ring-[#009bde]"> Yes
                         </label>
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="usesHazardousDrugs" value="0" class="text-[#76c8c0] focus:ring-[#76c8c0]"> No
+                            <input type="radio" wire:model="usesHazardousDrugs" value="0" class="text-[#009bde] focus:ring-[#009bde]"> No
                         </label>
                     </div>
                 </div>
@@ -180,10 +180,10 @@ new class extends Component
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Do you have operating rooms?</label>
                     <div class="flex items-center gap-4">
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="hasOperatingRooms" value="1" class="text-[#76c8c0] focus:ring-[#76c8c0]"> Yes
+                            <input type="radio" wire:model="hasOperatingRooms" value="1" class="text-[#009bde] focus:ring-[#009bde]"> Yes
                         </label>
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="hasOperatingRooms" value="0" class="text-[#76c8c0] focus:ring-[#76c8c0]"> No
+                            <input type="radio" wire:model="hasOperatingRooms" value="0" class="text-[#009bde] focus:ring-[#009bde]"> No
                         </label>
                     </div>
                 </div>
@@ -193,12 +193,12 @@ new class extends Component
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Cleaning service provider</label>
                     <input wire:model="cleaningProvider" type="text"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">How frequently is the facility cleaned?</label>
                     <input wire:model="cleaningFrequency" type="text"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 </div>
             </div>
 
@@ -207,10 +207,10 @@ new class extends Component
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Does the facility offer Hepatitis B vaccination to staff?</label>
                     <div class="flex items-center gap-4">
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="offersHepBVaccination" value="1" class="text-[#76c8c0] focus:ring-[#76c8c0]"> Yes
+                            <input type="radio" wire:model="offersHepBVaccination" value="1" class="text-[#009bde] focus:ring-[#009bde]"> Yes
                         </label>
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="offersHepBVaccination" value="0" class="text-[#76c8c0] focus:ring-[#76c8c0]"> No
+                            <input type="radio" wire:model="offersHepBVaccination" value="0" class="text-[#009bde] focus:ring-[#009bde]"> No
                         </label>
                     </div>
                 </div>
@@ -218,10 +218,10 @@ new class extends Component
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Does the facility offer TB screening for staff?</label>
                     <div class="flex items-center gap-4">
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="offersTbScreening" value="1" class="text-[#76c8c0] focus:ring-[#76c8c0]"> Yes
+                            <input type="radio" wire:model="offersTbScreening" value="1" class="text-[#009bde] focus:ring-[#009bde]"> Yes
                         </label>
                         <label class="inline-flex items-center gap-1.5 text-sm text-[#173045] cursor-pointer">
-                            <input type="radio" wire:model="offersTbScreening" value="0" class="text-[#76c8c0] focus:ring-[#76c8c0]"> No
+                            <input type="radio" wire:model="offersTbScreening" value="0" class="text-[#009bde] focus:ring-[#009bde]"> No
                         </label>
                     </div>
                 </div>
@@ -231,12 +231,12 @@ new class extends Component
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">How many employees are employed during a calendar year?</label>
                     <input wire:model="employeesPerYear" type="text"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Waste hauler</label>
                     <input wire:model="wasteHauler" type="text"
-                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#76c8c0] focus:border-transparent transition">
+                        class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 </div>
             </div>
         </div>
@@ -244,9 +244,11 @@ new class extends Component
         {{-- Modal footer --}}
         <div class="flex items-center justify-between px-6 py-4 border-t border-[#dbe4ee]">
             @if($locationId)
-                <button wire:click="delete" wire:confirm="Delete this OSHA location?"
+                <button wire:click="delete" wire:confirm="Delete this OSHA location?" wire:target="delete"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="delete"
                     class="text-sm font-semibold text-red-600 hover:text-red-700 transition-colors">
-                    Delete location
+                    <span wire:loading.remove wire:target="delete">Delete location</span>
+                    <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
                 </button>
             @else
                 <span></span>
@@ -256,11 +258,11 @@ new class extends Component
                     class="rounded-lg border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
                     Cancel
                 </button>
-                <button wire:click="save"
+                <button wire:click="save" wire:target="save"
                     class="inline-flex items-center gap-1 rounded bg-[#76c8c0] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="save">
                     <span wire:loading.remove wire:target="save">Save Location</span>
-                    <span wire:loading wire:target="save">Saving…</span>
+                    <span wire:loading.inline-flex wire:target="save" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
                 </button>
             </div>
         </div>

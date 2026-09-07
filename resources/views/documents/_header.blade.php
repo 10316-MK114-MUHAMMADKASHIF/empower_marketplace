@@ -1,7 +1,7 @@
 {{-- Shared header partial for all compliance document templates --}}
 <style>
 body { font-family: helvetica, sans-serif; font-size: 10pt; color: #222222; margin: 0; padding: 0; }
-h1 { font-size: 16pt; color: #12304f; border-bottom: 2px solid #76c8c0; padding-bottom: 4px; margin-bottom: 6px; }
+h1 { font-size: 16pt; color: #12304f; border-bottom: 2px solid #009bde; padding-bottom: 4px; margin-bottom: 6px; }
 h2 { font-size: 12pt; color: #12304f; margin-top: 14px; margin-bottom: 4px; }
 h3 { font-size: 10pt; color: #12304f; margin-top: 10px; margin-bottom: 3px; }
 p { margin: 4px 0 8px 0; line-height: 1.5; }

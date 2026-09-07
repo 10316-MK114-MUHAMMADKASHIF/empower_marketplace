@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
+use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Jobs\GenerateComplianceDocument;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ProcessIntakeUploadTest extends TestCase
@@ -122,6 +124,100 @@ class ProcessIntakeUploadTest extends TestCase
         $this->assertEquals('Sunrise Family Medicine', $upload->ai_extracted_data['practice_name']);
     }
 
+    // ── Structured extraction & AI verification pass (questionnaire-linked types) ──
+
+    /** @return array<string, array{0: IntakeUploadType, 1: string}> */
+    public static function questionnaireLinkedTypes(): array
+    {
+        return [
+            'Compliance & Ethics' => [IntakeUploadType::ComplianceEthicsQuestionnaire, 'cmp_01_answer'],
+            'HIPAA Business Associate' => [IntakeUploadType::HipaaBusinessAssociateQuestionnaire, 'ba_01_answer'],
+            'HIPAA Privacy' => [IntakeUploadType::HipaaPrivacyQuestionnaire, 'prv_01_answer'],
+            'HIPAA Security' => [IntakeUploadType::HipaaSecurityQuestionnaire, 'sec_01_answer'],
+        ];
+    }
+
+    #[DataProvider('questionnaireLinkedTypes')]
+    public function test_questionnaire_linked_upload_uses_a_structured_extraction_prompt(
+        IntakeUploadType $uploadType,
+        string $expectedField,
+    ): void {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/7/questionnaire.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/7/questionnaire.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => $uploadType,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        Http::assertSent(function ($request) use ($expectedField) {
+            $content = $request['messages'][0]['content'];
+            $text = is_array($content) ? ($content[1]['text'] ?? '') : $content;
+
+            return str_contains($text, $expectedField);
+        });
+    }
+
+    public function test_compliance_ethics_extraction_runs_a_verification_pass_and_saves_its_output(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/8/compliance.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/8/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::sequence()
+                ->push($this->openaiResponse('{"cmp_01_answer":"raw noisy answer"}'))
+                ->push($this->openaiResponse('{"cmp_01_answer":"Cleaned answer."}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        Http::assertSentCount(2);
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $this->assertSame('Cleaned answer.', $upload->ai_extracted_data['cmp_01_answer']);
+    }
+
+    public function test_verification_pass_failure_falls_back_to_the_raw_extraction(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/9/compliance.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/9/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::sequence()
+                ->push($this->openaiResponse('{"cmp_01_answer":"raw answer"}'))
+                ->push(['error' => 'overloaded'], 529),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $this->assertSame('raw answer', $upload->ai_extracted_data['cmp_01_answer']);
+    }
+
     // ── Failure handling ──────────────────────────────────────────────────
 
     public function test_marks_upload_failed_when_openai_returns_http_error(): void
@@ -149,7 +245,7 @@ class ProcessIntakeUploadTest extends TestCase
 
     // ── Document generation dispatch ──────────────────────────────────────
 
-    public function test_dispatches_generate_jobs_after_all_uploads_processed(): void
+    public function test_an_upload_with_no_matching_manual_dispatches_no_generation(): void
     {
         Queue::fake([GenerateComplianceDocument::class]);
         Storage::fake('local');
@@ -166,10 +262,14 @@ class ProcessIntakeUploadTest extends TestCase
         ]);
         $submission = IntakeSubmission::factory()->submitted()->create(['order_id' => $order->id]);
 
+        // PracticeIntake is a retired, generic upload type with no matching manual —
+        // generation is driven entirely by which of the 4 real questionnaires were
+        // uploaded, never by package tier.
         $upload = IntakeUpload::factory()->create([
             'intake_submission_id' => $submission->id,
             'storage_path' => 'uploads/4/intake.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::PracticeIntake,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -179,13 +279,49 @@ class ProcessIntakeUploadTest extends TestCase
 
         ProcessIntakeUpload::dispatchSync($upload);
 
-        // Essential tier = EmployeeHandbookBasic + OshaSafetyPlan → 2 jobs
-        Queue::assertPushed(GenerateComplianceDocument::class, 2);
+        Queue::assertNotPushed(GenerateComplianceDocument::class);
+    }
+
+    public function test_uploading_a_linked_questionnaire_also_dispatches_its_matching_manual(): void
+    {
+        Queue::fake([GenerateComplianceDocument::class]);
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/4b/compliance.pdf', 'fake');
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $submission = IntakeSubmission::factory()->submitted()->create(['order_id' => $order->id]);
+
+        $upload = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'storage_path' => 'uploads/4b/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        // Exactly the Compliance & Ethics Manual dispatches, since that's the one
+        // questionnaire uploaded — regardless of package tier. The other 3 linked
+        // manuals don't dispatch, since they weren't uploaded.
+        Queue::assertPushed(GenerateComplianceDocument::class, 1);
         Queue::assertPushed(GenerateComplianceDocument::class, function ($job) {
-            return $job->documentType === DocumentType::EmployeeHandbookBasic;
+            return $job->documentType === DocumentType::ComplianceEthicsManual;
         });
-        Queue::assertPushed(GenerateComplianceDocument::class, function ($job) {
-            return $job->documentType === DocumentType::OshaSafetyPlan;
+        Queue::assertNotPushed(GenerateComplianceDocument::class, function ($job) {
+            return $job->documentType === DocumentType::HipaaBusinessAssociateManual;
         });
     }
 
@@ -222,7 +358,7 @@ class ProcessIntakeUploadTest extends TestCase
         Queue::assertNotPushed(GenerateComplianceDocument::class);
     }
 
-    // ── Sibling propagation (one upload shared across a cart checkout) ─────
+    // ── Sibling propagation (one upload shared across a batch checkout) ─────
 
     public function test_propagates_extraction_to_sibling_uploads_sharing_the_same_file(): void
     {
@@ -243,12 +379,14 @@ class ProcessIntakeUploadTest extends TestCase
             'intake_submission_id' => $submissionA->id,
             'storage_path' => 'uploads/batch/shared.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
         $siblingUpload = IntakeUpload::factory()->create([
             'intake_submission_id' => $submissionB->id,
             'storage_path' => 'uploads/batch/shared.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -267,11 +405,13 @@ class ProcessIntakeUploadTest extends TestCase
         $this->assertEquals(AiExtractionStatus::Completed, $siblingUpload->ai_extraction_status);
         $this->assertEquals('Shared Practice', $siblingUpload->ai_extracted_data['practice_name']);
 
-        // Only one OpenAI API call for the shared document.
-        Http::assertSentCount(1);
+        // Two OpenAI calls total for the shared document (extraction + verification pass,
+        // since Compliance & Ethics has a structured schema) — not once per order.
+        Http::assertSentCount(2);
 
-        // Both orders' compliance documents should be generated (essential tier = 2 docs each).
-        Queue::assertPushed(GenerateComplianceDocument::class, 4);
+        // Both orders get their own Compliance & Ethics Manual generated, since both
+        // share the uploaded questionnaire.
+        Queue::assertPushed(GenerateComplianceDocument::class, 2);
     }
 
     public function test_marks_sibling_uploads_failed_when_primary_extraction_fails(): void
@@ -307,7 +447,7 @@ class ProcessIntakeUploadTest extends TestCase
         $this->assertEquals(AiExtractionStatus::Failed, $siblingUpload->fresh()->ai_extraction_status);
     }
 
-    public function test_dispatches_per_location_jobs_for_advanced_tier(): void
+    public function test_configured_osha_locations_do_not_multiply_a_non_per_location_linked_manual(): void
     {
         Queue::fake([GenerateComplianceDocument::class]);
         Storage::fake('local');
@@ -329,6 +469,7 @@ class ProcessIntakeUploadTest extends TestCase
             'intake_submission_id' => $submission->id,
             'storage_path' => 'uploads/6/intake.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -338,10 +479,216 @@ class ProcessIntakeUploadTest extends TestCase
 
         ProcessIntakeUpload::dispatchSync($upload);
 
-        // Advanced = 4 non-location docs + OshaLocationReport × 2 locations = 6 jobs
-        Queue::assertPushed(GenerateComplianceDocument::class, 6);
+        // Exactly one Compliance & Ethics Manual job, regardless of package tier or how
+        // many OSHA locations the practice has configured — it isn't a per-location type.
+        Queue::assertPushed(GenerateComplianceDocument::class, 1);
         Queue::assertPushed(GenerateComplianceDocument::class, function ($job) {
-            return $job->documentType === DocumentType::OshaLocationReport && $job->oshaLocation !== null;
+            return $job->documentType === DocumentType::ComplianceEthicsManual && $job->oshaLocation === null;
         });
+    }
+
+    // ── Client document for review (alternate to questionnaire downloads) ──
+
+    public function test_client_document_for_review_upload_uses_the_polish_prompt_and_stores_html(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/10/handbook.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/10/handbook.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{"html":"<p>Polished content.</p>"}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        // Exactly one call — unlike the structured questionnaire types, this path has no
+        // second "verify and correct" pass.
+        Http::assertSentCount(1);
+        Http::assertSent(function ($request) {
+            $content = $request['messages'][0]['content'];
+            $text = is_array($content) ? ($content[1]['text'] ?? '') : $content;
+
+            return str_contains($text, 'Rephrase and correct grammar');
+        });
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $this->assertSame('<p>Polished content.</p>', $upload->ai_extracted_data['html']);
+    }
+
+    public function test_client_document_for_review_dispatches_one_generation_job_per_upload_not_per_order(): void
+    {
+        Queue::fake([GenerateComplianceDocument::class]);
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/11/handbook.pdf', 'fake');
+        Storage::disk('local')->put('uploads/11/safety.pdf', 'fake');
+
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $submission = IntakeSubmission::factory()->submitted()->uploadForReview()->create(['order_id' => $order->id]);
+
+        $upload1 = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'storage_path' => 'uploads/11/handbook.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+        $upload2 = IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'storage_path' => 'uploads/11/safety.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => ['html' => '<p>Already polished.</p>'],
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{"html":"<p>Polished.</p>"}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload1);
+
+        Queue::assertPushed(GenerateComplianceDocument::class, 2);
+        Queue::assertPushed(GenerateComplianceDocument::class, fn ($job) => $job->documentType === DocumentType::PolishedClientDocument
+            && $job->intakeUpload?->id === $upload1->id);
+        Queue::assertPushed(GenerateComplianceDocument::class, fn ($job) => $job->documentType === DocumentType::PolishedClientDocument
+            && $job->intakeUpload?->id === $upload2->id);
+    }
+
+    // ── Image preservation (upload for review) ──────────────────────────────
+
+    public function test_client_document_for_review_docx_preserves_embedded_images(): void
+    {
+        Storage::fake('local');
+
+        // A real .docx with an image sandwiched between two paragraphs, to prove the image
+        // survives extraction -> AI polish -> reinsertion, not just the surrounding text.
+        $imagePath = tempnam(sys_get_temp_dir(), 'img').'.png';
+        file_put_contents($imagePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+
+        $phpWord = new PhpWord;
+        $section = $phpWord->addSection();
+        $section->addText('Before the image.');
+        $section->addImage($imagePath, ['width' => 50, 'height' => 50]);
+        $section->addText('After the image.');
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'docx').'.docx';
+        IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+        Storage::disk('local')->put('uploads/20/handbook.docx', file_get_contents($tempPath));
+        unlink($tempPath);
+        unlink($imagePath);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/20/handbook.docx',
+            'original_filename' => 'handbook.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(
+                $this->openaiResponse('{"html":"<p>Before the image.</p>[[IMAGE_1]]<p>After the image.</p>"}')
+            ),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        // The prompt sent to OpenAI must include both the placeholder and the instruction to
+        // preserve it — this is what "refining the prompt" actually needs to accomplish.
+        Http::assertSent(function ($request) {
+            $text = $request['messages'][0]['content'];
+
+            return str_contains($text, '[[IMAGE_1]]') && str_contains($text, 'image placeholders');
+        });
+
+        $upload->refresh();
+        $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
+        $html = $upload->ai_extracted_data['html'];
+
+        // The final stored HTML has the real embedded image, not the placeholder token.
+        $this->assertStringNotContainsString('[[IMAGE_1]]', $html);
+        $this->assertStringContainsString('<img src="data:image/png;base64,', $html);
+        $this->assertStringContainsString('Before the image.', $html);
+        $this->assertStringContainsString('After the image.', $html);
+    }
+
+    public function test_client_document_for_review_appends_image_when_ai_drops_the_placeholder(): void
+    {
+        Storage::fake('local');
+
+        $imagePath = tempnam(sys_get_temp_dir(), 'img').'.png';
+        file_put_contents($imagePath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+
+        $phpWord = new PhpWord;
+        $section = $phpWord->addSection();
+        $section->addText('Some text.');
+        $section->addImage($imagePath, ['width' => 50, 'height' => 50]);
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'docx').'.docx';
+        IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+        Storage::disk('local')->put('uploads/21/handbook.docx', file_get_contents($tempPath));
+        unlink($tempPath);
+        unlink($imagePath);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/21/handbook.docx',
+            'original_filename' => 'handbook.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        // The AI ignores the placeholder-preservation instruction entirely.
+        Http::fake([
+            'https://api.openai.com/*' => Http::response($this->openaiResponse('{"html":"<p>Some polished text.</p>"}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $html = $upload->fresh()->ai_extracted_data['html'];
+        $this->assertStringContainsString('<img src="data:image/png;base64,', $html);
+    }
+
+    public function test_client_document_for_review_image_upload_embeds_the_original_image(): void
+    {
+        Storage::fake('local');
+
+        $imageBytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+        Storage::disk('local')->put('uploads/22/scan.png', $imageBytes);
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/22/scan.png',
+            'original_filename' => 'scan.png',
+            'mime_type' => 'image/png',
+            'upload_type' => IntakeUploadType::ClientDocumentForReview,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(
+                $this->openaiResponse('{"html":"<p>Transcribed text from the scan.</p>"}')
+            ),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $html = $upload->fresh()->ai_extracted_data['html'];
+        $this->assertStringContainsString('Transcribed text from the scan.', $html);
+        $this->assertStringContainsString('<img src="data:image/png;base64,'.base64_encode($imageBytes).'"', $html);
     }
 }

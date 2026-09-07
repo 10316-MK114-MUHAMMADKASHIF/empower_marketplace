@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\IntakeMethod;
 use App\Enums\IntakeSubmissionStatus;
 use Database\Factories\IntakeSubmissionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'order_id', 'status', 'handbook_answers',
+    'order_id', 'status', 'intake_method', 'handbook_answers',
     'reviewer_notes', 'reviewed_by', 'reviewed_at', 'submitted_at',
 ])]
 class IntakeSubmission extends Model
@@ -26,6 +27,7 @@ class IntakeSubmission extends Model
     {
         return [
             'status' => IntakeSubmissionStatus::class,
+            'intake_method' => IntakeMethod::class,
             'handbook_answers' => 'array',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',

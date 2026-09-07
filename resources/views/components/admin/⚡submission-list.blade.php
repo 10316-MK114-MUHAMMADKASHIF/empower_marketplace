@@ -40,7 +40,7 @@ new class extends Component
                     ->orWhereHas('order.user', fn ($q) => $q->where('email', 'like', "%{$search}%"));
             })
             ->latest('submitted_at')
-            ->paginate(15);
+            ->paginate(10);
     }
 
     #[Computed]
@@ -65,19 +65,24 @@ new class extends Component
             IntakeSubmissionStatus::Rejected->value => 'Rejected',
         ] as $value => $label)
             @php $count = $value === 'all' ? array_sum($this->statusCounts) : ($this->statusCounts[$value] ?? 0); @endphp
-            <button type="button" wire:click="$set('status', '{{ $value }}')"
+            <button type="button" wire:click="$set('status', '{{ $value }}')" wire:target="$set('status', '{{ $value }}')"
+                wire:loading.attr="disabled" wire:target="$set('status', '{{ $value }}')"
                 class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $status === $value ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
-                {{ $label }}
-                <span class="{{ $status === $value ? 'text-white/70' : 'text-empower-muted/70' }}">{{ $count }}</span>
+                <span wire:loading.remove wire:target="$set('status', '{{ $value }}')" class="inline-flex items-center gap-1.5">
+                    {{ $label }}
+                    <span class="{{ $status === $value ? 'text-white/70' : 'text-empower-muted/70' }}">{{ $count }}</span>
+                </span>
+                <span wire:loading wire:target="$set('status', '{{ $value }}')"><x-spinner class="h-3 w-3" /></span>
             </button>
         @endforeach
 
         <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search practice or email…"
-            class="ml-auto w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+            class="w-full sm:ml-auto sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
     </div>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] overflow-hidden">
-        <table class="w-full text-sm">
+        <div class="w-full overflow-x-auto">
+            <table class="w-full min-w-[800px] text-sm">
             <thead>
                 <tr class="bg-page text-left text-xs font-extrabold uppercase tracking-wider text-empower-muted">
                     <th class="px-5 py-3">Practice</th>
@@ -101,7 +106,7 @@ new class extends Component
                                     IntakeSubmissionStatus::Approved => 'bg-[#dff7f0] text-[#0f7a4f]',
                                     IntakeSubmissionStatus::Rejected => 'bg-[#fde2e2] text-[#a53b3b]',
                                     IntakeSubmissionStatus::UnderReview => 'bg-[#fff3cd] text-[#9a6700]',
-                                    default => 'bg-[#edf2f7] text-empower-muted',
+                                    default => 'bg-[#eef6fb] text-empower-muted',
                                 };
                             @endphp
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider {{ $badgeClasses }}">
@@ -111,7 +116,7 @@ new class extends Component
                         <td class="px-5 py-3.5 text-empower-muted text-xs">{{ $submission->submitted_at?->diffForHumans() ?? '—' }}</td>
                         <td class="px-5 py-3.5 text-right">
                             <a href="{{ route('admin.submissions.show', $submission) }}" wire:navigate
-                                class="text-xs font-bold text-[#1a7aad] hover:underline">Review &rarr;</a>
+                                class="text-xs font-bold text-[#0b9ed0] hover:underline">Review &rarr;</a>
                         </td>
                     </tr>
                 @empty
@@ -120,7 +125,8 @@ new class extends Component
                     </tr>
                 @endforelse
             </tbody>
-        </table>
+            </table>
+        </div>
     </div>
 
     <div>{{ $this->submissions->links() }}</div>

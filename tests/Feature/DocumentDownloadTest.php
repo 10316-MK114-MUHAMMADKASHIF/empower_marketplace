@@ -37,6 +37,8 @@ class DocumentDownloadTest extends TestCase
             'pdf_storage_path' => $fakePdfPath,
             'pdf_owner_password' => 'secret',
             'generated_at' => now(),
+            'reviewed_at' => now(),
+            'reviewed_by' => User::factory(),
         ]);
     }
 
@@ -69,6 +71,69 @@ class DocumentDownloadTest extends TestCase
         $this->actingAs($other)
             ->get(route('documents.download', $document))
             ->assertForbidden();
+    }
+
+    // ── Approval gate ───────────────────────────────────────────────────────
+
+    public function test_completed_but_unapproved_document_returns_404(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $fakePdfPath = 'private/compliance/1/employee_handbook_basic.pdf';
+        Storage::disk('local')->put($fakePdfPath, '%PDF-1.4 fake');
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+        ]);
+
+        $document = GeneratedDocument::factory()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'status' => DocumentStatus::Completed,
+            'pdf_storage_path' => $fakePdfPath,
+            'pdf_owner_password' => 'secret',
+            'generated_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('documents.download', $document))
+            ->assertNotFound();
+    }
+
+    public function test_owner_can_download_the_custom_replacement_when_that_is_the_delivery_source(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $customPath = 'private/compliance/1/custom/employee_handbook_basic.pdf';
+        Storage::disk('local')->put($customPath, '%PDF-1.4 custom fake');
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $order = Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+        ]);
+
+        $document = GeneratedDocument::factory()->create([
+            'order_id' => $order->id,
+            'document_type' => DocumentType::EmployeeHandbookBasic,
+            'status' => DocumentStatus::Failed,
+            'failure_reason' => 'AI service unavailable',
+            'custom_storage_path' => $customPath,
+            'custom_original_filename' => 'corrected-handbook.pdf',
+            'delivery_source' => 'custom',
+            'reviewed_at' => now(),
+            'reviewed_by' => User::factory(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('documents.download', $document));
+
+        $response->assertOk();
+        $this->assertSame('%PDF-1.4 custom fake', $response->streamedContent());
+        $this->assertStringContainsString('corrected-handbook.pdf', $response->headers->get('content-disposition'));
     }
 
     // ── Status checks ─────────────────────────────────────────────────────
@@ -117,6 +182,8 @@ class DocumentDownloadTest extends TestCase
             'docx_storage_path' => $docxPath,
             'pdf_owner_password' => 'secret',
             'generated_at' => now(),
+            'reviewed_at' => now(),
+            'reviewed_by' => User::factory(),
         ]);
 
         $this->actingAs($user)

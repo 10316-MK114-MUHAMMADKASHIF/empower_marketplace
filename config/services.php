@@ -19,6 +19,17 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o'),
     ],
 
+    'clover_mtbc' => [
+        'base_url' => env('CLOVER_MTBC_BASE_URL'),
+        'username' => env('CLOVER_MTBC_USERNAME'),
+        'password' => env('CLOVER_MTBC_PASSWORD'),
+        'business_name' => env('CLOVER_MTBC_BUSINESS_NAME', config('app.name')),
+    ],
+
+    'carecloud' => [
+        'msa_url' => env('CARECLOUD_MSA_URL', '#'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
