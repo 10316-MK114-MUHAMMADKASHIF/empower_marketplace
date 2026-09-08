@@ -45,10 +45,7 @@ new class extends Component
 ?>
 
 <div class="space-y-4">
-    <div class="flex flex-wrap items-center gap-3">
-        <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search client name or email…"
-            class="w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-
+    <div class="flex flex-wrap items-center gap-3 justify-end">
         <select wire:model.live="status"
             class="rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
             <option value="">All statuses</option>
@@ -56,6 +53,9 @@ new class extends Component
                 <option value="{{ $case->value }}">{{ ucwords(str_replace('_', ' ', $case->value)) }}</option>
             @endforeach
         </select>
+
+        <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search client name or email…"
+            class="w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
     </div>
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] overflow-hidden">

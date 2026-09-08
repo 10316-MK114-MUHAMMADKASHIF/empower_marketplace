@@ -1,5 +1,5 @@
 @php $active ??= null; @endphp
-<div class="flex flex-wrap items-center gap-2 mb-10">
+<div class="flex flex-wrap items-center gap-2 mb-2">
     @foreach([
     'dashboard' => ['admin.dashboard', 'Dashboard'],
     'submissions' => ['admin.submissions', 'Submissions'],

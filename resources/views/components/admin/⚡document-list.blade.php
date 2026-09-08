@@ -53,7 +53,7 @@ new class extends Component
 ?>
 
 <div class="space-y-4" x-data="{ confirmId: null }">
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2 justify-end">
         @foreach([
             'all' => 'All',
             DocumentStatus::Completed->value => 'Completed',
