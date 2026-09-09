@@ -79,12 +79,14 @@ new class extends Component
         <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
     @enderror
 
+    {{-- Temporarily hidden — creating new questionnaire types is disabled for now.
     <div class="flex justify-end">
         <a href="{{ route('admin.questionnaires.create') }}" wire:navigate
             class="inline-flex items-center gap-1 rounded bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
             + New Questionnaire
         </a>
     </div>
+    --}}
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] overflow-hidden">
         <div class="w-full overflow-x-auto">
