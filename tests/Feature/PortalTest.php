@@ -11,6 +11,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
+use App\Jobs\ProcessIntakeUpload;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
 use App\Mail\ClientPaymentReceiptMail;
@@ -951,22 +952,6 @@ class PortalTest extends TestCase
             ->assertSee('This discount code is not yet active.');
     }
 
-    public function test_applying_a_free_trial_code_at_checkout_is_not_available_yet(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
-        DiscountCode::factory()->freeTrial()->create(['code' => 'TRIAL30']);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->set('selectedPackageId', $package->id)
-            ->set('discountCodeInput', 'TRIAL30')
-            ->call('applyDiscountCode')
-            ->assertHasErrors(['discountCodeInput'])
-            ->assertSee('Free trial codes');
-    }
-
     public function test_paying_with_a_valid_discount_code_charges_the_discounted_amount_and_records_it(): void
     {
         $this->fakeSuccessfulCharge();
@@ -1046,6 +1031,55 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->assertSet('practiceAddress', '7 Clyde Road, Somerset, NJ, 08873');
+    }
+
+    // ── Free trial checkout ─────────────────────────────────────────────────
+
+    public function test_applying_a_free_trial_code_shows_not_available_yet(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->assertHasErrors(['discountCodeInput'])
+            ->assertSet('appliedDiscountCodeId', null);
+    }
+
+    public function test_a_client_with_a_cancelled_trial_cannot_submit_intake(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        Order::factory()->trialCancelled()->create(['user_id' => $user->id]);
+        Bus::fake();
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('questionnaireFiles.compliance_ethics_questionnaire', UploadedFile::fake()->create('intake.pdf', 100, 'application/pdf'))
+            ->call('submitIntake')
+            ->assertHasErrors(['payment']);
+
+        Bus::assertNotDispatched(ProcessIntakeUpload::class);
+    }
+
+    public function test_a_client_with_a_cancelled_trial_cannot_regenerate_a_document(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->locked()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialCancelled()->create(['user_id' => $user->id]);
+        $document = GeneratedDocument::factory()->completed()->create(['order_id' => $order->id]);
+        Bus::fake();
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('dashboardOrderId', $order->id)
+            ->call('regenerateDocument', $document->id)
+            ->assertHasErrors(['payment']);
+
+        Bus::assertNotDispatched(GenerateComplianceDocument::class);
     }
 
     // ── Step 2: Practice Profile ────────────────────────────────────────────

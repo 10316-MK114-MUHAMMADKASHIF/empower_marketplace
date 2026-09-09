@@ -3,6 +3,7 @@
 use App\Enums\DiscountType;
 use App\Models\ActivityLog;
 use App\Models\DiscountCode;
+use Illuminate\Support\Carbon;
 use Livewire\Component;
 
 new class extends Component
@@ -40,6 +41,19 @@ new class extends Component
         $this->expiresAt = $discountCode->expires_at?->format('Y-m-d') ?? '';
         $this->maxUses = $discountCode->max_uses !== null ? (string) $discountCode->max_uses : null;
         $this->isActive = $discountCode->is_active;
+    }
+
+    /** Keeps the code's own validity window in step with the trial length, so an admin doesn't
+     *  have to hand-calculate an expiry date — still editable afterward if a different window is wanted. */
+    public function updatedTrialDays(): void
+    {
+        if ($this->type !== DiscountType::FreeTrial->value || ! $this->trialDays) {
+            return;
+        }
+
+        $start = $this->startsAt ? Carbon::parse($this->startsAt) : now();
+        $this->startsAt = $start->format('Y-m-d');
+        $this->expiresAt = $start->copy()->addDays((int) $this->trialDays)->format('Y-m-d');
     }
 
     public function save(): void
@@ -120,8 +134,9 @@ new class extends Component
             @else
                 <div>
                     <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Trial Length (days)</label>
-                    <input wire:model="trialDays" type="number" min="1" max="365" placeholder="30"
+                    <input wire:model.live.debounce.500ms="trialDays" type="number" min="1" max="365" placeholder="30"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <p class="mt-1 text-xs text-empower-muted">Valid From / Expires On below are auto-filled from this — feel free to adjust them afterward.</p>
                     @error('trialDays') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
             @endif

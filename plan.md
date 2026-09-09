@@ -111,3 +111,207 @@ Further Considerations
 Claude rate limits — For high volume, wrap the Claude HTTP call in a retry() with exponential backoff; consider ProcessIntakeUpload job $tries = 3.
 File security — All uploads must go to private (never public); only served via the signed download route after auth check.
 .docx template maintenance — The .docx templates in storage/app/templates/ will need to be created/maintained manually by admin staff as the content evolves; a future admin UI for template uploads could be added.
+
+---
+
+# Phase 2: Free trial checkout + automatic post-trial billing
+
+**Status (2026-09-09): Removed from active code, deferred to Phase 2.** The free-trial checkout
+flow (payFreeTrial/confirmTrialContinuation/cancelTrialSubscription, the trial emails, the daily
+lifecycle command, and the direct Clover eCommerce service) was built and fully tested, but has
+been stripped out of `⚡portal.blade.php` and the app pending a decision on which payment gateway
+can actually support it — see "What we learned" below. `applyDiscountCode()` rejects a
+`DiscountType::FreeTrial` code with "Free trial checkout is not available yet."
+
+## What's still in place (deliberately, so Phase 2 doesn't redo migrations)
+
+- `orders` table columns (migration `2026_09_04_065220_add_trial_fields_to_orders_table.php`):
+  `trial_ends_at`, `trial_confirmed_at`, `trial_reminder_sent_at`, `clover_card_token`.
+- `PaymentStatus::Trialing` enum case, included in `Order::PAID_STATUSES`.
+- `Order::blockedFromAiGeneration()` — true when `status === Cancelled && payment_status ===
+  Trialing`. Still wired into guards in `submitIntake()`, `submitForReview()`, and
+  `regenerateDocument()` in `⚡portal.blade.php`, and still covered by
+  `test_a_client_with_a_cancelled_trial_cannot_submit_intake` /
+  `..._cannot_regenerate_a_document` in `PortalTest.php`. The dashboard still shows a banner via
+  `@if($this->currentOrder?->blockedFromAiGeneration())` if any such order exists.
+- `OrderFactory::trialing()` / `trialCancelled()` factory states (used by the tests above).
+- `DiscountType::FreeTrial` enum case and the admin discount-code form's free-trial fields
+  (`trial_days`, auto-filled valid-from/until) — a separate, already-shipped admin feature;
+  admins can still create Free Trial discount codes, they just can't be applied at checkout yet.
+
+## What was removed (2026-09-09)
+
+- `app/Services/CloverEcommerceService.php`, `CloverCustomerResult.php`
+- `app/Mail/ClientTrialStartedMail.php`, `ClientTrialEndingReminderMail.php`,
+  `ClientTrialCancelledMail.php` + their Blade views under `resources/views/emails/client/`
+- `app/Console/Commands/ProcessTrialLifecycle.php` (the `trials:process` daily command) and its
+  scheduling line in `routes/console.php`
+- `tests/Feature/TrialLifecycleTest.php`
+- `config/services.php`'s `clover_ecomm` block and the `CLOVER_ECOMM_*` env vars
+- From `⚡portal.blade.php`: `cloverToken` property, `isFreeTrialCheckout` computed,
+  `validateBillingAndTrialFields()`, `payFreeTrial()`, `confirmTrialContinuation()`,
+  `cancelTrialSubscription()`, the Clover.js RSA tokenization JS block, and the dashboard's
+  active-trial banner (Proceed with Payment / Cancel Subscription UI)
+- The corresponding free-trial-checkout tests in `PortalTest.php` (applying a code showed no
+  error, checkout created a Trialing order, decline handling, confirm/cancel continuation) —
+  replaced with one test asserting the code is now rejected, plus the two
+  `blockedFromAiGeneration()` tests kept as-is.
+
+## What we learned: MTBC's Clover gateway cannot do this
+
+The original assumption (a colleague's C# reference using `intent: save_credential_on_file` /
+`stored_credentials` / `source`) suggested MTBC's Clover integration could tokenize a card and
+charge it again later. This turned out to be false for the endpoint our app actually has
+credentials for. Confirmed two ways:
+
+1. **The endpoint's own published OpenAPI spec** —
+   `https://qa-webservices.mtbc.com/Clover_Api/swagger/v1/swagger.json` — lists exactly two
+   routes, `POST /api/payment/Create_Charge` and `POST /api/payment/Create_Charge_Response`, both
+   sharing one closed request schema (`additionalProperties: false`) with only: `username`,
+   `password`, `name`, `address1`, `city`, `state`, `zip`, `product_Name`, `business_Name`,
+   `amount`, `cardNumber`, `expMonth`, `expYear`, `cvv`. No `source`, `token`, `customer`, or
+   `intent` field exists anywhere in the schema, and there is no other endpoint on this API.
+2. **Live sandbox testing against both routes** (using `CLOVER_MTBC_*` credentials), which confirmed:
+   - `amount: 0` is rejected outright (`"Invalid amount"`) — no true $0 registration charge is
+     possible.
+   - `capture: false` is silently ignored — the charge is always captured/settled for real.
+   - `intent`, `stored_credentials`, and `source` are all silently ignored/dropped; sending them
+     produces no different behavior than a plain charge.
+   - Charging by `source` alone (no raw card fields) is rejected by the endpoint's own model
+     validation: `CardNumber` and `Cvv` are hard-required on every request, always.
+   - The response never includes any card/token reference (`paymentMethodDetails` is always
+     `null`) — there is nothing to store for reuse even if the above weren't true.
+   - A second, real production C# reference (`PayUserDirectAsync`, calling
+     `Clover_Api/api/payment/Create_Charge` on `mhealth.mtbc.com`) confirms this independently:
+     its request never includes `source`/`intent`/`stored_credentials`, and its response DTO
+     (`CloverPaymentData`/`CloverOutcome`) matches exactly what we observed live — a plain
+     one-shot charge, nothing more.
+
+**Conclusion**: `CloverChargeService` (MTBC) is one-shot-charge-only and always will be, on the
+credentials/endpoints we have. It remains correct and unchanged for normal (non-trial) checkout.
+
+### If Phase 2 still wants to use MTBC for this
+
+Ask MTBC (via Sammar) directly, since their stack demonstrably supports Clover's stored-credential
+model somewhere (per the original C# snippet) — just not on either endpoint above:
+
+1. Does a different endpoint/URL exist that accepts `intent`/`stored_credentials`/`source`, and is
+   it reachable on a sandbox/QA host (not production-only)?
+2. Can a card be registered for future use without a real non-zero charge (a true $0 or auth-only
+   `capture: false` request)? If not, is there an automatic void/refund for the registration
+   charge, since the product requirement is "no charge during the trial"?
+3. Exact field name for the reusable card/token reference in the response (the two known endpoints
+   never return one — `paymentMethodDetails` is always `null`).
+4. Exact field name to charge a previously-saved card, and whether raw `CardNumber`/`Cvv` are
+   still required alongside it.
+5. Separate sandbox credentials for this endpoint (the second C# reference reads from a
+   `YourPay:Username`/`YourPay:Password` config, distinct from our current `mtbcpayments` creds) —
+   sandbox only.
+6. A live example request/response (not just reference code) for both the registration call and
+   the reuse call.
+7. Confirm the `amount` unit (dollars vs. cents) for whichever endpoint this turns out to be.
+
+## The proven alternative: direct Clover eCommerce API (built + tested, now removed)
+
+This is what was actually implemented and passing all tests before being stripped out today. It's
+the recommended default for Phase 2 unless MTBC comes back with a real answer above, since it's
+the only mechanism actually confirmed (via live sandbox testing) to save a card and charge it
+again weeks later.
+
+### Architecture
+
+- **Separate, direct Clover integration** from MTBC — Public + Private API keys for a Clover
+  eCommerce test merchant (`CLOVER_ECOMM_PUBLIC_KEY`/`CLOVER_ECOMM_PRIVATE_KEY`), obtained directly
+  from Clover's own developer dashboard, not via MTBC.
+- **Card tokenization happens entirely in the browser**, never on our server:
+  1. Client-side RSA-OAEP encryption of the card's PAN using Clover's published TransArmor public
+     key (`https://checkout.clover.com/assets/keys.json`, keyed `TA_PUBLIC_KEY_DEV`/`_PROD`) via
+     the native Web Crypto API (`RSA-OAEP`, `hash: 'SHA-1'` — Web Crypto ties MGF1's hash to the
+     main hash param, reproducing Java's `RSA/None/OAEPWithSHA1AndMGF1Padding` with zero external
+     libraries). Plaintext is an 8-zero prefix (`"00000000"`) + the card number. Ported faithfully
+     from Clover's own official Java reference implementation (`EncryptPan.java`).
+  2. The browser POSTs `{card: {encrypted_pan, first6, last4, exp_month, exp_year, cvv, brand}}`
+     directly to `POST {tokens_base_url}/v1/tokens` with the `apikey` header (Public key) —
+     `tokens_base_url` (`token-sandbox.dev.clover.com`) is a **different host** from `base_url`
+     (`scl-sandbox.dev.clover.com`). Server-to-server calls to `/v1/tokens` are blocked (confirmed
+     via live testing — HTTP 403, a WAF/bot-fingerprint check), which is exactly why this step must
+     happen in the browser.
+  3. The resulting single-use token is written into a Livewire property (`cloverToken`) via
+     `$wire.set('cloverToken', token, false)`.
+- **Server-side, using the Private key** (`CloverEcommerceService`):
+  - `createCustomerWithCard(email, source: $cloverToken)` → `POST {base_url}/v1/customers`,
+    Bearer-token auth. Response: `{"id": "...", "sources": {"data": ["<cardId>", ...]}}`. Returns
+    a `CloverCustomerResult` (customerId, cardId).
+  - `chargeSavedCard(customerId, amount, description)` → `POST {base_url}/v1/charges` with
+    `source: customerId` (charging a saved card uses the **customerId itself** as `source`, not a
+    separate card id — confirmed via Clover's docs). Returns a `ChargeResult`.
+  - Error shape for both: `{"error": {"message": "..."}}`.
+  - **Not verified**: the `amount` unit on `/v1/charges` (assumed cents) — needs a real
+    trial-conversion test before relying on it.
+
+### Checkout flow
+
+1. Client applies a `DiscountType::FreeTrial` discount code at Step 1 (`applyDiscountCode()` — the
+   Phase-2 re-enable is just deleting the rejection block added today).
+2. `isFreeTrialCheckout` computed drives Step 1 UI: "Due Today: $0.00", "Then $X/year once your
+   free trial ends."
+3. Card fields tokenize client-side (above) instead of `pay()`'s normal raw-card POST.
+   `payFreeTrial()` validates billing fields + `cloverToken`, calls `createCustomerWithCard()`,
+   creates the account (if guest), then creates an `Order` with `payment_status: Trialing`,
+   `status: Paid`, `amount_paid: 0`, `original_price` = package price, `trial_ends_at =
+   now()->addDays($discountCode->trial_days)`, `clover_card_token = customerId`. Sends
+   `ClientTrialStartedMail`.
+4. **3 days before `trial_ends_at`**: a daily scheduled command (`trials:process`,
+   `ProcessTrialLifecycle`) sends `ClientTrialEndingReminderMail` with two actions — proceed or
+   cancel — and sets `trial_reminder_sent_at` so it only sends once.
+5. **Client clicks "Proceed with Payment"** (dashboard banner or email link) →
+   `confirmTrialContinuation($orderId)` charges the saved card **immediately** via
+   `chargeSavedCard()`, regardless of whether `trial_ends_at` has passed. On success:
+   `payment_status: Paid`, `amount_paid` = package price, `trial_confirmed_at = now()`, sends
+   `ClientPaymentReceiptMail`. On decline: stays `Trialing`, shows the decline message, client can
+   retry.
+6. **Client clicks "Cancel my subscription"** → `cancelTrialSubscription($orderId)`: immediately
+   `status: Cancelled`, sends `ClientTrialCancelledMail`.
+7. **No response by `trial_ends_at`**: the same daily command's second pass cancels it exactly
+   like an explicit rejection (`trial_ends_at` is the hard deadline, not the reminder).
+8. Once `status: Cancelled && payment_status: Trialing`
+   (`Order::blockedFromAiGeneration()` — already in place), new AI generation
+   (`submitIntake()`/`submitForReview()`/`regenerateDocument()`) is blocked with a "subscribe to
+   continue" prompt; documents already generated/approved stay downloadable.
+
+### Activity/payment log conventions used
+
+- `ActivityLog` event types: `trial.started`, `trial.reminder_sent`, `trial.cancelled`, plus the
+  existing `order.paid` reused for trial→paid conversion.
+- `PaymentLog::record()` always passed an explicit `message` for trial call sites (a $0 amount
+  doesn't explain itself): `"Free trial started — card saved via Clover, no charge"`, `"Trial
+  converted to paid"`, plus the existing decline-message plumbing for a failed conversion.
+
+### Files to recreate (all existed and were fully tested before removal today)
+
+1. `app/Services/CloverEcommerceService.php`, `app/Services/CloverCustomerResult.php`
+2. `config/services.php` `clover_ecomm` block + `CLOVER_ECOMM_PUBLIC_KEY` /
+   `CLOVER_ECOMM_PRIVATE_KEY` / `CLOVER_ECOMM_BASE_URL` / `CLOVER_ECOMM_TOKENS_BASE_URL` env vars
+   (sandbox values were: `https://scl-sandbox.dev.clover.com` / `https://token-sandbox.dev.clover.com`)
+3. `⚡portal.blade.php`: `cloverToken` property, `isFreeTrialCheckout` computed,
+   `validateBillingAndTrialFields()`, `payFreeTrial()`, `confirmTrialContinuation()`,
+   `cancelTrialSubscription()`, the RSA/tokenization Alpine `x-data` block on the Payment Details
+   card, the Step 1 free-trial summary UI, the dashboard active-trial banner, and removing the
+   `DiscountType::FreeTrial` rejection in `applyDiscountCode()`
+4. `app/Mail/ClientTrialStartedMail.php`, `ClientTrialEndingReminderMail.php`,
+   `ClientTrialCancelledMail.php` + `resources/views/emails/client/trial-*.blade.php`
+5. `app/Console/Commands/ProcessTrialLifecycle.php` + `Schedule::command('trials:process')->daily()`
+   in `routes/console.php`
+6. Tests: restore the free-trial-checkout section of `PortalTest.php` (checkout creates a Trialing
+   order, decline handling, requires `cloverToken`, confirm/cancel continuation) and
+   `tests/Feature/TrialLifecycleTest.php` (reminder fires once, expired trial gets cancelled)
+
+### Before shipping Phase 2
+
+1. Verify the `amount` unit on `/v1/charges` (cents vs. decimal dollars) with a real
+   trial-conversion test against the Clover sandbox.
+2. Full end-to-end live sandbox test: tokenize → save card → (simulate trial end) → charge saved
+   card, on a network that can reach `checkout.clover.com` / `token-sandbox.dev.clover.com`
+   without certificate interception (a corporate/Windows network hit `net::ERR_CERT_AUTHORITY_INVALID`
+   here before — a Mac on a different network reached it fine).
+3. Decide MTBC vs. direct-Clover based on Sammar's answers above, if pursued.

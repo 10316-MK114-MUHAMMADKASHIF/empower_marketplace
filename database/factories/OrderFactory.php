@@ -50,4 +50,27 @@ class OrderFactory extends Factory
             'status' => OrderStatus::Approved,
         ]);
     }
+
+    public function trialing(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => OrderStatus::Paid,
+            'payment_status' => PaymentStatus::Trialing,
+            'payment_reference' => null,
+            'amount_paid' => 0,
+            'paid_at' => now(),
+            'trial_ends_at' => now()->addDays(30),
+            'clover_card_token' => 'tok_'.fake()->lexify('????????????'),
+        ]);
+    }
+
+    /** A trial that ended (or was rejected) without converting to paid. */
+    public function trialCancelled(): static
+    {
+        return $this->trialing()->state(fn (array $attributes) => [
+            'status' => OrderStatus::Cancelled,
+            'cancelled_at' => now(),
+            'trial_ends_at' => now()->subDay(),
+        ]);
+    }
 }

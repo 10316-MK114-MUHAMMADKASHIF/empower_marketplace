@@ -643,6 +643,37 @@ class AdminPanelTest extends TestCase
         $this->assertTrue($documents->firstWhere('id', $noQuestionnaireLinkDoc->id)->showsCustomUploadSlot);
     }
 
+    public function test_uploaded_forms_list_shows_the_extraction_error_message_when_failed(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->failed()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::HipaaSecurityQuestionnaire,
+            'ai_error_message' => 'cURL error 28: Operation timed out after 120000 milliseconds',
+        ]);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission))
+            ->assertOk()
+            ->assertSee('cURL error 28: Operation timed out after 120000 milliseconds');
+    }
+
+    public function test_uploaded_forms_list_does_not_show_an_error_message_when_extraction_succeeded(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $submission = $this->makeSubmission();
+        IntakeUpload::factory()->completed()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_error_message' => null,
+        ]);
+
+        $response = $this->withoutVite()->actingAs($admin)->get(route('admin.submissions.show', $submission));
+
+        $response->assertOk();
+        $this->assertStringNotContainsString('cURL error', $response->getContent());
+    }
+
     // ── Regenerate failed extraction ─────────────────────────────────────────
 
     public function test_admin_can_regenerate_extraction_for_a_failed_questionnaire_linked_document(): void
@@ -1514,6 +1545,46 @@ class AdminPanelTest extends TestCase
             'percentage' => null,
             'trial_days' => 30,
         ]);
+    }
+
+    public function test_setting_trial_days_auto_fills_the_validity_window(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('type', DiscountType::FreeTrial->value)
+            ->set('trialDays', '5');
+
+        $component->assertSet('startsAt', now()->format('Y-m-d'));
+        $component->assertSet('expiresAt', now()->addDays(5)->format('Y-m-d'));
+    }
+
+    public function test_changing_trial_days_recomputes_expiry_from_the_existing_start_date(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('type', DiscountType::FreeTrial->value)
+            ->set('startsAt', '2026-01-01')
+            ->set('trialDays', '10');
+
+        $component->assertSet('startsAt', '2026-01-01');
+        $component->assertSet('expiresAt', '2026-01-11');
+    }
+
+    public function test_trial_days_does_not_touch_the_validity_window_for_a_percentage_code(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.discount-code-form')
+            ->set('type', DiscountType::Percentage->value)
+            ->set('trialDays', '5');
+
+        $component->assertSet('startsAt', '');
+        $component->assertSet('expiresAt', '');
     }
 
     public function test_creating_a_percentage_code_requires_a_percentage(): void

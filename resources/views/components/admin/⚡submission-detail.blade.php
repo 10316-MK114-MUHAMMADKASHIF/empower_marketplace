@@ -772,6 +772,9 @@ new class extends Component
                 <div>
                     <p class="text-sm font-semibold text-empower-text">{{ $upload->original_filename }}</p>
                     <p class="text-xs text-empower-muted">{{ $upload->upload_type->value }} &middot; {{ $upload->fileSizeForHumans() }} &middot; AI extraction: {{ $upload->ai_extraction_status->value }}</p>
+                    @if($upload->ai_extraction_status === AiExtractionStatus::Failed && $upload->ai_error_message)
+                        <p class="text-xs text-[#a53b3b] mt-0.5">{{ $upload->ai_error_message }}</p>
+                    @endif
                 </div>
                 <div class="flex items-center gap-3">
                     <a href="{{ route('admin.uploads.download', $upload) }}" class="text-xs font-bold text-[#0b9ed0] hover:underline">Download</a>

@@ -9,6 +9,13 @@ use Illuminate\Support\Facades\Log;
  * Wraps MTBC's Clover charge gateway (a direct card-charge API — no client-side tokenization
  * step). Card data reaches this service only for the single request that charges it; nothing
  * about the card is retained here or returned back to the caller beyond a transaction id.
+ *
+ * Confirmed via this gateway's own published OpenAPI spec (qa-webservices.mtbc.com/Clover_Api/
+ * swagger/v1/swagger.json) plus live sandbox testing: it has no save-and-reuse/vaulting capability
+ * at all — its only two routes (Create_Charge, Create_Charge_Response) share one closed request
+ * schema (additionalProperties: false) with no source/token/customer field of any kind, and
+ * `intent`/`stored_credentials`/`source`/`capture` are all silently ignored if sent. See plan.md
+ * "Phase 2: Free trial checkout" for the free-trial save-and-recharge design this rules out.
  */
 class CloverChargeService
 {

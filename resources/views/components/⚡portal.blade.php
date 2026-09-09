@@ -149,7 +149,7 @@ new class extends Component
     #[Computed]
     public function discountAmount(): float
     {
-        if (! $this->selectedPackage || ! $this->appliedDiscountCode) {
+        if (! $this->selectedPackage || ! $this->appliedDiscountCode || $this->appliedDiscountCode->type !== DiscountType::Percentage) {
             return 0.0;
         }
 
@@ -595,6 +595,12 @@ new class extends Component
 
         abort_unless($document->order_id === $this->dashboardOrderId, 403);
 
+        if ($document->order->blockedFromAiGeneration()) {
+            $this->addError('payment', 'Your trial has ended. Please subscribe to continue using AI document generation.');
+
+            return;
+        }
+
         GenerateComplianceDocument::dispatch($document->order, $document->document_type, $document->oshaLocation, $document->intakeUpload);
 
         ActivityLog::record(
@@ -627,8 +633,10 @@ new class extends Component
             return;
         }
 
-        if ($discountCode->type !== DiscountType::Percentage) {
-            $this->addError('discountCodeInput', "Free trial codes aren't available at checkout yet — please contact us.");
+        // Free trial checkout is not implemented yet — see plan.md "Phase 2: Free trial checkout"
+        // for the design and everything learned about which payment gateway can support it.
+        if ($discountCode->type === DiscountType::FreeTrial) {
+            $this->addError('discountCodeInput', 'Free trial checkout is not available yet. Please check back soon.');
 
             return;
         }
@@ -1130,6 +1138,12 @@ new class extends Component
 
         $this->resetErrorBag();
 
+        if ($this->batchOrders->contains(fn ($o) => $o->blockedFromAiGeneration())) {
+            $this->addError('payment', 'Your trial has ended. Please subscribe to continue using AI document generation.');
+
+            return;
+        }
+
         $missingRequiredFile = false;
 
         // Every questionnaire the client downloaded (in addition to any statically required
@@ -1264,6 +1278,12 @@ new class extends Component
         abort_unless(auth()->check(), 403);
 
         $this->resetErrorBag();
+
+        if ($this->batchOrders->contains(fn ($o) => $o->blockedFromAiGeneration())) {
+            $this->addError('payment', 'Your trial has ended. Please subscribe to continue using AI document generation.');
+
+            return;
+        }
 
         $rules = $this->profileRules();
         $rules['intakeMethod'] = 'required|in:download,upload_for_review';
@@ -1627,7 +1647,9 @@ $progressPct = ($milestone / 4) * 100;
         </div>
         @endauth
 
-        <div x-data="{ cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false, showTerms: false, termsAccepted: false }"
+        <div x-data="{
+                cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false, showTerms: false, termsAccepted: false,
+            }"
             class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
             <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
             <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved or
@@ -1683,6 +1705,8 @@ $progressPct = ($milestone / 4) * 100;
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('cardCvc') <p x-show="!cardCvcValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span class="text-red-500">*</span></label>
                     <input wire:model.live="billingAddress1" type="text" placeholder="7 Clyde Road"
@@ -2329,6 +2353,13 @@ $progressPct = ($milestone / 4) * 100;
             <span wire:loading.inline-flex wire:target="editProfile" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
         </button>
     </div>
+
+    @if($this->currentOrder?->blockedFromAiGeneration())
+    <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        Your free trial ended without a subscription — AI document generation is no longer available for this
+        practice. Contact us to resubscribe.
+    </div>
+    @endif
 
     {{-- Tabs --}}
     <div class="flex gap-1 border-b border-[#dbe4ee]">
