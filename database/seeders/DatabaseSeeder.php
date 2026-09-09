@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(PackageSeeder::class);
+        $this->call(QuestionnaireSeeder::class);
 
         // Admin user for local development
         User::factory()->create([

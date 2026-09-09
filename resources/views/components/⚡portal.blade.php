@@ -969,6 +969,12 @@ new class extends Component
             }
 
             Auth::login($user);
+
+            // The layout's account menu (<livewire:header-account-menu />) lives outside this
+            // component and was rendered while the visitor was still a guest — nothing else
+            // prompts it to notice this mid-request login, so it'd otherwise keep showing "Login"
+            // until the next full page load.
+            $this->dispatch('user-logged-in');
         }
 
         $batchId = (string) Str::ulid();
@@ -1481,7 +1487,8 @@ $progressPct = ($milestone / 4) * 100;
             @if($heroPackages->isNotEmpty())
             <div class="bg-white/92 rounded-[1.25rem] p-4 min-w-48">
                 <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
-                <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal, $heroTotal == floor($heroTotal) ? 0 : 2) }}</div>
+                <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal, $heroTotal ==
+                    floor($heroTotal) ? 0 : 2) }}</div>
                 <div class="text-empower-muted text-xs">per provider / year</div>
                 <div class="text-empower-muted text-xs mt-1">
                     {{ $heroPackages->pluck('name')->implode(' + ') }}
@@ -1508,15 +1515,18 @@ $progressPct = ($milestone / 4) * 100;
                 @endphp
                 <div class="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[4.5rem] {{ $reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}"
                     @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" wire:target="goToStep({{ $n }})"
-                        wire:loading.class="opacity-50" wire:target="goToStep({{ $n }})" @endif>
+                    wire:loading.class="opacity-50" wire:target="goToStep({{ $n }})" @endif>
                     <div
                         class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
                         {{ $isActive ? 'bg-[#12304f] text-white' : ($isDone ? 'bg-[#d7f3ea] text-[#117a51]' : 'bg-[#edf2f7] text-[#5d6e7f]') }}">
                         @if($reachable && !$isActive)
-                            <span wire:loading.remove wire:target="goToStep({{ $n }})">@if($isDone && !$isActive) ✓ @else {{ $n }} @endif</span>
-                            <span wire:loading wire:target="goToStep({{ $n }})"><x-spinner class="h-3.5 w-3.5" /></span>
+                        <span wire:loading.remove wire:target="goToStep({{ $n }})">@if($isDone && !$isActive) ✓ @else {{
+                            $n }} @endif</span>
+                        <span wire:loading wire:target="goToStep({{ $n }})">
+                            <x-spinner class="h-3.5 w-3.5" />
+                        </span>
                         @else
-                            @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
+                        @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
                         @endif
                     </div>
                     <div class="text-[0.78rem] text-center leading-tight max-w-[6rem]
@@ -1580,7 +1590,8 @@ $progressPct = ($milestone / 4) * 100;
                 <div>
                     <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
                     @php $annualPrice = (float) $this->selectedPackage->annual_price; @endphp
-                    <p class="text-xs text-empower-muted">${{ number_format($annualPrice, $annualPrice == floor($annualPrice) ? 0 : 2) }} /
+                    <p class="text-xs text-empower-muted">${{ number_format($annualPrice, $annualPrice ==
+                        floor($annualPrice) ? 0 : 2) }} /
                         year</p>
                 </div>
                 <a href="{{ route('home') }}#pricing"
@@ -1589,25 +1600,31 @@ $progressPct = ($milestone / 4) * 100;
 
             <div class="py-2.5 border-b border-[#eef2f6] mb-2">
                 @if(! $this->appliedDiscountCode)
-                    <div class="flex gap-2">
-                        <input wire:model="discountCodeInput" type="text" placeholder="Discount code"
-                            class="flex-1 min-w-0 rounded-lg border border-empower-border bg-[#f8fbfd] px-3 py-2 text-sm uppercase text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        <button type="button" wire:click="applyDiscountCode" wire:target="applyDiscountCode"
-                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="applyDiscountCode"
-                            class="rounded-lg border border-empower-border px-3.5 py-2 text-xs font-bold text-[#173045] hover:bg-page transition-colors">
-                            <span wire:loading.remove wire:target="applyDiscountCode">Apply</span>
-                            <span wire:loading wire:target="applyDiscountCode"><x-spinner class="h-3.5 w-3.5" /></span>
-                        </button>
-                    </div>
-                    @error('discountCodeInput') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                <div class="flex gap-2">
+                    <input wire:model="discountCodeInput" type="text" placeholder="Discount code"
+                        class="flex-1 min-w-0 rounded-lg border border-empower-border bg-[#f8fbfd] px-3 py-2 text-sm uppercase text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <button type="button" wire:click="applyDiscountCode" wire:target="applyDiscountCode"
+                        wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                        wire:target="applyDiscountCode"
+                        class="rounded-lg border border-empower-border px-3.5 py-2 text-xs font-bold text-[#173045] hover:bg-page transition-colors">
+                        <span wire:loading.remove wire:target="applyDiscountCode">Apply</span>
+                        <span wire:loading wire:target="applyDiscountCode">
+                            <x-spinner class="h-3.5 w-3.5" />
+                        </span>
+                    </button>
+                </div>
+                @error('discountCodeInput') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 @else
-                    <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $this->appliedDiscountCode->code }})</span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format($this->discountAmount, 2) }}</span>
-                            <button type="button" wire:click="removeDiscountCode" class="text-xs text-empower-muted hover:underline">Remove</button>
-                        </div>
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $this->appliedDiscountCode->code
+                        }})</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format($this->discountAmount, 2)
+                            }}</span>
+                        <button type="button" wire:click="removeDiscountCode"
+                            class="text-xs text-empower-muted hover:underline">Remove</button>
                     </div>
+                </div>
                 @endif
             </div>
 
@@ -1654,28 +1671,36 @@ $progressPct = ($milestone / 4) * 100;
             <h3 class="text-sm font-semibold text-navy mb-1">Payment Details</h3>
             <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved or
                 logged by this form.</p>
-            @error('payment') <p class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
-            @error('termsAccepted') <p x-show="!termsAccepted" class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{ $message }}</p> @enderror
+            @error('payment') <p
+                class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{
+                $message }}</p> @enderror
+            @error('termsAccepted') <p x-show="!termsAccepted"
+                class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{{
+                $message }}</p> @enderror
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span
+                            class="text-red-500">*</span></label>
                     <input x-ref="cardName" type="text" placeholder="Jane Provider"
                         x-on:input="cardNameValid = $el.value.trim().length > 0"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardName') <p x-show="!cardNameValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardName') <p x-show="!cardNameValid" class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span class="text-red-500">*</span></label>
-                    <input x-ref="cardNumber" type="text" placeholder="4242424242424242"
-                        inputmode="numeric" maxlength="16"
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span
+                            class="text-red-500">*</span></label>
+                    <input x-ref="cardNumber" type="text" placeholder="4242424242424242" inputmode="numeric"
+                        maxlength="16"
                         x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 16); cardNumberValid = $el.value.length === 16"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardNumber') <p x-show="!cardNumberValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardNumber') <p x-show="!cardNumberValid" class="mt-1 text-xs text-red-600">{{ $message }}
+                    </p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span class="text-red-500">*</span></label>
-                    <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric"
-                        maxlength="5"
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span
+                            class="text-red-500">*</span></label>
+                    <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
                         x-on:input="
                             let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4);
                             let deleting = ($event.inputType || '').startsWith('delete');
@@ -1692,43 +1717,50 @@ $progressPct = ($milestone / 4) * 100;
                             } else {
                                 cardExpiryError = '';
                             }
-                        "
-                        x-bind:class="cardExpiryError ? 'border-red-400' : 'border-empower-border'"
+                        " x-bind:class="cardExpiryError ? 'border-red-400' : 'border-empower-border'"
                         class="w-full rounded-xl border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     <p x-show="cardExpiryError" x-text="cardExpiryError" class="mt-1 text-xs text-red-600"></p>
-                    @error('cardExpiry') <p x-show="!cardExpiryError" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardExpiry') <p x-show="!cardExpiryError" class="mt-1 text-xs text-red-600">{{ $message }}
+                    </p> @enderror
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC <span
+                            class="text-red-500">*</span></label>
                     <input x-ref="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
                         x-on:input="$el.value = $el.value.replace(/[^0-9]/g, ''); cardCvcValid = $el.value.length >= 3 && $el.value.length <= 4"
                         class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('cardCvc') <p x-show="!cardCvcValid" class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @error('cardCvc') <p x-show="!cardCvcValid" class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span
+                            class="text-red-500">*</span></label>
                     <input wire:model.live="billingAddress1" type="text" placeholder="7 Clyde Road"
                         class="w-full rounded-xl border {{ $errors->has('billingAddress1') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('billingAddress1') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2 grid grid-cols-3 gap-3">
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span
+                                class="text-red-500">*</span></label>
                         <input wire:model.live="billingCity" type="text" placeholder="Somerset"
                             class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span
+                                class="text-red-500">*</span></label>
                         <input wire:model.live="billingState" type="text" placeholder="NJ or New Jersey" maxlength="50"
                             class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span class="text-red-500">*</span></label>
-                        <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric" maxlength="10"
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span
+                                class="text-red-500">*</span></label>
+                        <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric"
+                            maxlength="10"
                             class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
@@ -1739,15 +1771,22 @@ $progressPct = ($milestone / 4) * 100;
                 <button
                     x-on:click="$wire.validatePayment($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then((valid) => { if (valid) showTerms = true })"
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="validatePayment">
-                    <span wire:loading.remove wire:target="validatePayment">Pay ${{ number_format($this->discountedTotal, 2) }}
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                    wire:target="validatePayment">
+                    <span wire:loading.remove wire:target="validatePayment">Pay ${{
+                        number_format($this->discountedTotal, 2) }}
                         &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="validatePayment" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Checking…</span>
+                    <span wire:loading.inline-flex wire:target="validatePayment"
+                        class="inline-flex items-center gap-1.5">
+                        <x-spinner class="h-3.5 w-3.5" /> Checking…
+                    </span>
                 </button>
             </div>
 
-            <div x-show="showTerms" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                <div class="w-full max-w-md bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="showTerms = false">
+            <div x-show="showTerms" x-cloak
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                <div class="w-full max-w-md bg-white rounded-[1.25rem] shadow-xl p-6"
+                    x-on:click.outside="showTerms = false">
                     <h3 class="text-base font-semibold text-navy mb-2">Review &amp; Accept Terms &amp; Conditions</h3>
                     <p class="text-sm text-empower-muted mb-4">Before we process your payment, please confirm you agree
                         to our Terms &amp; Conditions and the CareCloud Master Services Agreement (MSA).</p>
@@ -1770,9 +1809,12 @@ $progressPct = ($milestone / 4) * 100;
                             :disabled="!termsAccepted"
                             :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
                             class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
-                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="pay">
+                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                            wire:target="pay">
                             <span wire:loading.remove wire:target="pay">I Agree — Pay &rarr;</span>
-                            <span wire:loading.inline-flex wire:target="pay" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Processing…</span>
+                            <span wire:loading.inline-flex wire:target="pay" class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Processing…
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -1785,7 +1827,9 @@ $progressPct = ($milestone / 4) * 100;
                 wire:loading.attr="disabled" wire:target="goToStep(2)"
                 class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 <span wire:loading.remove wire:target="goToStep(2)">Continue to Intake Form &rarr;</span>
-                <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
+                <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5">
+                    <x-spinner class="h-3.5 w-3.5" /> Loading…
+                </span>
             </button>
         </div>
     </div>
@@ -1859,7 +1903,9 @@ $progressPct = ($milestone / 4) * 100;
 
             <div class="sm:col-span-2">
                 <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice Address <span
-                        class="text-red-500">*</span> <span class="text-xs font-normal text-[#6b7f93]">(Prefilled from your billing address — feel free to update it if your practice address is different.)</span></label>
+                        class="text-red-500">*</span> <span class="text-xs font-normal text-[#6b7f93]">(Prefilled from
+                        your billing address — feel free to update it if your practice address is
+                        different.)</span></label>
                 <input wire:model.live="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
                     class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
@@ -1904,7 +1950,8 @@ $progressPct = ($milestone / 4) * 100;
             <div class="flex gap-3">
                 <label
                     class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'upload_for_review' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" name="intakeMethod" wire:click="setIntakeMethod('upload_for_review')" @checked($intakeMethod === 'upload_for_review') class="mt-0.5">
+                    <input type="radio" name="intakeMethod" wire:click="setIntakeMethod('upload_for_review')"
+                        @checked($intakeMethod==='upload_for_review' ) class="mt-0.5">
                     <span>
                         <span class="block text-sm font-semibold text-[#12304f]">Upload your existing documents for
                             review</span>
@@ -1914,7 +1961,9 @@ $progressPct = ($milestone / 4) * 100;
                 </label>
                 <label
                     class="flex-1 flex items-start gap-2.5 rounded-xl border {{ $intakeMethod === 'download' ? 'border-[#12304f] bg-[#f0f4f8]' : 'border-[#dbe4ee] bg-[#f8fbfd]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" name="intakeMethod" x-ref="downloadRadio" x-on:click.prevent="confirmDownload = true" @checked($intakeMethod === 'download') class="mt-0.5">
+                    <input type="radio" name="intakeMethod" x-ref="downloadRadio"
+                        x-on:click.prevent="confirmDownload = true" @checked($intakeMethod==='download' )
+                        class="mt-0.5">
                     <span>
                         <span class="block text-sm font-semibold text-[#12304f]">Download our questionnaires</span>
                         <span class="block text-xs text-[#5d6e7f]">Fill out our compliance questionnaires and upload
@@ -1926,9 +1975,13 @@ $progressPct = ($milestone / 4) * 100;
 
             <div x-show="confirmDownload" x-cloak
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmDownload = false">
-                    <h3 class="text-base font-semibold text-[#12304f] mb-2">Are you sure you don't have anything ready to upload?</h3>
-                    <p class="text-sm text-[#5d6e7f] mb-5">If you already have a compliance document, choose "Upload your existing documents for review" instead — it's usually faster than filling out a blank questionnaire.</p>
+                <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6"
+                    x-on:click.outside="confirmDownload = false">
+                    <h3 class="text-base font-semibold text-[#12304f] mb-2">Are you sure you don't have anything ready
+                        to upload?</h3>
+                    <p class="text-sm text-[#5d6e7f] mb-5">If you already have a compliance document, choose "Upload
+                        your existing documents for review" instead — it's usually faster than filling out a blank
+                        questionnaire.</p>
                     <div class="flex justify-end gap-3">
                         <button type="button" x-on:click="confirmDownload = false"
                             class="rounded-lg border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
@@ -1984,11 +2037,14 @@ $progressPct = ($milestone / 4) * 100;
                             <span
                                 class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#edf6ff] text-[#12304f] font-semibold truncate max-w-[80%]">&#10003;
                                 {{ $file->getClientOriginalName() }}</span>
-                            <button type="button" wire:click="removeReviewDocumentFile({{ $i }})" wire:target="removeReviewDocumentFile({{ $i }})"
-                                wire:loading.attr="disabled" wire:target="removeReviewDocumentFile({{ $i }})"
+                            <button type="button" wire:click="removeReviewDocumentFile({{ $i }})"
+                                wire:target="removeReviewDocumentFile({{ $i }})" wire:loading.attr="disabled"
+                                wire:target="removeReviewDocumentFile({{ $i }})"
                                 class="text-xs font-bold text-red-600 hover:underline flex-shrink-0">
                                 <span wire:loading.remove wire:target="removeReviewDocumentFile({{ $i }})">Remove</span>
-                                <span wire:loading wire:target="removeReviewDocumentFile({{ $i }})"><x-spinner class="h-3 w-3" /></span>
+                                <span wire:loading wire:target="removeReviewDocumentFile({{ $i }})">
+                                    <x-spinner class="h-3 w-3" />
+                                </span>
                             </button>
                         </li>
                         @endforeach
@@ -2109,29 +2165,40 @@ $progressPct = ($milestone / 4) * 100;
 
         <div class="flex justify-between">
             @if($editingProfile)
-            <button wire:click="cancelEditProfile" wire:target="cancelEditProfile" wire:loading.attr="disabled" wire:target="cancelEditProfile"
+            <button wire:click="cancelEditProfile" wire:target="cancelEditProfile" wire:loading.attr="disabled"
+                wire:target="cancelEditProfile"
                 class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
                 <span wire:loading.remove wire:target="cancelEditProfile">Cancel</span>
-                <span wire:loading wire:target="cancelEditProfile"><x-spinner class="h-3.5 w-3.5" /></span>
+                <span wire:loading wire:target="cancelEditProfile">
+                    <x-spinner class="h-3.5 w-3.5" />
+                </span>
             </button>
             @else
-            <button wire:click="goToStep(1)" wire:target="goToStep(1)" wire:loading.attr="disabled" wire:target="goToStep(1)"
+            <button wire:click="goToStep(1)" wire:target="goToStep(1)" wire:loading.attr="disabled"
+                wire:target="goToStep(1)"
                 class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
                 <span wire:loading.remove wire:target="goToStep(1)">&larr; Back</span>
-                <span wire:loading wire:target="goToStep(1)"><x-spinner class="h-3.5 w-3.5" /></span>
+                <span wire:loading wire:target="goToStep(1)">
+                    <x-spinner class="h-3.5 w-3.5" />
+                </span>
             </button>
             @endif
             @php $isReviewUpload = ! $editingProfile && $intakeMethod === 'upload_for_review'; @endphp
             @php $profileSubmitMethod = $isReviewUpload ? 'submitForReview' : 'saveProfile'; @endphp
-            <button wire:click="{{ $profileSubmitMethod }}" wire:target="{{ $profileSubmitMethod }}" @unless($isReviewUpload)
-                :disabled="!allRequiredDownloaded"
+            <button wire:click="{{ $profileSubmitMethod }}" wire:target="{{ $profileSubmitMethod }}"
+                @unless($isReviewUpload) :disabled="!allRequiredDownloaded"
                 :class="!allRequiredDownloaded ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#5bb2aa]'" @endunless
                 class="inline-flex items-center gap-1 rounded bg-[#009bde] px-5 py-2 text-sm font-bold text-[#0a2037] transition-colors"
-                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="{{ $profileSubmitMethod }}">
-                <span wire:loading.remove wire:target="{{ $profileSubmitMethod }}">{{ $editingProfile ? 'Save Changes' : ($isReviewUpload ? 'Submit Documents for
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                wire:target="{{ $profileSubmitMethod }}">
+                <span wire:loading.remove wire:target="{{ $profileSubmitMethod }}">{{ $editingProfile ? 'Save Changes' :
+                    ($isReviewUpload ? 'Submit Documents for
                     Review' : 'Submit Profile & Continue') }}
                     &rarr;</span>
-                <span wire:loading.inline-flex wire:target="{{ $profileSubmitMethod }}" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>
+                <span wire:loading.inline-flex wire:target="{{ $profileSubmitMethod }}"
+                    class="inline-flex items-center gap-1.5">
+                    <x-spinner class="h-3.5 w-3.5" /> Saving…
+                </span>
             </button>
         </div>
     </div>
@@ -2219,11 +2286,15 @@ $progressPct = ($milestone / 4) * 100;
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#edf6ff] text-[#12304f] text-sm font-semibold">
                             ✓ {{ $uploadedFile->getClientOriginalName() }}
                         </span>
-                        <button type="button" wire:click="removeQuestionnaireFile('{{ $uploadKey }}')" wire:target="removeQuestionnaireFile('{{ $uploadKey }}')"
-                            wire:loading.attr="disabled" wire:target="removeQuestionnaireFile('{{ $uploadKey }}')"
+                        <button type="button" wire:click="removeQuestionnaireFile('{{ $uploadKey }}')"
+                            wire:target="removeQuestionnaireFile('{{ $uploadKey }}')" wire:loading.attr="disabled"
+                            wire:target="removeQuestionnaireFile('{{ $uploadKey }}')"
                             class="text-xs font-bold text-red-600 hover:underline">
-                            <span wire:loading.remove wire:target="removeQuestionnaireFile('{{ $uploadKey }}')">Remove</span>
-                            <span wire:loading wire:target="removeQuestionnaireFile('{{ $uploadKey }}')"><x-spinner class="h-3 w-3" /></span>
+                            <span wire:loading.remove
+                                wire:target="removeQuestionnaireFile('{{ $uploadKey }}')">Remove</span>
+                            <span wire:loading wire:target="removeQuestionnaireFile('{{ $uploadKey }}')">
+                                <x-spinner class="h-3 w-3" />
+                            </span>
                         </button>
                     </div>
                     <div wire:loading wire:target="questionnaireFiles.{{ $uploadKey }}"
@@ -2241,9 +2312,12 @@ $progressPct = ($milestone / 4) * 100;
         <div class="flex justify-end">
             <button wire:click="submitIntake" wire:target="submitIntake"
                 class="inline-flex items-center gap-1 rounded bg-[#009bde] px-5 py-2 text-sm font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors"
-                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="submitIntake">
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                wire:target="submitIntake">
                 <span wire:loading.remove wire:target="submitIntake">Submit for Review &rarr;</span>
-                <span wire:loading.inline-flex wire:target="submitIntake" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Submitting…</span>
+                <span wire:loading.inline-flex wire:target="submitIntake" class="inline-flex items-center gap-1.5">
+                    <x-spinner class="h-3.5 w-3.5" /> Submitting…
+                </span>
             </button>
         </div>
     </div>
@@ -2287,11 +2361,16 @@ $progressPct = ($milestone / 4) * 100;
                     <p class="font-semibold {{ $textClass }}">{{ $order->package?->name }} &middot; {{ $label }}</p>
                     @if($status === IntakeSubmissionStatus::Rejected && $order->intakeSubmission?->reviewer_notes)
                     <p class="text-sm text-[#881337] mt-1">{{ $order->intakeSubmission->reviewer_notes }}</p>
-                    <button wire:click="reuploadForOrder({{ $order->id }})" wire:target="reuploadForOrder({{ $order->id }})"
-                        wire:loading.attr="disabled" wire:target="reuploadForOrder({{ $order->id }})"
+                    <button wire:click="reuploadForOrder({{ $order->id }})"
+                        wire:target="reuploadForOrder({{ $order->id }})" wire:loading.attr="disabled"
+                        wire:target="reuploadForOrder({{ $order->id }})"
                         class="mt-2 inline-flex items-center gap-1 rounded bg-[#9f1239] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#881337] transition-colors">
-                        <span wire:loading.remove wire:target="reuploadForOrder({{ $order->id }})">Re-upload &rarr;</span>
-                        <span wire:loading.inline-flex wire:target="reuploadForOrder({{ $order->id }})" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
+                        <span wire:loading.remove wire:target="reuploadForOrder({{ $order->id }})">Re-upload
+                            &rarr;</span>
+                        <span wire:loading.inline-flex wire:target="reuploadForOrder({{ $order->id }})"
+                            class="inline-flex items-center gap-1.5">
+                            <x-spinner class="h-3.5 w-3.5" /> Loading…
+                        </span>
                     </button>
                     @elseif(! $status)
                     <p class="text-sm text-[#5d6e7f]">No submission found.</p>
@@ -2309,10 +2388,13 @@ $progressPct = ($milestone / 4) * 100;
         </div>
 
         @if($milestone >= 4)
-        <button wire:click="goToStep(5)" wire:target="goToStep(5)" wire:loading.attr="disabled" wire:target="goToStep(5)"
+        <button wire:click="goToStep(5)" wire:target="goToStep(5)" wire:loading.attr="disabled"
+            wire:target="goToStep(5)"
             class="mt-4 inline-flex items-center gap-1 rounded bg-[#009bde] px-4 py-1.5 text-xs font-bold text-[#0a2037] hover:bg-[#5bb2aa] transition-colors">
             <span wire:loading.remove wire:target="goToStep(5)">Go to Dashboard &rarr;</span>
-            <span wire:loading.inline-flex wire:target="goToStep(5)" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
+            <span wire:loading.inline-flex wire:target="goToStep(5)" class="inline-flex items-center gap-1.5">
+                <x-spinner class="h-3.5 w-3.5" /> Loading…
+            </span>
         </button>
         @endif
     </div>
@@ -2347,10 +2429,13 @@ $progressPct = ($milestone / 4) * 100;
                 &middot; Renews {{ $this->practiceEffectiveDate?->copy()->addYear()->format('M j, Y') }}
             </div>
         </div>
-        <button wire:click="editProfile" wire:target="editProfile" wire:loading.attr="disabled" wire:target="editProfile"
+        <button wire:click="editProfile" wire:target="editProfile" wire:loading.attr="disabled"
+            wire:target="editProfile"
             class="rounded border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#12304f] hover:bg-[#f4f7fb] transition-colors">
             <span wire:loading.remove wire:target="editProfile">&#9998; Update Practice Info</span>
-            <span wire:loading.inline-flex wire:target="editProfile" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
+            <span wire:loading.inline-flex wire:target="editProfile" class="inline-flex items-center gap-1.5">
+                <x-spinner class="h-3.5 w-3.5" /> Loading…
+            </span>
         </button>
     </div>
 
@@ -2368,7 +2453,9 @@ $progressPct = ($milestone / 4) * 100;
             wire:loading.attr="disabled" wire:target="$set('dashboardTab', '{{ $tabKey }}')"
             class="px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors {{ $dashboardTab === $tabKey ? 'border-[#12304f] text-[#12304f]' : 'border-transparent text-[#5d6e7f] hover:text-[#12304f]' }}">
             <span wire:loading.remove wire:target="$set('dashboardTab', '{{ $tabKey }}')">{{ $tabLabel }}</span>
-            <span wire:loading wire:target="$set('dashboardTab', '{{ $tabKey }}')"><x-spinner class="h-3.5 w-3.5" /></span>
+            <span wire:loading wire:target="$set('dashboardTab', '{{ $tabKey }}')">
+                <x-spinner class="h-3.5 w-3.5" />
+            </span>
         </button>
         @endforeach
     </div>
@@ -2381,7 +2468,9 @@ $progressPct = ($milestone / 4) * 100;
             wire:loading.attr="disabled" wire:target="switchOrder({{ $order->id }})"
             class="inline-flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors {{ $this->dashboardOrderId === $order->id ? 'bg-navy text-white' : 'bg-white border border-empower-border text-empower-muted hover:border-navy/40' }}">
             <span wire:loading.remove wire:target="switchOrder({{ $order->id }})">{{ $order->package?->name }}</span>
-            <span wire:loading wire:target="switchOrder({{ $order->id }})"><x-spinner class="h-3 w-3" /></span>
+            <span wire:loading wire:target="switchOrder({{ $order->id }})">
+                <x-spinner class="h-3 w-3" />
+            </span>
         </button>
         @endforeach
     </div>
@@ -2446,11 +2535,14 @@ $progressPct = ($milestone / 4) * 100;
                     @if($doc?->is_stale)
                     <button wire:click="regenerateDocument({{ $doc->id }})"
                         wire:confirm="Regenerate this document with your latest details?"
+                        wire:target="regenerateDocument({{ $doc->id }})" wire:loading.attr="disabled"
                         wire:target="regenerateDocument({{ $doc->id }})"
-                        wire:loading.attr="disabled" wire:target="regenerateDocument({{ $doc->id }})"
                         class="text-xs font-bold rounded bg-[#12304f] text-white px-3 py-1.5 hover:bg-[#0a2037] transition-colors">
                         <span wire:loading.remove wire:target="regenerateDocument({{ $doc->id }})">Regenerate</span>
-                        <span wire:loading.inline-flex wire:target="regenerateDocument({{ $doc->id }})" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Regenerating…</span>
+                        <span wire:loading.inline-flex wire:target="regenerateDocument({{ $doc->id }})"
+                            class="inline-flex items-center gap-1.5">
+                            <x-spinner class="h-3.5 w-3.5" /> Regenerating…
+                        </span>
                     </button>
                     @elseif($doc?->isReady() && $doc->delivery_source === \App\Enums\DocumentDeliverySource::Custom)
                     <a href="{{ route('documents.download', $doc) }}"
@@ -2474,7 +2566,7 @@ $progressPct = ($milestone / 4) * 100;
         </div>
 
         @if(! empty($this->currentOrder?->package?->features))
-        <p class="text-xs text-[#5d6e7f] mt-3"><strong>Services included:</strong> {{ implode(' &middot; ',
+        <p class="text-xs text-[#5d6e7f] mt-3"><strong>Services included:</strong> {{ implode(' - ',
             $this->currentOrder->package->features) }}</p>
         @endif
         <p class="text-xs text-[#5d6e7f] mt-2">For any queries, <a href="{{ route('contact') }}" wire:navigate
@@ -2512,7 +2604,8 @@ $progressPct = ($milestone / 4) * 100;
         <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] last:border-b-0">
             <span class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</span>
             @php $amountPaid = (float) $order->amount_paid; @endphp
-            <span class="text-sm text-[#5d6e7f]">${{ number_format($amountPaid, $amountPaid == floor($amountPaid) ? 0 : 2) }}</span>
+            <span class="text-sm text-[#5d6e7f]">${{ number_format($amountPaid, $amountPaid == floor($amountPaid) ? 0 :
+                2) }}</span>
             <span class="text-xs text-[#5d6e7f]">{{ $order->paid_at?->format('M j, Y') }}</span>
         </div>
         @empty
@@ -2541,10 +2634,13 @@ $progressPct = ($milestone / 4) * 100;
     @endif
 
     <div class="flex justify-start">
-        <button wire:click="goToStep(4)" wire:target="goToStep(4)" wire:loading.attr="disabled" wire:target="goToStep(4)"
+        <button wire:click="goToStep(4)" wire:target="goToStep(4)" wire:loading.attr="disabled"
+            wire:target="goToStep(4)"
             class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
             <span wire:loading.remove wire:target="goToStep(4)">Back to Review</span>
-            <span wire:loading.inline-flex wire:target="goToStep(4)" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading…</span>
+            <span wire:loading.inline-flex wire:target="goToStep(4)" class="inline-flex items-center gap-1.5">
+                <x-spinner class="h-3.5 w-3.5" /> Loading…
+            </span>
         </button>
     </div>
     @endif

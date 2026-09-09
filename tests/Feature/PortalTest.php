@@ -25,6 +25,7 @@ use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
 use App\Support\Questionnaires;
+use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -46,6 +47,7 @@ class PortalTest extends TestCase
         parent::setUp();
         Storage::fake('local');
         Storage::fake('public');
+        $this->seed(QuestionnaireSeeder::class);
     }
 
     /**

@@ -5,12 +5,14 @@ namespace App\Jobs;
 use App\Enums\AiExtractionStatus;
 use App\Enums\DocumentType;
 use App\Enums\IntakeUploadType;
+use App\Models\AiUsageLog;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
 use App\Support\ManualQuestionSets;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -138,6 +140,8 @@ class ProcessIntakeUpload implements ShouldQueue
             ]],
         ]);
 
+        $this->logAiUsage('intake_extraction_vision', $response);
+
         if ($response->failed()) {
             throw new \RuntimeException('OpenAI API error: '.$response->status());
         }
@@ -159,6 +163,8 @@ class ProcessIntakeUpload implements ShouldQueue
                 'content' => $this->buildPrompt()."\n\nDocument text:\n".$text,
             ]],
         ]);
+
+        $this->logAiUsage('intake_extraction_docx', $response);
 
         if ($response->failed()) {
             throw new \RuntimeException('OpenAI API error: '.$response->status());
@@ -188,6 +194,8 @@ class ProcessIntakeUpload implements ShouldQueue
                 ],
             ]],
         ]);
+
+        $this->logAiUsage('document_polish_vision', $response);
 
         if ($response->failed()) {
             throw new \RuntimeException('OpenAI API error: '.$response->status());
@@ -219,6 +227,8 @@ class ProcessIntakeUpload implements ShouldQueue
                 'content' => $this->buildPolishPrompt($extracted['images'] !== [])."\n\nDocument content:\n".$extracted['text'],
             ]],
         ]);
+
+        $this->logAiUsage('document_polish_docx', $response);
 
         if ($response->failed()) {
             throw new \RuntimeException('OpenAI API error: '.$response->status());
@@ -305,6 +315,20 @@ PROMPT;
     private function openaiUrl(): string
     {
         return 'https://api.openai.com/v1/chat/completions';
+    }
+
+    private function logAiUsage(string $purpose, Response $response): void
+    {
+        AiUsageLog::record(
+            purpose: $purpose,
+            success: $response->successful(),
+            model: $response->json('model'),
+            promptTokens: $response->json('usage.prompt_tokens'),
+            completionTokens: $response->json('usage.completion_tokens'),
+            totalTokens: $response->json('usage.total_tokens'),
+            intakeUpload: $this->upload,
+            message: $response->failed() ? 'OpenAI API error: '.$response->status() : null,
+        );
     }
 
     private function extractText(PhpWord $phpWord): string
@@ -448,6 +472,8 @@ PROMPT;
                 'content' => $this->buildVerificationPrompt($data),
             ]],
         ]);
+
+        $this->logAiUsage('intake_verification', $response);
 
         if ($response->failed()) {
             Log::warning('AI verification pass failed, using unverified extraction', [

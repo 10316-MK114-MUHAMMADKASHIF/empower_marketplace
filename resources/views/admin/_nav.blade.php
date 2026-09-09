@@ -6,7 +6,7 @@
     'documents' => ['admin.documents', 'Documents'],
     'packages' => ['admin.packages', 'Packages'],
     'discount-codes' => ['admin.discount-codes', 'Discount Codes'],
-    'questionnaire-settings' => ['admin.questionnaire-settings', 'Questionnaires'],
+    'questionnaires' => ['admin.questionnaires', 'Questionnaires'],
     'leads' => ['admin.leads', 'Leads'],
     'users' => ['admin.users', 'Users'],
     'orders' => ['admin.orders', 'Orders'],

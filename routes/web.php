@@ -11,6 +11,7 @@ use App\Models\Lead;
 use App\Models\Order;
 use App\Models\Package;
 use App\Models\PaymentLog;
+use App\Models\Questionnaire;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -74,8 +75,10 @@ Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function ()
         ->name('discount-codes.send');
     Route::get('/intake-uploads/{upload}/download', [IntakeUploadDownloadController::class, 'show'])
         ->name('uploads.download');
-    Route::get('/questionnaire-settings', fn () => view('admin.questionnaire-settings'))
-        ->name('questionnaire-settings');
+    Route::get('/questionnaires', fn () => view('admin.questionnaires'))->name('questionnaires');
+    Route::get('/questionnaires/create', fn () => view('admin.questionnaires-form'))->name('questionnaires.create');
+    Route::get('/questionnaires/{questionnaire}/edit', fn (Questionnaire $questionnaire) => view('admin.questionnaires-form', compact('questionnaire')))
+        ->name('questionnaires.edit');
     Route::get('/users', fn () => view('admin.users'))->name('users');
     Route::get('/users/create', fn () => view('admin.users-form'))->name('users.create');
     Route::get('/users/{user}/edit', fn (User $user) => view('admin.users-form', compact('user')))

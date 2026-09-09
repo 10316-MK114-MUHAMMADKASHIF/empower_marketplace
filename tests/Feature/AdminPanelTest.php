@@ -16,6 +16,7 @@ use App\Mail\ClientDocumentsApprovedMail;
 use App\Mail\ClientSubmissionStatusMail;
 use App\Mail\DiscountCodeSharedMail;
 use App\Models\ActivityLog;
+use App\Models\AiUsageLog;
 use App\Models\DiscountCode;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -25,7 +26,9 @@ use App\Models\Order;
 use App\Models\Package;
 use App\Models\PaymentLog;
 use App\Models\Practice;
+use App\Models\Questionnaire;
 use App\Models\User;
+use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
@@ -33,6 +36,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpWord\IOFactory;
+use PhpOffice\PhpWord\PhpWord;
 use Tests\TestCase;
 
 class AdminPanelTest extends TestCase
@@ -43,6 +48,9 @@ class AdminPanelTest extends TestCase
     {
         parent::setUp();
         Storage::fake('local');
+        Storage::fake('public');
+        Storage::fake('manual_templates');
+        $this->seed(QuestionnaireSeeder::class);
     }
 
     private function makeSubmission(IntakeSubmissionStatus $status = IntakeSubmissionStatus::Submitted): IntakeSubmission
@@ -85,6 +93,25 @@ class AdminPanelTest extends TestCase
             ->assertOk()
             ->assertSee('Pending Review')
             ->assertSee(route('admin.orders'), false);
+    }
+
+    public function test_dashboard_shows_openai_usage_for_the_last_14_days_only(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        AiUsageLog::factory()->count(3)->create(['created_at' => now()->subDays(2)]);
+        AiUsageLog::factory()->count(2)->create(['created_at' => now()->subDays(5)]);
+        // Outside the 14-day window — must not be counted.
+        AiUsageLog::factory()->count(10)->create(['created_at' => now()->subDays(20)]);
+
+        $response = $this->withoutVite()->actingAs($admin)->get(route('admin.dashboard'));
+
+        $response->assertOk()->assertSee('OpenAI Usage');
+
+        $this->assertMatchesRegularExpression(
+            '/text-2xl font-extrabold text-navy">5<\/div>\s*<div class="text-xs text-empower-muted">total calls/',
+            $response->getContent(),
+        );
     }
 
     // ── Submissions ─────────────────────────────────────────────────────────
@@ -1778,29 +1805,29 @@ class AdminPanelTest extends TestCase
         $this->actingAs($client)->get(route('admin.uploads.download', $upload))->assertRedirect(route('login'));
     }
 
-    // ── Questionnaire settings ──────────────────────────────────────────────
+    // ── Questionnaires ───────────────────────────────────────────────────────
 
-    public function test_guest_cannot_access_the_questionnaire_settings_page(): void
+    public function test_guest_cannot_access_the_questionnaires_page(): void
     {
-        $this->withoutVite()->get(route('admin.questionnaire-settings'))
+        $this->withoutVite()->get(route('admin.questionnaires'))
             ->assertRedirect(route('login'))
             ->assertSessionHas('status', 'Please log in to access this page.');
     }
 
-    public function test_client_cannot_access_the_questionnaire_settings_page(): void
+    public function test_client_cannot_access_the_questionnaires_page(): void
     {
         $client = User::factory()->create(['role' => UserRole::Client]);
 
-        $this->withoutVite()->actingAs($client)->get(route('admin.questionnaire-settings'))
+        $this->withoutVite()->actingAs($client)->get(route('admin.questionnaires'))
             ->assertRedirect(route('login'))
             ->assertSessionHas('status', 'Please log in to access this page.');
     }
 
-    public function test_admin_can_view_the_questionnaire_settings_list_with_default_visibility(): void
+    public function test_admin_can_view_the_questionnaires_list_with_default_visibility(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
 
-        $this->withoutVite()->actingAs($admin)->get(route('admin.questionnaire-settings'))
+        $this->withoutVite()->actingAs($admin)->get(route('admin.questionnaires'))
             ->assertOk()
             ->assertSee('Compliance & Ethics Questionnaire')
             ->assertSee('HIPAA Business Associate Questionnaire')
@@ -1812,12 +1839,13 @@ class AdminPanelTest extends TestCase
     public function test_admin_can_hide_a_questionnaire_and_it_writes_an_activity_log(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail();
 
         Livewire::actingAs($admin)
-            ->test('admin.questionnaire-setting-list')
-            ->call('toggleVisibility', IntakeUploadType::HipaaPrivacyQuestionnaire->value);
+            ->test('admin.questionnaire-list')
+            ->call('toggleVisibility', $questionnaire->id);
 
-        $this->assertDatabaseHas('questionnaire_settings', [
+        $this->assertDatabaseHas('questionnaires', [
             'upload_type' => 'hipaa_privacy_questionnaire',
             'is_visible' => false,
         ]);
@@ -1827,12 +1855,13 @@ class AdminPanelTest extends TestCase
     public function test_toggling_a_questionnaire_twice_returns_it_to_the_default_state(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail();
 
-        $component = Livewire::actingAs($admin)->test('admin.questionnaire-setting-list');
-        $component->call('toggleVisibility', IntakeUploadType::HipaaPrivacyQuestionnaire->value);
-        $component->call('toggleVisibility', IntakeUploadType::HipaaPrivacyQuestionnaire->value);
+        $component = Livewire::actingAs($admin)->test('admin.questionnaire-list');
+        $component->call('toggleVisibility', $questionnaire->id);
+        $component->call('toggleVisibility', $questionnaire->id);
 
-        $this->assertDatabaseHas('questionnaire_settings', [
+        $this->assertDatabaseHas('questionnaires', [
             'upload_type' => 'hipaa_privacy_questionnaire',
             'is_visible' => true,
         ]);
@@ -1842,15 +1871,148 @@ class AdminPanelTest extends TestCase
     public function test_hiding_the_required_questionnaire_writes_a_reassignment_activity_log(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::ComplianceEthicsQuestionnaire)->firstOrFail();
 
         Livewire::actingAs($admin)
-            ->test('admin.questionnaire-setting-list')
-            ->call('toggleVisibility', IntakeUploadType::ComplianceEthicsQuestionnaire->value);
+            ->test('admin.questionnaire-list')
+            ->call('toggleVisibility', $questionnaire->id);
 
-        $this->assertDatabaseHas('questionnaire_settings', [
+        $this->assertDatabaseHas('questionnaires', [
             'upload_type' => 'hipaa_business_associate_questionnaire',
             'is_required' => true,
         ]);
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'questionnaire.required_reassigned']);
+    }
+
+    public function test_admin_can_create_a_questionnaire_for_an_unregistered_upload_type(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        Questionnaire::where('upload_type', IntakeUploadType::HipaaSecurityQuestionnaire)->delete();
+
+        Livewire::actingAs($admin)
+            ->test('admin.questionnaire-form')
+            ->set('uploadType', IntakeUploadType::HipaaSecurityQuestionnaire->value)
+            ->set('title', 'HIPAA Security Questionnaire')
+            ->set('description', 'Workflow details for the HIPAA Security Manual.')
+            ->set('allTiers', true)
+            ->set('questionnaireFile', UploadedFile::fake()->create('security.docx', 50))
+            ->set('manualTemplateFile', UploadedFile::fake()->create('security-manual.docx', 50))
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::HipaaSecurityQuestionnaire)->firstOrFail();
+        $this->assertSame('HIPAA Security Questionnaire', $questionnaire->title);
+        Storage::disk('public')->assertExists($questionnaire->questionnaire_file_path);
+        Storage::disk('manual_templates')->assertExists(DocumentType::HipaaSecurityManual->value.'.docx');
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'questionnaire.created']);
+    }
+
+    public function test_questionnaire_form_excludes_already_registered_upload_types(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $component = Livewire::actingAs($admin)->test('admin.questionnaire-form');
+
+        $this->assertEmpty($component->instance()->availableUploadTypes());
+    }
+
+    public function test_admin_can_edit_a_questionnaires_title_without_reuploading_files(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail();
+        Storage::disk('manual_templates')->put(DocumentType::HipaaPrivacyPolicy->value.'.docx', 'existing');
+
+        Livewire::actingAs($admin)
+            ->test('admin.questionnaire-form', ['questionnaire' => $questionnaire])
+            ->set('title', 'Updated HIPAA Privacy Questionnaire')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame('Updated HIPAA Privacy Questionnaire', $questionnaire->fresh()->title);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'questionnaire.updated']);
+    }
+
+    private function docxContaining(array $mergeFields): string
+    {
+        $phpWord = new PhpWord;
+        $section = $phpWord->addSection();
+
+        foreach ($mergeFields as $field) {
+            $section->addText('${'.$field.'}');
+        }
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'questionnaire_test').'.docx';
+        IOFactory::createWriter($phpWord, 'Word2007')->save($tempPath);
+        $contents = file_get_contents($tempPath);
+        unlink($tempPath);
+
+        return $contents;
+    }
+
+    public function test_uploading_a_manual_template_detects_its_schema_before_saving(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        Http::fake(['api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]])]);
+
+        $file = UploadedFile::fake()->createWithContent(
+            'privacy-manual.docx',
+            $this->docxContaining(['practice_name', 'prv_01_answer', 'prv_02_answer'])
+        );
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.questionnaire-form', ['questionnaire' => Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail()])
+            ->set('prefix', 'prv')
+            ->set('manualTemplateFile', $file);
+
+        $pendingSchema = $component->get('pendingSchema');
+        $this->assertSame(2, $pendingSchema['count']);
+        $this->assertSame('prv', $pendingSchema['prefix']);
+
+        $component->call('save')->assertHasNoErrors();
+
+        $this->assertSame(2, Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail()->schema['count']);
+    }
+
+    public function test_regenerating_schema_on_a_questionnaire_with_history_shows_a_warning(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        Http::fake(['api.openai.com/*' => Http::response(['choices' => [['message' => ['content' => '{}']]]])]);
+        IntakeUpload::factory()->create(['upload_type' => IntakeUploadType::HipaaPrivacyQuestionnaire]);
+
+        $file = UploadedFile::fake()->createWithContent(
+            'privacy-manual.docx',
+            $this->docxContaining(['prv_01_answer'])
+        );
+
+        Livewire::actingAs($admin)
+            ->test('admin.questionnaire-form', ['questionnaire' => Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail()])
+            ->set('manualTemplateFile', $file)
+            ->assertSee("won't remap", false);
+    }
+
+    public function test_deleting_a_questionnaire_with_upload_history_is_blocked(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail();
+        IntakeUpload::factory()->create(['upload_type' => IntakeUploadType::HipaaPrivacyQuestionnaire]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.questionnaire-list')
+            ->call('delete', $questionnaire->id);
+
+        $this->assertModelExists($questionnaire);
+    }
+
+    public function test_deleting_a_questionnaire_with_no_history_removes_it(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $questionnaire = Questionnaire::where('upload_type', IntakeUploadType::HipaaSecurityQuestionnaire)->firstOrFail();
+
+        Livewire::actingAs($admin)
+            ->test('admin.questionnaire-list')
+            ->call('delete', $questionnaire->id);
+
+        $this->assertModelMissing($questionnaire);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'questionnaire.deleted']);
     }
 }

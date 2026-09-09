@@ -47,6 +47,16 @@ return [
             'report' => false,
         ],
 
+        // The compliance-manual mail-merge .docx templates GenerateComplianceDocument reads from
+        // storage_path("app/templates/{DocumentType}.docx") — a private disk so the admin
+        // questionnaire form can replace one without touching that job's file-resolution logic.
+        'manual_templates' => [
+            'driver' => 'local',
+            'root' => storage_path('app/templates'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -3,14 +3,21 @@
 namespace Tests\Feature;
 
 use App\Enums\IntakeUploadType;
-use App\Models\QuestionnaireSetting;
+use App\Models\Questionnaire;
 use App\Support\Questionnaires;
+use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class QuestionnairesTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(QuestionnaireSeeder::class);
+    }
 
     public function test_every_tier_gets_all_four_questionnaires(): void
     {
@@ -37,10 +44,7 @@ class QuestionnairesTest extends TestCase
 
     public function test_a_hidden_questionnaire_is_excluded_from_every_tier(): void
     {
-        QuestionnaireSetting::factory()->create([
-            'upload_type' => IntakeUploadType::HipaaPrivacyQuestionnaire,
-            'is_visible' => false,
-        ]);
+        Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->update(['is_visible' => false]);
 
         foreach (['essential', 'professional', 'advanced', 'complete'] as $tier) {
             $types = Questionnaires::forTiers([$tier])->pluck('uploadType');
@@ -52,44 +56,23 @@ class QuestionnairesTest extends TestCase
 
     public function test_an_unhidden_questionnaire_reappears(): void
     {
-        $setting = QuestionnaireSetting::factory()->create([
-            'upload_type' => IntakeUploadType::HipaaPrivacyQuestionnaire,
-            'is_visible' => false,
-        ]);
-
-        $setting->update(['is_visible' => true]);
+        Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->update(['is_visible' => false]);
+        Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->update(['is_visible' => true]);
 
         $types = Questionnaires::forTiers(['essential'])->pluck('uploadType');
         $this->assertTrue($types->contains(IntakeUploadType::HipaaPrivacyQuestionnaire));
         $this->assertCount(4, $types);
     }
 
-    public function test_all_with_visibility_reports_true_and_the_catalog_default_with_no_row(): void
+    public function test_seeded_questionnaires_have_the_expected_default_required_flag(): void
     {
-        $questionnaire = Questionnaires::allWithVisibility()
-            ->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::ComplianceEthicsQuestionnaire);
+        $required = Questionnaire::where('upload_type', IntakeUploadType::ComplianceEthicsQuestionnaire)->firstOrFail();
+        $this->assertTrue($required->is_visible);
+        $this->assertTrue($required->is_required);
 
-        $this->assertTrue($questionnaire['isVisible']);
-        $this->assertTrue($questionnaire['required']);
-
-        $optional = Questionnaires::allWithVisibility()
-            ->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::HipaaPrivacyQuestionnaire);
-
-        $this->assertTrue($optional['isVisible']);
-        $this->assertFalse($optional['required']);
-    }
-
-    public function test_all_with_visibility_reflects_a_stored_override(): void
-    {
-        QuestionnaireSetting::factory()->create([
-            'upload_type' => IntakeUploadType::HipaaSecurityQuestionnaire,
-            'is_visible' => false,
-        ]);
-
-        $questionnaire = Questionnaires::allWithVisibility()
-            ->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::HipaaSecurityQuestionnaire);
-
-        $this->assertFalse($questionnaire['isVisible']);
+        $optional = Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail();
+        $this->assertTrue($optional->is_visible);
+        $this->assertFalse($optional->is_required);
     }
 
     // ── setVisibility() / required reassignment ────────────────────────────
@@ -106,9 +89,10 @@ class QuestionnairesTest extends TestCase
         );
         $this->assertTrue($result['required']);
 
-        $allWithVisibility = Questionnaires::allWithVisibility()
-            ->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::HipaaBusinessAssociateQuestionnaire);
-        $this->assertTrue($allWithVisibility['required']);
+        $this->assertDatabaseHas('questionnaires', [
+            'upload_type' => IntakeUploadType::HipaaBusinessAssociateQuestionnaire->value,
+            'is_required' => true,
+        ]);
     }
 
     public function test_hiding_a_non_required_questionnaire_promotes_nothing(): void
@@ -116,8 +100,8 @@ class QuestionnairesTest extends TestCase
         $promoted = Questionnaires::setVisibility(IntakeUploadType::HipaaPrivacyQuestionnaire, false);
 
         $this->assertNull($promoted);
-        $this->assertDatabaseMissing('questionnaire_settings', [
-            'upload_type' => 'hipaa_business_associate_questionnaire',
+        $this->assertDatabaseMissing('questionnaires', [
+            'upload_type' => IntakeUploadType::HipaaBusinessAssociateQuestionnaire->value,
             'is_required' => true,
         ]);
 
@@ -127,36 +111,33 @@ class QuestionnairesTest extends TestCase
 
     public function test_hiding_every_questionnaire_in_turn_ends_with_nothing_required_and_no_error(): void
     {
-        foreach (IntakeUploadType::cases() as $type) {
-            if (Questionnaires::allWithVisibility()->firstWhere(fn (array $q) => $q['uploadType'] === $type) === null) {
-                continue;
-            }
-
+        foreach (Questionnaire::all()->pluck('upload_type') as $type) {
             Questionnaires::setVisibility($type, false);
         }
 
         $this->assertCount(0, Questionnaires::forTiers(['essential']));
     }
 
-    public function test_reshowing_the_original_required_questionnaire_clears_the_promoted_overrides(): void
+    /**
+     * `is_required` is now a plain, admin-set column (no more "catalog default" behind it), so
+     * reshowing a previously-hidden questionnaire does NOT automatically reclaim required status
+     * from whatever was promoted in its absence — required only moves when the currently-required
+     * item itself is hidden. An admin who wants it back just checks "Required" on the edit form.
+     */
+    public function test_reshowing_a_formerly_required_questionnaire_does_not_reclaim_required_status(): void
     {
         Questionnaires::setVisibility(IntakeUploadType::ComplianceEthicsQuestionnaire, false);
         Questionnaires::setVisibility(IntakeUploadType::ComplianceEthicsQuestionnaire, true);
 
-        $original = Questionnaires::allWithVisibility()
-            ->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::ComplianceEthicsQuestionnaire);
-        $formerlyPromoted = Questionnaires::allWithVisibility()
-            ->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::HipaaBusinessAssociateQuestionnaire);
+        $original = Questionnaire::where('upload_type', IntakeUploadType::ComplianceEthicsQuestionnaire)->firstOrFail();
+        $promoted = Questionnaire::where('upload_type', IntakeUploadType::HipaaBusinessAssociateQuestionnaire)->firstOrFail();
 
-        $this->assertTrue($original['isVisible']);
-        $this->assertTrue($original['required']);
-        // Only one questionnaire should ever be required at a time — a stale promotion left
-        // behind after the original required one comes back would otherwise show as a second
-        // permanently-"Required" row in the admin list.
-        $this->assertFalse($formerlyPromoted['required']);
+        $this->assertTrue($original->is_visible);
+        $this->assertFalse($original->is_required);
+        $this->assertTrue($promoted->is_required);
 
-        $requiredCount = Questionnaires::allWithVisibility()->filter(fn (array $q) => $q['required'])->count();
-        $this->assertSame(1, $requiredCount);
+        // Only one questionnaire is ever required at a time, regardless of which one it is.
+        $this->assertSame(1, Questionnaire::where('is_required', true)->count());
     }
 
     /**
@@ -170,12 +151,11 @@ class QuestionnairesTest extends TestCase
         Questionnaires::setVisibility(IntakeUploadType::ComplianceEthicsQuestionnaire, false); // promotes HIPAA BA
         Questionnaires::setVisibility(IntakeUploadType::HipaaBusinessAssociateQuestionnaire, false); // promotes HIPAA Privacy
         Questionnaires::setVisibility(IntakeUploadType::HipaaBusinessAssociateQuestionnaire, true); // shown again, still not required
-        Questionnaires::setVisibility(IntakeUploadType::ComplianceEthicsQuestionnaire, true); // back to the original required one
+        Questionnaires::setVisibility(IntakeUploadType::ComplianceEthicsQuestionnaire, true); // shown again, still not required
 
-        $all = Questionnaires::allWithVisibility();
-        $this->assertTrue($all->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::ComplianceEthicsQuestionnaire)['required']);
-        $this->assertFalse($all->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::HipaaBusinessAssociateQuestionnaire)['required']);
-        $this->assertFalse($all->firstWhere(fn (array $q) => $q['uploadType'] === IntakeUploadType::HipaaPrivacyQuestionnaire)['required']);
-        $this->assertSame(1, $all->filter(fn (array $q) => $q['required'])->count());
+        $this->assertFalse(Questionnaire::where('upload_type', IntakeUploadType::ComplianceEthicsQuestionnaire)->firstOrFail()->is_required);
+        $this->assertFalse(Questionnaire::where('upload_type', IntakeUploadType::HipaaBusinessAssociateQuestionnaire)->firstOrFail()->is_required);
+        $this->assertTrue(Questionnaire::where('upload_type', IntakeUploadType::HipaaPrivacyQuestionnaire)->firstOrFail()->is_required);
+        $this->assertSame(1, Questionnaire::where('is_required', true)->count());
     }
 }

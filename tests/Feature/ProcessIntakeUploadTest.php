@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
+use App\Models\AiUsageLog;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
 use App\Models\Order;
@@ -16,6 +17,7 @@ use App\Models\OshaLocation;
 use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
+use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -28,6 +30,12 @@ use Tests\TestCase;
 class ProcessIntakeUploadTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(QuestionnaireSeeder::class);
+    }
 
     private function openaiResponse(string $json): array
     {
@@ -191,6 +199,87 @@ class ProcessIntakeUploadTest extends TestCase
         $upload->refresh();
         $this->assertEquals(AiExtractionStatus::Completed, $upload->ai_extraction_status);
         $this->assertSame('Cleaned answer.', $upload->ai_extracted_data['cmp_01_answer']);
+    }
+
+    public function test_successful_extraction_records_ai_usage_with_token_counts(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/8a/intake.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/8a/intake.pdf',
+            'mime_type' => 'application/pdf',
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response([
+                'model' => 'gpt-4o',
+                'choices' => [['message' => ['content' => '{"practice_name":"Sunrise Clinic"}']]],
+                'usage' => ['prompt_tokens' => 1200, 'completion_tokens' => 150, 'total_tokens' => 1350],
+            ]),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $this->assertDatabaseHas('ai_usage_logs', [
+            'purpose' => 'intake_extraction_vision',
+            'success' => 1,
+            'model' => 'gpt-4o',
+            'prompt_tokens' => 1200,
+            'completion_tokens' => 150,
+            'total_tokens' => 1350,
+            'intake_upload_id' => $upload->id,
+        ]);
+    }
+
+    public function test_compliance_ethics_verification_pass_records_its_own_ai_usage_entry(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/8b/compliance.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/8b/compliance.pdf',
+            'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::sequence()
+                ->push($this->openaiResponse('{"cmp_01_answer":"raw noisy answer"}'))
+                ->push($this->openaiResponse('{"cmp_01_answer":"Cleaned answer."}')),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $this->assertSame(
+            ['intake_extraction_vision', 'intake_verification'],
+            AiUsageLog::orderBy('id')->pluck('purpose')->all(),
+        );
+    }
+
+    public function test_failed_ai_call_still_records_a_usage_entry(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('uploads/8c/intake.pdf', 'fake pdf');
+
+        $upload = IntakeUpload::factory()->create([
+            'storage_path' => 'uploads/8c/intake.pdf',
+            'mime_type' => 'application/pdf',
+            'ai_extraction_status' => AiExtractionStatus::Pending,
+        ]);
+
+        Http::fake([
+            'https://api.openai.com/*' => Http::response(['error' => 'overloaded'], 529),
+        ]);
+
+        ProcessIntakeUpload::dispatchSync($upload);
+
+        $this->assertDatabaseHas('ai_usage_logs', [
+            'purpose' => 'intake_extraction_vision',
+            'success' => 0,
+        ]);
     }
 
     public function test_verification_pass_failure_falls_back_to_the_raw_extraction(): void

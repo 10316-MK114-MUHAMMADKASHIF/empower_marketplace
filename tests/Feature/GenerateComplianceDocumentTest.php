@@ -17,6 +17,7 @@ use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
 use App\Services\CompliancePdfGenerator;
+use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -24,6 +25,12 @@ use Tests\TestCase;
 class GenerateComplianceDocumentTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(QuestionnaireSeeder::class);
+    }
 
     private function mockPdfGenerator(): void
     {
