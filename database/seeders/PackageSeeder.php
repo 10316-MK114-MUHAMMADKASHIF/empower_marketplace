@@ -20,9 +20,10 @@ class PackageSeeder extends Seeder
                 'description' => 'Core compliance documentation for small healthcare practices getting started with regulatory requirements.',
                 'features' => [
                     'Compliance & Ethics Program',
-                    'HIPAA Policies',
-                    'Training Platform',
-                    'Employee Manual Review',
+                    'HIPAA Privacy & Security',
+                    'Trainings: Compliance & Ethics, HIPAA Privacy, HIPAA Security, Harassment prevention (general)¹',
+                    'Exclusions Screening',
+                    'Compliance Hotline',
                 ],
                 'included_document_types' => [
                     'employee_handbook_basic',
@@ -40,9 +41,6 @@ class PackageSeeder extends Seeder
                 'billing_type' => 'annual',
                 'description' => 'Everything in Essential plus a full employee handbook and HR policy manual for practices ready to scale.',
                 'features' => [
-                    'Everything in Essential',
-                    'Exclusions Screening',
-                    'Compliance Hotline',
                     'Manuals & Manual Updates',
                     'Safety Review',
                     'Quarterly Compliance Meeting',
@@ -65,8 +63,7 @@ class PackageSeeder extends Seeder
                 'billing_type' => 'annual',
                 'description' => 'Everything in Professional plus HIPAA privacy policy and per-location OSHA reports for multi-site practices.',
                 'features' => [
-                    'Everything in Essential & Professional',
-                    'Coding & Documentation Mini Audit (10 encounters/provider)',
+                    'Coding & Documentation Mini Audit² (10 encounters/provider)',
                     'Security Risk Assessment (SRA)',
                     'Creation & Oversight of Compliance Department',
                     'Monthly Compliance Meeting',
@@ -85,15 +82,14 @@ class PackageSeeder extends Seeder
             [
                 'slug' => 'complete',
                 'name' => 'Complete Compliance',
-                'tagline' => 'Fully custom compliance suite — contact us for a quote.',
+                'tagline' => 'Fully custom compliance suite: contact us for a quote.',
                 'monthly_price' => null,
                 'annual_price' => null,
                 'billing_type' => 'custom',
                 'description' => 'Everything in Advanced plus a fully custom compliance document tailored to your practice. Pricing based on scope.',
                 'features' => [
-                    'Everything in Essential, Professional & Advanced',
-                    'Empower, by CareCloud operates as your fully operational compliance department',
-                    'End-to-end ownership & oversight of your compliance program',
+                    'Customized Compliance Program',
+                    'Compliance Officer Needs: Co-Sourced, Fractional, or Outsourced',
                 ],
                 'included_document_types' => [
                     'employee_handbook_full',

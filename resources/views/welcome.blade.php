@@ -1,4 +1,4 @@
-<x-layouts.marketing title="Proactive Compliance by Empower — Healthcare Compliance Portal" :on-home-page="true">
+<x-layouts.marketing title="Proactive Compliance by Empower: Healthcare Compliance Portal" :on-home-page="true">
 
     {{-- Hero --}}
     <section id="home" class="py-16 lg:py-20"
@@ -7,136 +7,126 @@
             <div class="w-full">
                 <span
                     class="inline-block rounded-full border border-[#0b9ed0]/30 bg-[#e9f7fc] px-4 py-1.5 text-xs font-semibold text-[#087fa9] tracking-wide mb-5">
-                    Proactive Compliance &middot; In Collaboration with Frier Levitt
+                    Proactive Compliance
                 </span>
                 <h1 class="text-3xl lg:text-4xl font-bold text-[#0e3a61] mb-4 leading-tight">
-                    Proactive Compliance by Empower
+                    Proactive Compliance<br class="hidden sm:block">
+                    by Empower
                 </h1>
-                <p class="w-full text-base lg:text-lg text-[#5c778d] mb-6 leading-relaxed">
-                    A guided 5-step compliance onboarding flow for healthcare practices: simulated payment, profile
-                    confirmation, intake upload, admin review, and document delivery in your portal dashboard.
+                <p class="w-full max-w-3xl text-base lg:text-lg text-[#5c778d] mb-6 leading-relaxed">
+                    Empower helps healthcare practices build and maintain a compliance program structured on the
+                    seven elements described in OIG guidance, with the policies, training, and ongoing support to
+                    stay audit-ready. Support scales from reviewing your current program to a fully custom one.
                 </p>
-                <div class="flex flex-wrap gap-3 mb-8">
+                <div class="flex flex-wrap gap-3">
                     <a href="#pricing"
                         class="rounded-lg bg-[#2299dd] px-6 py-3 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors shadow-lg">Explore
                         Packages</a>
-                    <a href="#services"
-                        class="rounded-lg border border-[#9ed3e9] bg-white px-6 py-3 text-sm font-semibold text-[#087fa9] hover:bg-[#eef8fd] transition-colors">View
-                        Services</a>
-                </div>
-                <div class="flex flex-wrap gap-6 text-sm text-[#5c778d]">
-                    <span class="flex items-center gap-2">
-                        <svg class="h-4 w-4 text-[#0b9ed0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Full Launch: September 8, 2026
-                    </span>
-                    <span class="flex items-center gap-2">
-                        <svg class="h-4 w-4 text-[#0b9ed0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                        5-step guided portal flow
-                    </span>
-                    <span class="flex items-center gap-2">
-                        <svg class="h-4 w-4 text-[#0b9ed0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        AI-assisted intake extraction
-                    </span>
                 </div>
             </div>
         </div>
     </section>
 
-    {{-- Stats strip --}}
-    <section class="bg-white border-b border-[#d4e5f1]">
+    {{-- Why now / Who is this for --}}
+    <section id="services" class="py-14 lg:py-16 bg-white">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[#d4e5f1]">
-                @foreach([
-                ['HIPAA', 'Privacy and security focus'],
-                ['Ethics', 'Program and training support'],
-                ['Audit', 'Risk visibility at a glance'],
-                ['Managed', 'End-to-end compliance options'],
-                ] as [$title, $sub])
-                <div class="bg-white py-7 px-6 text-center">
-                    <div class="text-xl font-bold text-[#0e3a61] mb-1">{{ $title }}</div>
-                    <div class="text-xs text-[#5c778d]">{{ $sub }}</div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-start">
+                <div>
+                    <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Why Now</span>
+                    <h2 class="mt-3 text-3xl font-bold text-[#0e3a61] leading-tight">
+                        Documentation and coding remain among the most common subjects of payor and regulatory
+                        review.
+                    </h2>
+                    <p class="mt-4 text-[#5c778d] leading-relaxed">
+                        Payors and regulators expect a documented, active program: written policies, real training,
+                        exclusions screening, a reporting channel, and evidence that someone owns it. Gaps in any one
+                        of these can expose a practice to audits, overpayment demands, and penalties.
+                    </p>
                 </div>
-                @endforeach
+
+                <div class="rounded-2xl border border-[#d4e5f1] bg-[#f9fcff] p-7">
+                    <h3 class="font-semibold text-[#0e3a61] mb-3">Who is this for?</h3>
+                    <p class="text-sm text-[#5c778d] leading-relaxed mb-4">
+                        Compliance programs are required by regulation for certain entity types and are expected of
+                        all providers under OIG guidance; many payor participation agreements require one.
+                    </p>
+                    <ul class="space-y-2.5 text-sm text-[#173a59]">
+                        @foreach([
+                        'Practices that bill federal healthcare programs.',
+                        'Commonly required in payor participation agreements.',
+                        'Expected under OIG guidance; required by regulation for certain entity types.',
+                        ] as $point)
+                        <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>{{ $point }}</li>
+                        @endforeach
+                    </ul>
+                </div>
             </div>
         </div>
     </section>
 
-    {{-- Services --}}
-    <section id="services" class="py-14 lg:py-16">
+    {{-- How your program works: the seven elements --}}
+    <section id="how-it-works" class="py-14 lg:py-16 bg-gradient-to-br from-[#0b2e4b] via-[#0e3a61] to-[#16638e]">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
-                <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Services</span>
-                <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">Built for your full compliance lifecycle.</h2>
-                <p class="mt-4 text-[#5c778d] max-w-2xl mx-auto leading-relaxed">
-                    Start with package selection and portal onboarding, then move through profile capture, intake
-                    upload, review, and finalized document delivery with ongoing compliance support.
-                </p>
+                <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">How Your Program Works</span>
+                <h2 class="mt-3 text-3xl font-bold text-white">The seven elements, mapped</h2>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                @foreach([
-                ['M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0
-                01.293.707V19a2 2 0 01-2 2z', 'Compliance & Ethics Program', 'Development of a written compliance
-                program covering the seven core elements per OIG guidance, tailored to the practice.'],
-                ['M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
-                'HIPAA Privacy & Security Policies', 'Comprehensive HIPAA Privacy and Security policies and procedures
-                customized to the practice\'s operations.'],
-                ['M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5
-                18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477
-                18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', 'Training & Manual Support', 'Access to Empower\'s
-                compliance training platform, plus employee manual review, ongoing updates, or full creation depending
-                on your package.'],
-                ['M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', 'Ongoing Monitoring', 'Exclusions screening against OIG,
-                SAM, and state databases, workplace safety reviews for OSHA alignment, and a Security Risk Assessment
-                (SRA) to catch issues early.'],
-                ['M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0
-                01.293.707V19a2 2 0 01-2 2z', 'Audit Reporting', 'Coding & Documentation Mini Audits (10
-                encounters/provider) compiled into an Executive Summary Report for leadership.'],
-                ['M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42
-                3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42
-                0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0
-                01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0
-                013.138-3.138z', 'Managed Compliance', 'From compliance department creation & oversight to Empower, by
-                CareCloud, operating as your fully managed compliance department at the Complete tier.'],
-                ] as [$icon, $title, $desc])
+            <div class="rounded-2xl border border-white/15 bg-white/5 overflow-hidden">
                 <div
-                    class="rounded-2xl bg-white border border-[#d4e5f1] p-7 shadow-sm hover:shadow-md transition-shadow">
-                    <div class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#e9f7fc]">
-                        <svg class="h-5 w-5 text-[#0b9ed0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="{{ $icon }}" />
-                        </svg>
-                    </div>
-                    <h3 class="font-semibold text-[#0e3a61] mb-2">{{ $title }}</h3>
-                    <p class="text-sm text-[#5c778d] leading-relaxed">{{ $desc }}</p>
+                    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-6 py-4 border-b border-white/10">
+                    <span class="text-sm font-semibold text-white">Structured on the seven elements described in OIG
+                        guidance</span>
+                    <span class="text-xs font-semibold text-[#8ddaf2] uppercase tracking-wide">Structured on OIG
+                        guidance</span>
                 </div>
-                @endforeach
-            </div>
-        </div>
-    </section>
-
-    {{-- CTA (repeated above Pricing) --}}
-    <section class="py-14 lg:py-16 bg-gradient-to-br from-[#0b2e4b] via-[#0e3a61] to-[#16638e]">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div class="mx-auto max-w-2xl text-center">
-                <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Ready to get started?</span>
-                <h2 class="mt-3 text-3xl font-bold text-white">Proactive Compliance by Empower launches September 8,
-                    2026.</h2>
-                <p class="mt-4 text-white/70 leading-relaxed">
-                    Select your package and begin the 5-step onboarding flow today, or contact us to map the right tier
-                    and legal review options for your practice.
-                </p>
-                <a href="{{ route('contact') }}"
-                    class="mt-8 inline-block rounded-xl bg-[#2299dd] px-8 py-3.5 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors shadow-lg">Contact
-                    Us</a>
+                <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
+                    <div class="p-7">
+                        <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Your Program
+                            Documents</span>
+                        <ul class="mt-4 space-y-3 text-sm text-white/85">
+                            @foreach([
+                            ['Written standards & policies', 'tailored to your practice'],
+                            ['Compliance oversight structure', 'and designated roles'],
+                            ['Training & education', 'across required topics'],
+                            ['Reporting channels', 'including a compliance hotline'],
+                            ] as [$lead, $rest])
+                            <li class="flex items-start gap-2">
+                                <svg class="h-4 w-4 mt-0.5 shrink-0 text-[#8ddaf2]" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span><span class="font-semibold text-white">{{ $lead }}</span> {{ $rest }}</span>
+                            </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    <div class="p-7">
+                        <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Your Practice
+                            Operates, With Our Support</span>
+                        <ul class="mt-4 space-y-3 text-sm text-white/85">
+                            @foreach([
+                            ['Ongoing monitoring & auditing', 'of day-to-day operations'],
+                            ['Enforcement & discipline', 'through your own policies'],
+                            ['Corrective action', 'when a review surfaces a finding'],
+                            ] as [$lead, $rest])
+                            <li class="flex items-start gap-2">
+                                <svg class="h-4 w-4 mt-0.5 shrink-0 text-[#8ddaf2]" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span><span class="font-semibold text-white">{{ $lead }}</span> {{ $rest }}</span>
+                            </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -145,13 +135,28 @@
     <section id="pricing" class="py-14 lg:py-16 bg-white">
         @php
             $formatPrice = fn (?float $price) => number_format($price ?? 0, ((int) ($price ?? 0)) == ($price ?? 0) ? 0 : 2);
+
+            $leadLines = [
+                'essential' => 'Reviews & updates the documents you already have.',
+                'professional' => 'Everything in Essential',
+                'advanced' => 'Everything in Essential & Professional',
+                'complete' => 'Everything in Essential, Professional & Advanced',
+            ];
+
+            $disclaimers = [
+                'essential' => 'Listed trainings are general in nature. Harassment prevention (general) does not substitute for state-mandated training where subject- or frequency-specific training is required. Assigning and maintaining compliance officer responsibilities remains the practice\'s responsibility at this tier.',
+                'professional' => 'Listed trainings are general in nature. Harassment prevention (general) does not substitute for state-mandated training where subject- or frequency-specific training is required. Compliance officer responsibilities remain the practice\'s responsibility at this tier.',
+                'advanced' => 'The Coding & Documentation Mini Audit is not conducted under attorney-client privilege. Identified overpayments must be reported and returned within 60 days under federal law, and we will recommend independent legal counsel where findings suggest material exposure. Compliance officer responsibilities remain the practice\'s, with our review and guidance.',
+                'complete' => 'Scope, deliverables, and pricing at this tier are customized per practice and confirmed in a separate written services agreement. Co-sourced, fractional, or outsourced compliance officer staffing is scoped individually and does not itself create an employment relationship with Empower.',
+            ];
         @endphp
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Pricing</span>
                 <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">Choose Your Compliance Package</h2>
                 <p class="mt-4 text-[#5c778d] max-w-2xl mx-auto leading-relaxed">
-                    Every package is billed per billable provider, per year (or monthly), and includes annual renewal.
+                    Every package is billed per billable provider, per year (or monthly), and includes annual
+                    renewal.
                 </p>
             </div>
 
@@ -161,28 +166,27 @@
                 <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Essential</span>
-                        @if($packages['essential']->description ?? null)
                         <div class="relative" x-data="{ open: false }">
                             <button type="button" @mouseenter="open = true" @mouseleave="open = false"
                                 @click="open = !open"
-                                class="flex h-5 w-5 items-center justify-center text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
-                                aria-label="Package description">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
+                                aria-label="Package disclaimer">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                         d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>
+                                </svg>Disclaimer
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['essential']->description }}</div>
+                                {{ $disclaimers['essential'] }}</div>
                         </div>
-                        @endif
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{
-                        $formatPrice($packages['essential']->annual_price ?? null) }}</div>
-                    <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / year</div>
-                    <div class="text-xs text-[#5c778d] mb-6">${{ $formatPrice($packages['essential']->monthly_price ??
-                        null) }}/mo billed monthly</div>
+                        $formatPrice($packages['essential']->monthly_price ?? null) }}</div>
+                    <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / month</div>
+                    <div class="text-xs text-[#5c778d] mb-6">${{ $formatPrice($packages['essential']->annual_price ??
+                        null) }}/yr billed annually</div>
+                    <p class="text-sm font-semibold text-[#173a59] mb-3">{{ $leadLines['essential'] }}</p>
                     <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
                         @foreach($packages['essential']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
@@ -201,28 +205,27 @@
                 <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Professional</span>
-                        @if($packages['professional']->description ?? null)
                         <div class="relative" x-data="{ open: false }">
                             <button type="button" @mouseenter="open = true" @mouseleave="open = false"
                                 @click="open = !open"
-                                class="flex h-5 w-5 items-center justify-center text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
-                                aria-label="Package description">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
+                                aria-label="Package disclaimer">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                         d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>
+                                </svg>Disclaimer
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['professional']->description }}</div>
+                                {{ $disclaimers['professional'] }}</div>
                         </div>
-                        @endif
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{
-                        $formatPrice($packages['professional']->annual_price ?? null) }}</div>
-                    <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / year</div>
-                    <div class="text-xs text-[#5c778d] mb-6">${{ $formatPrice($packages['professional']->monthly_price
-                        ?? null) }}/mo billed monthly</div>
+                        $formatPrice($packages['professional']->monthly_price ?? null) }}</div>
+                    <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / month</div>
+                    <div class="text-xs text-[#5c778d] mb-6">${{
+                        $formatPrice($packages['professional']->annual_price ?? null) }}/yr billed annually</div>
+                    <p class="text-sm font-semibold text-[#173a59] mb-3">{{ $leadLines['professional'] }}</p>
                     <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
                         @foreach($packages['professional']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
@@ -245,28 +248,27 @@
                     </div>
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Advanced</span>
-                        @if($packages['advanced']->description ?? null)
                         <div class="relative" x-data="{ open: false }">
                             <button type="button" @mouseenter="open = true" @mouseleave="open = false"
                                 @click="open = !open"
-                                class="flex h-5 w-5 items-center justify-center text-white/60 hover:text-white transition-colors"
-                                aria-label="Package description">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-white/60 hover:text-white transition-colors"
+                                aria-label="Package disclaimer">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                         d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>
+                                </svg>Disclaimer
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['advanced']->description }}</div>
+                                {{ $disclaimers['advanced'] }}</div>
                         </div>
-                        @endif
                     </div>
                     <div class="text-4xl font-extrabold text-white">${{
-                        $formatPrice($packages['advanced']->annual_price ?? null) }}</div>
-                    <div class="text-sm text-white/60 mt-1 mb-1">/ billable provider / year</div>
-                    <div class="text-xs text-white/50 mb-6">${{ $formatPrice($packages['advanced']->monthly_price ??
-                        null) }}/mo billed monthly</div>
+                        $formatPrice($packages['advanced']->monthly_price ?? null) }}</div>
+                    <div class="text-sm text-white/60 mt-1 mb-1">/ billable provider / month</div>
+                    <div class="text-xs text-white/50 mb-6">${{ $formatPrice($packages['advanced']->annual_price ??
+                        null) }}/yr billed annually</div>
+                    <p class="text-sm font-semibold text-white mb-3">{{ $leadLines['advanced'] }}</p>
                     <ul class="space-y-2.5 text-sm text-white/85 mb-8 grow">
                         @foreach($packages['advanced']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#8ddaf2]"
@@ -285,25 +287,24 @@
                 <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Complete</span>
-                        @if($packages['complete']->description ?? null)
                         <div class="relative" x-data="{ open: false }">
                             <button type="button" @mouseenter="open = true" @mouseleave="open = false"
                                 @click="open = !open"
-                                class="flex h-5 w-5 items-center justify-center text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
-                                aria-label="Package description">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
+                                aria-label="Package disclaimer">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                                         d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>
+                                </svg>Disclaimer
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['complete']->description }}</div>
+                                {{ $disclaimers['complete'] }}</div>
                         </div>
-                        @endif
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">Call</div>
                     <div class="text-sm text-[#5c778d] mt-1 mb-6">for pricing</div>
+                    <p class="text-sm font-semibold text-[#173a59] mb-3">{{ $leadLines['complete'] }}</p>
                     <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
                         @foreach($packages['complete']->features ?? [] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
@@ -319,6 +320,17 @@
                 </div>
 
             </div>
+
+            <p class="mt-6 text-xs text-[#8598ab] leading-relaxed max-w-5xl mx-auto">
+                Priced per billable provider: counts physicians and non-physician practitioners billing under the
+                group NPI; mid-term joiners are prorated and trued up at renewal.
+                <sup>1</sup> Harassment prevention (general) does not substitute for state-mandated training where
+                subject- or frequency-specific training is required.
+                <sup>2</sup> Coding &amp; Documentation Mini Audit: a review that identifies a potential overpayment
+                must be reported and returned within 60 days under federal law. Your program includes a defined
+                escalation path, and we will recommend independent legal counsel where findings suggest material
+                exposure.
+            </p>
 
             {{-- Legal Add-on --}}
             <div
@@ -336,36 +348,26 @@
                             <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Add-on &middot;
                                 Available for Any Package</span>
                             <h3 class="mt-1 font-semibold text-[#0e3a61]">Legal Review &amp; Risk Assessment, by Frier
-                                Levitt</h3>
-                            <p class="mt-2 text-sm text-[#5c778d] leading-relaxed">Delivered under a Kovel Expert
-                                Engagement, so findings are shielded by attorney-client privilege — unlike the Advanced
-                                tier's coding audit. Includes an initial risk assessment call, a Kovel-protected coding
-                                &amp; documentation review, a privileged legal analysis letter, a post-report
-                                implementation call, and Business Associate Agreements in place before any work begins.
+                                Levitt (or comparable independent counsel)</h3>
+                            <p class="mt-2 text-sm text-[#5c778d] leading-relaxed">Conducted at the direction of
+                                independent counsel, structured with the intent that counsel's analysis be protected
+                                by attorney-client privilege. Privilege is fact-specific and cannot be guaranteed.
+                                Underlying records, claims data, and codes submitted are not privileged. The Advanced
+                                tier's mini audit is not conducted under privilege. Includes an initial risk
+                                assessment call, a coding and documentation review conducted at the direction of
+                                counsel, a privileged legal analysis letter, a post-report implementation call, and
+                                Business Associate Agreements in place before any work begins.
                             </p>
-                            <p class="mt-2 text-xs text-[#5c778d]">Empower and Frier Levitt are credentialed with most
-                                major malpractice insurance carriers nationally — your practice may already be covered.
+                            <p class="mt-2 text-xs text-[#5c778d]">Coverage varies by carrier and policy; we can
+                                confirm what applies to your practice during scoping.
                             </p>
                         </div>
                     </div>
                     <div class="lg:text-right shrink-0">
-                        <div class="text-3xl font-extrabold text-[#0e3a61]">$2,500</div>
-                        <div class="text-xs text-[#5c778d] mt-1">flat-fee retainer / practice &middot; Kovel &middot;
-                            Attorney-Client Privilege</div>
+                        <a href="{{ route('contact') }}?addon=legal-review"
+                            class="inline-block rounded-lg bg-[#0e3a61] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0b2e4b] transition-colors">Contact
+                            us about this add-on</a>
                     </div>
-                </div>
-                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                    @foreach(['I|Risk Assessment & Strategy Call', 'II|Coding & Documentation Review', 'III|Legal
-                    Analysis & Summary Letter', 'IV|Post-Report Implementation Call', 'V|Business Associate Agreements']
-                    as $step)
-                    @php [$num, $label] = explode('|', $step) @endphp
-                    <div class="rounded-xl border border-[#d4e5f1] bg-[#f9fcff] p-3.5">
-                        <span
-                            class="block text-[0.65rem] font-extrabold tracking-wider uppercase text-[#0b9ed0] mb-1">{{
-                            $num }}</span>
-                        <span class="text-xs font-semibold text-[#173a59] leading-snug">{{ $label }}</span>
-                    </div>
-                    @endforeach
                 </div>
             </div>
         </div>
@@ -377,29 +379,34 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
                 <div>
                     <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Process</span>
-                    <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">A 5-step flow from payment to compliance
+                    <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">A 5-step flow from billing to compliance
                         documents.</h2>
                     <p class="mt-4 text-[#5c778d] leading-relaxed">
-                        Your portal walks each practice through a fixed sequence: simulated payment, profile lock,
-                        intake uploads with AI extraction, admin review, and dashboard-based delivery.
+                        Your portal walks each practice through a fixed sequence: billing setup, profile lock, intake
+                        uploads with AI extraction, admin review, and dashboard-based delivery.
                     </p>
-                    <a href="{{ route('contact') }}"
-                        class="mt-8 inline-block rounded-xl bg-[#0e3a61] px-6 py-3 text-sm font-semibold text-white hover:bg-[#0b2e4b] transition-colors">Talk
-                        to the team</a>
+                    <div class="mt-8 flex flex-wrap gap-3">
+                        <a href="#pricing"
+                            class="inline-block rounded-xl bg-[#2299dd] px-6 py-3 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors shadow-lg">Explore
+                            Packages</a>
+                        <a href="{{ route('contact') }}"
+                            class="inline-block rounded-xl border border-[#9ed3e9] bg-white px-6 py-3 text-sm font-semibold text-[#087fa9] hover:bg-[#eef8fd] transition-colors">Talk
+                            to the team</a>
+                    </div>
                 </div>
 
                 <div class="rounded-2xl bg-white border border-[#d4e5f1] shadow-sm divide-y divide-[#d4e5f1]">
                     @foreach([
-                    ['1', 'Payment (simulated)', 'Select your package and complete simulated payment to activate
+                    ['1', 'Billing & Activation', 'Select your package and complete billing setup to activate
                     onboarding immediately.'],
                     ['2', 'Practice Profile', 'Submit practice details and OSHA locations; core profile fields lock
                     after submission for document consistency.'],
                     ['3', 'Intake Upload', 'Upload package-required forms and handbook inputs; AI extracts structured
                     data from files for drafting.'],
-                    ['4', 'Review Status', 'Your submission moves through submitted and under-review states until admin
-                    approval or requested changes.'],
-                    ['5', 'Dashboard & Documents', 'Access history, payments, and generated files from your dashboard,
-                    with stale indicators when profile data changes.'],
+                    ['4', 'Review Status', 'Your submission moves through submitted and under-review states until
+                    admin approval or requested changes.'],
+                    ['5', 'Dashboard & Documents', 'Access history, payments, and generated files from your
+                    dashboard, with stale indicators when profile data changes.'],
                     ] as [$num, $title, $desc])
                     <div class="flex items-start gap-4 p-5">
                         <span
@@ -416,16 +423,63 @@
         </div>
     </section>
 
+    {{-- FAQ --}}
+    <section id="faq" class="py-14 lg:py-16 bg-white">
+        <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-10">
+                <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">FAQ</span>
+                <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">Frequently asked questions</h2>
+            </div>
+
+            <div class="divide-y divide-[#d4e5f1] rounded-2xl border border-[#d4e5f1] bg-white">
+                @foreach([
+                ['What is a healthcare compliance program, and does my practice need one?', 'A compliance program is
+                a documented set of written standards, training, oversight, monitoring, and reporting that helps a
+                practice meet its regulatory obligations. It is required by regulation for certain entity types and
+                is expected of all providers under OIG guidance; many payor participation agreements require one as
+                well.'],
+                ['Is Proactive Compliance built on the OIG\'s seven elements?', 'Yes. Your program is structured on
+                the seven elements described in OIG guidance: written standards, oversight, training, and reporting
+                channels are documented and operated with our support, while enforcement and corrective action are
+                operated by your practice, with our support.'],
+                ['How is Empower related to CareCloud?', 'Empower is part of CareCloud. Empower Healthcare &amp;
+                Compliance Inc. delivers the compliance programs and audit support described here, and works with the
+                systems you already use. Where CareCloud provides revenue cycle services, review of coding and
+                billing is performed independently of the teams that deliver them.'],
+                ['How much does a compliance program cost?', 'Every package is priced per billable provider, per year
+                (or monthly), and includes annual renewal. Pricing for the Essential, Professional, and Advanced
+                tiers is available at empowerhci.com. The Complete tier is quoted based on your practice.'],
+                ['What happens if a coding or documentation audit finds a problem?', 'Identified overpayments must be
+                reported and returned within 60 days under federal law. Your program includes a defined escalation
+                path, and we will recommend independent legal counsel where findings suggest material exposure.'],
+                ] as [$q, $a])
+                <div x-data="{ open: false }" class="p-5">
+                    <button type="button" @click="open = !open"
+                        class="flex w-full items-center justify-between gap-4 text-left">
+                        <span class="text-sm font-semibold text-[#0e3a61]">{{ $q }}</span>
+                        <svg :class="open ? 'rotate-180' : ''"
+                            class="h-4 w-4 shrink-0 text-[#0b9ed0] transition-transform" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <p x-show="open" x-cloak x-transition class="mt-3 text-sm text-[#5c778d] leading-relaxed">{{ $a
+                        }}</p>
+                </div>
+                @endforeach
+            </div>
+        </div>
+    </section>
+
     {{-- CTA --}}
     <section id="contact" class="py-14 lg:py-16 bg-gradient-to-br from-[#0b2e4b] via-[#0e3a61] to-[#16638e]">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-2xl text-center">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Ready to get started?</span>
-                <h2 class="mt-3 text-3xl font-bold text-white">Proactive Compliance by Empower launches September 8,
-                    2026.</h2>
+                <h2 class="mt-3 text-3xl font-bold text-white">Proactive Compliance by Empower.</h2>
                 <p class="mt-4 text-white/70 leading-relaxed">
-                    Select your package and begin the 5-step onboarding flow today, or contact us to map the right tier
-                    and legal review options for your practice.
+                    Select your package and begin the 5-step onboarding flow today, or contact us to discuss the
+                    right tier.
                 </p>
                 <a href="{{ route('contact') }}"
                     class="mt-8 inline-block rounded-xl bg-[#2299dd] px-8 py-3.5 text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors shadow-lg">Contact
