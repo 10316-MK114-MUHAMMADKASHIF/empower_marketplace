@@ -1,4 +1,4 @@
-<x-layouts.marketing title="Request a Quote — Proactive Compliance by Empower" active="contact" footer-class="py-8 mt-8">
+<x-layouts.marketing title="Request a Quote: Proactive Compliance by Empower" active="contact" footer-class="py-8 mt-8">
 
     {{-- Compact hero --}}
     <section class="py-12" style="background: radial-gradient(circle at 84% 18%, rgba(11, 158, 208, 0.36), transparent 34%), radial-gradient(circle at 8% 0%, rgba(34, 153, 221, 0.20), transparent 30%), linear-gradient(115deg, #f2f8fd 0%, #dff1fb 44%, #c7e7f6 100%);">
