@@ -209,6 +209,7 @@ class ProcessIntakeUploadTest extends TestCase
         $upload = IntakeUpload::factory()->create([
             'storage_path' => 'uploads/8a/intake.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::PracticeIntake,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 
@@ -267,6 +268,7 @@ class ProcessIntakeUploadTest extends TestCase
         $upload = IntakeUpload::factory()->create([
             'storage_path' => 'uploads/8c/intake.pdf',
             'mime_type' => 'application/pdf',
+            'upload_type' => IntakeUploadType::PracticeIntake,
             'ai_extraction_status' => AiExtractionStatus::Pending,
         ]);
 

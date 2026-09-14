@@ -82,7 +82,7 @@ new class extends Component
     {{-- Temporarily hidden — creating new questionnaire types is disabled for now.
     <div class="flex justify-end">
         <a href="{{ route('admin.questionnaires.create') }}" wire:navigate
-            class="inline-flex items-center gap-1 rounded bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
+            class="inline-flex items-center gap-1 rounded-lg bg-[#2299dd] px-4 py-2 text-xs font-bold text-white hover:bg-[#087fa9] transition-colors">
             + New Questionnaire
         </a>
     </div>

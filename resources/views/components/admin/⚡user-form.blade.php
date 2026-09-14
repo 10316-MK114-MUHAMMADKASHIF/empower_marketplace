@@ -41,6 +41,8 @@ new class extends Component
 
     public ?int $editingLocationIndex = null;
 
+    public ?string $termsAcceptedAt = null;
+
     public function mount(?User $user = null): void
     {
         if (! $user) {
@@ -52,6 +54,7 @@ new class extends Component
         $this->email = $user->email;
         $this->role = $user->role->value;
         $this->isActive = $user->is_active;
+        $this->termsAcceptedAt = $user->orders()->whereNotNull('terms_accepted_at')->max('terms_accepted_at');
 
         $practice = $user->practice;
 
@@ -275,7 +278,15 @@ new class extends Component
     @enderror
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-        <h2 class="text-lg font-semibold text-navy mb-4">{{ $userId ? 'Edit User' : 'New User' }}</h2>
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+            <h2 class="text-lg font-semibold text-navy">{{ $userId ? 'Edit User' : 'New User' }}</h2>
+            @if($termsAcceptedAt)
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider bg-[#dff7f0] text-[#0f7a4f]">
+                    Terms &amp; Conditions accepted
+                </span>
+                <span class="text-xs text-empower-muted">on {{ \Illuminate\Support\Carbon::parse($termsAcceptedAt)->format('M j, Y') }}</span>
+            @endif
+        </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
@@ -338,7 +349,7 @@ new class extends Component
             @endif
 
             <button wire:click="save" wire:target="save"
-                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
+                class="inline-flex items-center gap-1 rounded-lg bg-[#2299dd] px-5 py-2 text-sm font-bold text-white hover:bg-[#087fa9] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="save">
                 <span wire:loading.remove wire:target="save">{{ $userId ? 'Save Changes' : 'Create User' }} &rarr;</span>
                 <span wire:loading.inline-flex wire:target="save" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving…</span>

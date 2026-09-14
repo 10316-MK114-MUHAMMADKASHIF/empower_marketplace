@@ -176,6 +176,70 @@ class AdminUsersOrdersTest extends TestCase
         Storage::disk('local')->assertMissing('compliance/doc.pdf');
     }
 
+    public function test_admin_can_delete_a_user_from_the_users_list(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $user = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-list')
+            ->call('delete', $user->id);
+
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'user.deleted']);
+    }
+
+    public function test_admin_cannot_delete_their_own_account_from_the_users_list(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-list')
+            ->call('delete', $admin->id)
+            ->assertHasErrors('delete');
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+    }
+
+    public function test_users_list_does_not_show_a_delete_link_for_the_current_admin(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin, 'name' => 'Current Admin']);
+        $otherUser = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-list')
+            // The admin's own row has no delete button, so its click handler never renders...
+            ->assertDontSeeHtml('confirmId = '.$admin->id.';')
+            // ...while another user's row does.
+            ->assertSeeHtml('confirmId = '.$otherUser->id.';');
+    }
+
+    public function test_user_edit_page_shows_a_terms_accepted_badge_when_an_order_accepted_terms(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+        $package = Package::factory()->create();
+        Order::factory()->create([
+            'user_id' => $client->id,
+            'package_id' => $package->id,
+            'terms_accepted_at' => now(),
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-form', ['user' => $client])
+            ->assertSee('Terms & Conditions accepted');
+    }
+
+    public function test_user_edit_page_hides_the_terms_accepted_badge_when_no_order_accepted_terms(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-form', ['user' => $client])
+            ->assertDontSee('Terms & Conditions accepted');
+    }
+
     // ── Practice / OSHA locations ────────────────────────────────────────
 
     public function test_admin_can_edit_a_users_practice_profile(): void

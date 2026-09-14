@@ -178,6 +178,15 @@ class PortalTest extends TestCase
             'success' => true,
             'transaction_id' => 'TEST_TXN_ID',
         ]);
+
+        $this->assertNotNull($order->terms_accepted_at);
+        $this->assertNotNull($order->terms_accepted_ip);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'event_type' => 'order.terms_accepted',
+            'user_id' => $user->id,
+            'order_id' => $order->id,
+        ]);
     }
 
     public function test_guest_paying_emails_the_generated_password_and_it_works_for_login(): void

@@ -938,7 +938,7 @@ new class extends Component
 
             <div class="flex flex-wrap gap-3">
                 <button type="button" x-on:click="confirmAction = 'approve'"
-                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">
+                    class="inline-flex items-center gap-1 rounded-lg bg-[#2299dd] px-5 py-2 text-sm font-bold text-white hover:bg-[#087fa9] transition-colors">
                     Approve
                 </button>
                 <button type="button" x-on:click="confirmAction = 'reject'"

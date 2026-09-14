@@ -18,16 +18,16 @@ class DatabaseSeeder extends Seeder
 
         // Admin user for local development
         User::factory()->create([
-            'name' => 'Admin User',
-            'email' => 'admin@empower.test',
+            'name' => 'Empower Admin',
+            'email' => 'muhammadmaaz2@carecloud.com',
             'role' => UserRole::Admin,
         ]);
 
         // Sample client user for local development
-        User::factory()->create([
-            'name' => 'Test Client',
-            'email' => 'client@empower.test',
-            'role' => UserRole::Client,
-        ]);
+        // User::factory()->create([
+        //     'name' => 'Test Client',
+        //     'email' => 'client@empower.test',
+        //     'role' => UserRole::Client,
+        // ]);
     }
 }

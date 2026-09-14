@@ -1009,6 +1009,13 @@ new class extends Component
                 order: $order,
             );
 
+            ActivityLog::record(
+                'order.terms_accepted',
+                "Accepted the Terms & Conditions and the CareCloud MSA for {$package->name}.",
+                user: auth()->user(),
+                order: $order,
+            );
+
             PaymentLog::record(
                 success: true,
                 amount: (float) $order->amount_paid,

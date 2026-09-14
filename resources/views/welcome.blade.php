@@ -142,13 +142,6 @@
                 'advanced' => 'Everything in Essential & Professional',
                 'complete' => 'Everything in Essential, Professional & Advanced',
             ];
-
-            $disclaimers = [
-                'essential' => 'Listed trainings are general in nature. Harassment prevention (general) does not substitute for state-mandated training where subject- or frequency-specific training is required. Assigning and maintaining compliance officer responsibilities remains the practice\'s responsibility at this tier.',
-                'professional' => 'Listed trainings are general in nature. Harassment prevention (general) does not substitute for state-mandated training where subject- or frequency-specific training is required. Compliance officer responsibilities remain the practice\'s responsibility at this tier.',
-                'advanced' => 'The Coding & Documentation Mini Audit is not conducted under attorney-client privilege. Identified overpayments must be reported and returned within 60 days under federal law, and we will recommend independent legal counsel where findings suggest material exposure. Compliance officer responsibilities remain the practice\'s, with our review and guidance.',
-                'complete' => 'Scope, deliverables, and pricing at this tier are customized per practice and confirmed in a separate written services agreement. Co-sourced, fractional, or outsourced compliance officer staffing is scoped individually and does not itself create an employment relationship with Empower.',
-            ];
         @endphp
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
@@ -178,7 +171,7 @@
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $disclaimers['essential'] }}</div>
+                                {{ $packages['essential']->description ?? '' }}</div>
                         </div>
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{
@@ -217,7 +210,7 @@
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $disclaimers['professional'] }}</div>
+                                {{ $packages['professional']->description ?? '' }}</div>
                         </div>
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">${{
@@ -260,7 +253,7 @@
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $disclaimers['advanced'] }}</div>
+                                {{ $packages['advanced']->description ?? '' }}</div>
                         </div>
                     </div>
                     <div class="text-4xl font-extrabold text-white">${{
@@ -299,7 +292,7 @@
                             </button>
                             <div x-show="open" x-cloak x-transition
                                 class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $disclaimers['complete'] }}</div>
+                                {{ $packages['complete']->description ?? '' }}</div>
                         </div>
                     </div>
                     <div class="text-4xl font-extrabold text-[#0e3a61]">Call</div>

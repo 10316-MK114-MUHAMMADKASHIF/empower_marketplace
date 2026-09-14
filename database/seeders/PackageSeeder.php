@@ -17,7 +17,7 @@ class PackageSeeder extends Seeder
                 'monthly_price' => 99.00,
                 'annual_price' => 999.00,
                 'billing_type' => 'annual',
-                'description' => 'Core compliance documentation for small healthcare practices getting started with regulatory requirements.',
+                'description' => 'Listed trainings are general in nature. Harassment prevention (general) does not substitute for state-mandated training where subject- or frequency-specific training is required. Assigning and maintaining compliance officer responsibilities remains the practice\'s responsibility at this tier.',
                 'features' => [
                     'Compliance & Ethics Program',
                     'HIPAA Privacy & Security',
@@ -39,7 +39,7 @@ class PackageSeeder extends Seeder
                 'monthly_price' => 129.00,
                 'annual_price' => 1299.00,
                 'billing_type' => 'annual',
-                'description' => 'Everything in Essential plus a full employee handbook and HR policy manual for practices ready to scale.',
+                'description' => 'Listed trainings are general in nature. Harassment prevention (general) does not substitute for state-mandated training where subject- or frequency-specific training is required. Compliance officer responsibilities remain the practice\'s responsibility at this tier.',
                 'features' => [
                     'Manuals & Manual Updates',
                     'Safety Review',
@@ -61,7 +61,7 @@ class PackageSeeder extends Seeder
                 'monthly_price' => 169.00,
                 'annual_price' => 1699.00,
                 'billing_type' => 'annual',
-                'description' => 'Everything in Professional plus HIPAA privacy policy and per-location OSHA reports for multi-site practices.',
+                'description' => 'The Coding & Documentation Mini Audit is not conducted under attorney-client privilege. Identified overpayments must be reported and returned within 60 days under federal law, and we will recommend independent legal counsel where findings suggest material exposure. Compliance officer responsibilities remain the practice\'s, with our review and guidance.',
                 'features' => [
                     'Coding & Documentation Mini Audit² (10 encounters/provider)',
                     'Security Risk Assessment (SRA)',
@@ -86,7 +86,7 @@ class PackageSeeder extends Seeder
                 'monthly_price' => null,
                 'annual_price' => null,
                 'billing_type' => 'custom',
-                'description' => 'Everything in Advanced plus a fully custom compliance document tailored to your practice. Pricing based on scope.',
+                'description' => 'Scope, deliverables, and pricing at this tier are customized per practice and confirmed in a separate written services agreement. Co-sourced, fractional, or outsourced compliance officer staffing is scoped individually and does not itself create an employment relationship with Empower.',
                 'features' => [
                     'Customized Compliance Program',
                     'Compliance Officer Needs: Co-Sourced, Fractional, or Outsourced',

@@ -62,7 +62,7 @@ new class extends Component
             class="w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
 
         <a href="{{ route('admin.leads.create') }}" wire:navigate
-            class="inline-flex items-center gap-1 rounded bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
+            class="inline-flex items-center gap-1 rounded-lg bg-[#2299dd] px-4 py-2 text-xs font-bold text-white hover:bg-[#087fa9] transition-colors">
             + New Lead
         </a>
     </div>

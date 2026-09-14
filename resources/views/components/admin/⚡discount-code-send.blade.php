@@ -197,7 +197,7 @@ new class extends Component
 
         <div class="flex justify-end">
             <button wire:click="send" wire:target="send"
-                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
+                class="inline-flex items-center gap-1 rounded-lg bg-[#2299dd] px-5 py-2 text-sm font-bold text-white hover:bg-[#087fa9] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="send">
                 <span wire:loading.remove wire:target="send">Send &rarr;</span>
                 <span wire:loading.inline-flex wire:target="send" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Sending…</span>

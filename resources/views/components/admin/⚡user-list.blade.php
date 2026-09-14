@@ -1,8 +1,10 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -42,10 +44,40 @@ new class extends Component
             ->latest()
             ->paginate(10);
     }
+
+    public function delete(int $userId): void
+    {
+        if ($userId === auth()->id()) {
+            $this->addError('delete', "You can't delete your own account.");
+
+            return;
+        }
+
+        $user = User::findOrFail($userId);
+        $name = "{$user->name} ({$user->email})";
+
+        if ($user->practice?->logo_path) {
+            Storage::disk('local')->delete($user->practice->logo_path);
+        }
+
+        foreach ($user->orders as $order) {
+            $order->deleteCascadingFiles();
+        }
+
+        $user->delete();
+
+        ActivityLog::record('user.deleted', "{$name} was deleted.", user: auth()->user());
+
+        unset($this->users);
+    }
 };
 ?>
 
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ confirmId: null, confirmLabel: '' }">
+    @error('delete')
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
+    @enderror
+
     <div class="flex flex-wrap items-center gap-3 justify-end">
         <select wire:model.live="role"
             class="rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
@@ -59,7 +91,7 @@ new class extends Component
             class="w-full sm:w-64 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
 
         <a href="{{ route('admin.users.create') }}" wire:navigate
-            class="inline-flex items-center gap-1 rounded bg-navy px-4 py-2 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
+            class="inline-flex items-center gap-1 rounded-lg bg-[#2299dd] px-4 py-2 text-xs font-bold text-white hover:bg-[#087fa9] transition-colors">
             + New User
         </a>
     </div>
@@ -96,8 +128,12 @@ new class extends Component
                                 {{ $user->is_active ? 'Active' : 'Deactivated' }}
                             </span>
                         </td>
-                        <td class="px-5 py-3.5 text-right">
+                        <td class="px-5 py-3.5 text-right space-x-3">
                             <a href="{{ route('admin.users.edit', $user) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
+                            @if($user->id !== auth()->id())
+                                <button type="button" x-on:click="confirmId = {{ $user->id }}; confirmLabel = @js($user->name.' ('.$user->email.')')"
+                                    class="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                            @endif
                         </td>
                     </tr>
                 @empty
@@ -111,4 +147,25 @@ new class extends Component
     </div>
 
     <div>{{ $this->users->links() }}</div>
+
+    <div x-show="confirmId !== null" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmId = null">
+            <h3 class="text-base font-semibold text-navy mb-2">Delete <span x-text="confirmLabel"></span>?</h3>
+            <p class="text-sm text-empower-muted mb-5">This cannot be undone.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmId = null"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button" wire:target="delete"
+                    x-on:click="$wire.delete(confirmId).then(() => confirmId = null).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="delete"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
+                    <span wire:loading.remove wire:target="delete">Delete</span>
+                    <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
