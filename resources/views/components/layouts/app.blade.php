@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $title ?? config('app.name') }} — Empower Marketplace</title>
+    <title>{{ $title ?? config('app.name') }}: Empower Marketplace</title>
     <link rel="icon" type="image/x-icon" href="{{ asset('images/favicon.ico') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,8 +14,9 @@
     @livewireStyles
 </head>
 @php
-    $containerClass = request()->routeIs('admin.*') ? 'max-w-[96rem]' : 'max-w-7xl';
+$containerClass = request()->routeIs('admin.*') ? 'max-w-[96rem]' : 'max-w-7xl';
 @endphp
+
 <body class="min-h-screen flex flex-col bg-page font-sans antialiased">
 
     <nav class="sticky top-0 z-50 bg-white/96 backdrop-blur border-b border-empower-border shadow-sm">
@@ -22,9 +24,11 @@
             <div class="flex h-16 items-center justify-between">
                 <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                     <span class="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5">
-                        <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[28px] sm:h-[45px] w-auto" onerror="this.parentElement.innerHTML='<span class=\'font-bold text-navy text-sm\'>EMPOWER</span>'">
+                        <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[28px] sm:h-[45px] w-auto"
+                            onerror="this.parentElement.innerHTML='<span class=\'font-bold text-navy text-sm\'>EMPOWER</span>'">
                     </span>
-                    <span class="hidden sm:block text-[0.6rem] font-extrabold tracking-widest uppercase text-empower-muted">Marketplace</span>
+                    <span
+                        class="hidden sm:block text-[0.6rem] font-extrabold tracking-widest uppercase text-empower-muted">Marketplace</span>
                 </a>
 
                 <livewire:header-account-menu />
@@ -40,4 +44,5 @@
 
     @livewireScripts
 </body>
+
 </html>

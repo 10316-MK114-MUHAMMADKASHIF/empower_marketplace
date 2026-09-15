@@ -211,6 +211,37 @@ model somewhere (per the original C# snippet) — just not on either endpoint ab
    the reuse call.
 7. Confirm the `amount` unit (dollars vs. cents) for whichever endpoint this turns out to be.
 
+### Update (2026-09-15): a lead — MTBC's TokenEx wrapper
+
+MTBC handed over a curl for `POST https://qa-webservices.mtbc.com/TokenXTest/api/TokenEx/TokenizeWithCVV`
+(bearer-JWT auth, body `{"data": "<cardNumber>", "cvv": "..."}`). This is a **different subsystem**
+from `Clover_Api` — it's MTBC's own thin wrapper in front of TokenEx (a real third-party
+tokenization vendor), not TokenEx's raw API directly (TokenEx's actual API authenticates with
+`TX_TokenExID`/`TX_APIKey` headers on `test-api.tokenex.com`, confirmed via TokenEx's own public
+docs — so MTBC's wrapper's behavior, response shape, and whatever charge-side endpoint it exposes
+are not documented anywhere public; only MTBC can answer them).
+
+Tried the curl live: 401. The bearer token's own JWT claims show a 30-minute lifetime
+(issued 17:53 UTC, expired 18:23 UTC 2026-09-14) — it was already ~12 hours stale by the time we
+tested it, so this isn't a static credential to hardcode; whatever issues it needs to be called
+fresh as part of the real integration.
+
+**Still needed from MTBC before this can become a real plan** (tokenizing a card is useless for
+recurring billing without a way to charge that token later):
+1. How to obtain/refresh the bearer token (login endpoint + required credentials).
+2. A real example response from `TokenizeWithCVV` — which field holds the reusable token, and
+   whether it returns card metadata (last4/brand/expiry) for display.
+3. Whether the token is single-use or reusable, and if/when it expires.
+4. **The charge-with-token endpoint** — exact path + sample request/response. Does
+   `Create_Charge`/`Create_Charge_Response` now accept a token in place of raw `cardNumber`/`cvv`,
+   or is there a separate endpoint? This is the one question that determines whether this path is
+   viable at all.
+5. Whether raw `cardNumber`/`cvv` are still required alongside the token when charging.
+6. Whether `TokenizeWithCVV` itself ever moves money, or is guaranteed a pure vaulting call.
+7. Declined/failed response shape for both tokenize and charge-with-token.
+8. `amount` unit (dollars vs. cents) on the charge-with-token call.
+9. Whether this is sandbox-only (`qa-webservices.mtbc.com`) or also available in production.
+
 ## The proven alternative: direct Clover eCommerce API (built + tested, now removed)
 
 This is what was actually implemented and passing all tests before being stripped out today. It's
