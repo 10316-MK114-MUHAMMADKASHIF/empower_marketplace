@@ -14,9 +14,24 @@ new class extends Component
     #[Url]
     public string $search = '';
 
+    #[Url]
+    public string $eventType = '';
+
     public function updatedSearch(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedEventType(): void
+    {
+        $this->resetPage();
+    }
+
+    /** @return array<int, string> */
+    #[Computed]
+    public function eventTypes(): array
+    {
+        return ActivityLog::query()->distinct()->orderBy('event_type')->pluck('event_type')->all();
     }
 
     #[Computed]
@@ -28,6 +43,7 @@ new class extends Component
                 $search = $this->search;
                 $q->where(fn ($q) => $q->where('event_type', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%"));
             })
+            ->when($this->eventType !== '', fn ($q) => $q->where('event_type', $this->eventType))
             ->latest()
             ->paginate(10);
     }
@@ -35,7 +51,15 @@ new class extends Component
 ?>
 
 <div class="space-y-4">
-    <div class="flex justify-end">
+    <div class="flex flex-wrap items-center gap-3 justify-end">
+        <select wire:model.live="eventType"
+            class="rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+            <option value="">All events</option>
+            @foreach($this->eventTypes as $type)
+                <option value="{{ $type }}">{{ $type }}</option>
+            @endforeach
+        </select>
+
         <input wire:model.live.debounce.400ms="search" type="text" placeholder="Search event type or description…"
             class="w-full sm:w-80 rounded-xl border border-empower-border bg-white px-4 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
     </div>

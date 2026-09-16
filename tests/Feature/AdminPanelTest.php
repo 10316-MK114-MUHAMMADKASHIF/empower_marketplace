@@ -1305,6 +1305,19 @@ class AdminPanelTest extends TestCase
             ->assertDontSee('An unrelated lead event');
     }
 
+    public function test_admin_can_filter_the_activity_log_by_event_type(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        ActivityLog::record('package.created', 'A findable package event', user: $admin);
+        ActivityLog::record('lead.deleted', 'An unrelated lead event', user: $admin);
+
+        Livewire::actingAs($admin)
+            ->test('admin.activity-log-list')
+            ->set('eventType', 'package.created')
+            ->assertSee('A findable package event')
+            ->assertDontSee('An unrelated lead event');
+    }
+
     // ── Payment logs ────────────────────────────────────────────────────────
 
     public function test_admin_can_view_the_payment_log(): void
