@@ -208,7 +208,7 @@ class PortalTest extends TestCase
 
         $capturedPassword = null;
 
-        Mail::assertSent(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
+        Mail::assertQueued(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
             $capturedPassword = $mail->password;
 
             return $mail->hasTo('jane@practice.com') && strlen($mail->password) >= 16;
@@ -330,9 +330,9 @@ class PortalTest extends TestCase
             ->set('billingZip', '08873')
             ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
 
-        Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($admin->email));
-        Mail::assertSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
-        Mail::assertNotSent(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($user->email));
+        Mail::assertQueued(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($admin->email));
+        Mail::assertQueued(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
+        Mail::assertNotQueued(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($user->email));
     }
 
     public function test_paying_emails_the_client_a_receipt_with_a_pdf_attached(): void
@@ -353,7 +353,7 @@ class PortalTest extends TestCase
             ->set('billingZip', '08873')
             ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
 
-        Mail::assertSent(ClientPaymentReceiptMail::class, fn ($mail) => $mail->hasTo($user->email));
+        Mail::assertQueued(ClientPaymentReceiptMail::class, fn ($mail) => $mail->hasTo($user->email));
     }
 
     public function test_continuing_after_payment_advances_to_step_2(): void

@@ -175,7 +175,7 @@ class AuthTest extends TestCase
 
         $capturedPassword = null;
 
-        Mail::assertSent(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
+        Mail::assertQueued(WelcomeCredentialsMail::class, function ($mail) use (&$capturedPassword) {
             $capturedPassword = $mail->password;
 
             return $mail->hasTo('jane@practice.com') && strlen($mail->password) >= 16;

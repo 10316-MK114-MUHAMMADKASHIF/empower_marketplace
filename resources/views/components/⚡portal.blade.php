@@ -963,7 +963,7 @@ new class extends Component
             ]);
 
             try {
-                Mail::to($user->email)->send(new WelcomeCredentialsMail($user, $generatedPassword));
+                Mail::to($user->email)->queue(new WelcomeCredentialsMail($user, $generatedPassword));
             } catch (\Throwable $e) {
                 report($e);
             }
@@ -1029,7 +1029,7 @@ new class extends Component
             User::where('role', UserRole::Admin)->pluck('email')->each(
                 function (string $adminEmail) use ($order) {
                     try {
-                        Mail::to($adminEmail)->send(new AdminPaymentReceivedMail($order));
+                        Mail::to($adminEmail)->queue(new AdminPaymentReceivedMail($order));
                     } catch (\Throwable $e) {
                         report($e);
                     }
@@ -1037,7 +1037,7 @@ new class extends Component
             );
 
             try {
-                Mail::to($order->user->email)->send(new ClientPaymentReceiptMail($order));
+                Mail::to($order->user->email)->queue(new ClientPaymentReceiptMail($order));
             } catch (\Throwable $e) {
                 report($e);
             }
