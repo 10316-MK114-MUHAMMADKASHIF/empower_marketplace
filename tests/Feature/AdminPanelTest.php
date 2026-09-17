@@ -9,6 +9,7 @@ use App\Enums\DocumentType;
 use App\Enums\IntakeSubmissionStatus;
 use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
@@ -2027,5 +2028,149 @@ class AdminPanelTest extends TestCase
 
         $this->assertModelMissing($questionnaire);
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'questionnaire.deleted']);
+    }
+
+    // ── Document generator (admin testing tool) ───────────────────────────────
+
+    public function test_admin_can_view_the_document_generator_page(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $this->withoutVite()->actingAs($admin)->get(route('admin.document-generator'))
+            ->assertOk()
+            ->assertSee('Testing tool only.')
+            ->assertSee('Choose a user');
+    }
+
+    public function test_client_cannot_access_the_document_generator(): void
+    {
+        $client = User::factory()->create(['role' => UserRole::Client]);
+
+        $this->withoutVite()->actingAs($client)->get(route('admin.document-generator'))
+            ->assertRedirect(route('login'));
+    }
+
+    public function test_admin_can_create_a_simulated_test_order_with_no_payment(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client]);
+        $package = Package::factory()->create(['is_active' => true]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.document-generator')
+            ->set('userId', $client->id)
+            ->set('packageId', $package->id)
+            ->call('createTestOrder');
+
+        $order = Order::where('user_id', $client->id)->where('package_id', $package->id)->firstOrFail();
+
+        $this->assertSame(PaymentStatus::SimulatedPaid, $order->payment_status);
+        $this->assertSame(0.0, (float) $order->amount_paid);
+        $this->assertDatabaseHas('practices', ['user_id' => $client->id]);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'order.test_created']);
+        $this->assertDatabaseMissing('payment_logs', ['order_id' => $order->id]);
+    }
+
+    public function test_admin_can_upload_filled_forms_for_the_test_order(): void
+    {
+        Bus::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client]);
+        Practice::factory()->create(['user_id' => $client->id]);
+        $package = Package::factory()->create(['is_active' => true]);
+        $order = Order::factory()->create(['user_id' => $client->id, 'package_id' => $package->id]);
+
+        $file = UploadedFile::fake()->create('compliance-ethics.docx', 50);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.document-generator', ['orderId' => $order->id])
+            ->set('questionnaireFiles.'.IntakeUploadType::ComplianceEthicsQuestionnaire->value, $file)
+            ->call('submitUploads');
+
+        $this->assertDatabaseHas('intake_submissions', [
+            'order_id' => $order->id,
+            'status' => IntakeSubmissionStatus::Submitted,
+        ]);
+        $this->assertDatabaseHas('intake_uploads', [
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'original_filename' => 'compliance-ethics.docx',
+        ]);
+        $this->assertSame(OrderStatus::IntakeSubmitted, $order->fresh()->status);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'submission.admin_test_uploaded']);
+        Bus::assertDispatched(ProcessIntakeUpload::class);
+
+        // The browser's native file input keeps showing the just-picked filename even after a
+        // successful submit clears the bound property — without a visible success indicator and
+        // an "already uploaded" note, re-clicking Submit with no new file looked like the first
+        // attempt silently failed. Guard both here.
+        $component->assertSee('Uploaded 1 file')
+            ->assertSee('Uploaded: compliance-ethics.docx');
+    }
+
+    public function test_submitting_again_with_no_new_file_shows_a_clear_error_not_a_silent_failure(): void
+    {
+        Bus::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client]);
+        Practice::factory()->create(['user_id' => $client->id]);
+        $package = Package::factory()->create(['is_active' => true]);
+        $order = Order::factory()->create(['user_id' => $client->id, 'package_id' => $package->id]);
+
+        $file = UploadedFile::fake()->create('compliance-ethics.docx', 50);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.document-generator', ['orderId' => $order->id])
+            ->set('questionnaireFiles.'.IntakeUploadType::ComplianceEthicsQuestionnaire->value, $file)
+            ->call('submitUploads');
+
+        // Simulates clicking "Submit for AI Processing" a second time with nothing newly chosen
+        // (questionnaireFiles was cleared after the first successful submit).
+        $component->call('submitUploads')
+            ->assertSee('Choose at least one filled form below before submitting');
+
+        // The first submission must not be undone or duplicated by the second, empty attempt.
+        $this->assertSame(1, IntakeUpload::where('upload_type', IntakeUploadType::ComplianceEthicsQuestionnaire)->count());
+    }
+
+    public function test_admin_can_approve_and_revoke_a_test_document_without_emailing_the_client(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client]);
+        Practice::factory()->create(['user_id' => $client->id]);
+        $package = Package::factory()->create(['is_active' => true]);
+        $order = Order::factory()->create(['user_id' => $client->id, 'package_id' => $package->id]);
+        $document = GeneratedDocument::factory()->completed()->create(['order_id' => $order->id]);
+
+        $component = Livewire::actingAs($admin)
+            ->test('admin.document-generator', ['orderId' => $order->id])
+            ->call('approveDocument', $document->id);
+
+        $this->assertTrue($document->fresh()->isApproved());
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.test_approved']);
+        Mail::assertNothingSent();
+
+        $component->call('revokeDocument', $document->id);
+
+        $this->assertFalse($document->fresh()->isApproved());
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'document.test_approval_revoked']);
+        Mail::assertNothingSent();
+    }
+
+    public function test_admin_can_delete_a_test_order_from_the_document_generator(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create(['role' => UserRole::Client]);
+        Practice::factory()->create(['user_id' => $client->id]);
+        $package = Package::factory()->create(['is_active' => true]);
+        $order = Order::factory()->create(['user_id' => $client->id, 'package_id' => $package->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.document-generator', ['orderId' => $order->id])
+            ->call('deleteTestOrder')
+            ->assertSet('orderId', null);
+
+        $this->assertModelMissing($order);
+        $this->assertDatabaseHas('activity_logs', ['event_type' => 'order.deleted']);
     }
 }

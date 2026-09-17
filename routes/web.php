@@ -57,6 +57,7 @@ Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function ()
     Route::get('/submissions/{submission}', fn (IntakeSubmission $submission) => view('admin.submission-detail', compact('submission')))
         ->name('submissions.show');
     Route::get('/documents', fn () => view('admin.documents'))->name('documents');
+    Route::get('/document-generator', fn () => view('admin.document-generator'))->name('document-generator');
     Route::get('/generated-documents/{document}/download', [GeneratedDocumentDownloadController::class, 'show'])
         ->name('generated-documents.download');
     Route::get('/leads', fn () => view('admin.leads'))->name('leads');

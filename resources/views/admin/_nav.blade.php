@@ -12,6 +12,7 @@
     'orders' => ['admin.orders', 'Orders'],
     'payment-logs' => ['admin.payment-logs', 'Payment Logs'],
     'activity-log' => ['admin.activity-log', 'Activity Log'],
+    'document-generator' => ['admin.document-generator', 'Document Generator'],
     ] as $key => [$route, $label])
     <a href="{{ route($route) }}" wire:navigate
         class="rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors {{ $active === $key ? 'bg-navy text-white' : 'text-empower-muted hover:bg-page' }}">

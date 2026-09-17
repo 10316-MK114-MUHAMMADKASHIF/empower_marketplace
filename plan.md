@@ -242,6 +242,52 @@ recurring billing without a way to charge that token later):
 8. `amount` unit (dollars vs. cents) on the charge-with-token call.
 9. Whether this is sandbox-only (`qa-webservices.mtbc.com`) or also available in production.
 
+### Update (2026-09-17): MTBC's answers — still not enough to proceed
+
+MTBC (via CCPM/ROI) responded to the 9-question list above. Net result: **the one blocking
+question — the charge-with-token endpoint — is still unanswered**, and one of their answers raises
+a new concern.
+
+**Actually answered:**
+- Auth is username/password (not an API key/client secret); they will provide the credentials.
+- Sandbox credentials for this TokenEx wrapper are separate per environment, and distinct from
+  `CLOVER_MTBC_USERNAME`/`PASSWORD`.
+- Amount unit: "support both dollar and cents" — ambiguous as stated (a real API normally takes one
+  fixed unit); treat as unconfirmed until proven with a live test.
+- Currently QA-only (`qa-webservices.mtbc.com`); production availability not confirmed.
+- Rate limits/latency: unknown — blocked on their own pending VAPT (security review). This alone
+  means the wrapper isn't production-ready regardless of anything else.
+- Scope clarified: MTBC's side only ever covers tokenize + (eventually) charge-by-token. All
+  subscription lifecycle management — storing the token, tracking next-bill-date, card-expiry,
+  cancelled subscriptions — is explicitly on us to build in the Laravel app. This is exactly the
+  lifecycle machinery already designed below for the Clover eCommerce path
+  (`trial_ends_at`/`ProcessTrialLifecycle`/etc.), so it isn't incremental new complexity either way.
+
+**Still not answered (deferred with no concrete detail):**
+- Q1 (login endpoint path) — only the credential *type* was confirmed, not the endpoint or the
+  refresh mechanism (Q2 explicitly deferred as "dependent on Point#1").
+- Q4 (real `TokenizeWithCVV` response, which field is the reusable token) — "will be shared today."
+- **Q6 — the charge-with-token endpoint itself, exact path + sample request/response — answered
+  only "Same as Point#5," which itself just said "we will provide the endpoint."** This is the
+  single fact that determines whether this integration is viable at all, and it still doesn't
+  exist as a concrete answer.
+- Q7 (whether raw card/cvv are still required alongside the token) — deferred back to Q5/Q6 again.
+
+**New concern:** the example given for Q9 (declined/failed response shape) is actually a
+*success* response (`"Status":true`, `"Message":"Payment Successful"`), not a decline — and its
+shape (`PaymentMethodDetails: null`, `Id`/`Outcome`/`Captured` fields) is identical to the
+already-documented `Create_Charge_Response` from the plain one-shot `Clover_Api` endpoint (see
+"What we learned" above — the same endpoint already confirmed to have zero token/vaulting
+capability). That suggests MTBC may not actually have a distinct, tested charge-with-token endpoint
+to show yet, and possibly answered from the existing one-shot endpoint by default.
+
+**Recommendation: don't block Phase 2 on this.** Proceed with the direct Clover eCommerce path
+below as the real Phase 2 implementation now — it's still the only mechanism actually proven (live
+sandbox testing) to save a card and charge it again later. Keep the MTBC thread open in parallel,
+but only worth revisiting if they come back with an unambiguous answer to Q6 (a real
+charge-with-token endpoint that actually exists and has been tested) — until then there's nothing
+further to build against on that side.
+
 ## The proven alternative: direct Clover eCommerce API (built + tested, now removed)
 
 This is what was actually implemented and passing all tests before being stripped out today. It's

@@ -15,10 +15,30 @@
     --color-empower-text: #173a59;
     --color-empower-muted: #5c778d;
     --color-empower-border: #d4e5f1;
+
+    --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
 }
 
 @layer base {
     [x-cloak] {
         display: none !important;
+    }
+}
+
+/* Indeterminate linear progress bar — for a background task with no known completion percentage
+   (e.g. AI extraction/document generation). Pair with a relative, overflow-hidden track. */
+@keyframes indeterminate {
+    0% {
+        left: -40%;
+        width: 40%;
+    }
+
+    50% {
+        width: 60%;
+    }
+
+    100% {
+        left: 100%;
+        width: 40%;
     }
 }
