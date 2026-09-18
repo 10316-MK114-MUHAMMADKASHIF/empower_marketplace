@@ -511,4 +511,58 @@ class GenerateComplianceDocumentTest extends TestCase
         $doc = GeneratedDocument::where('order_id', $order->id)->first();
         $this->assertNotNull($doc->failure_reason);
     }
+
+    // ── Manual History table ────────────────────────────────────────────────
+
+    public function test_manual_history_row_is_stamped_new_on_first_generation_and_revision_on_regeneration(): void
+    {
+        Storage::fake('local');
+        $this->mock(CompliancePdfGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')->twice()->andReturn('%PDF-1.4 fake protected pdf');
+        });
+
+        $order = $this->makeOrder();
+        $submission = $order->intakeSubmission;
+
+        $answers = ['compliance_officer_name' => 'Dr. Jane Rivera'];
+        for ($i = 1; $i <= 17; $i++) {
+            $answers[sprintf('cmp_%02d_answer', $i)] = "Answer for question {$i}.";
+        }
+
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $submission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => $answers,
+        ]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::ComplianceEthicsManual);
+
+        $doc = GeneratedDocument::where('order_id', $order->id)
+            ->where('document_type', DocumentType::ComplianceEthicsManual)
+            ->firstOrFail();
+
+        $xml = $this->readDocxXml($doc->docx_storage_path);
+        $this->assertStringContainsString('Initial policy generated.', $xml);
+        $this->assertStringNotContainsString('Policy regenerated following an update.', $xml);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::ComplianceEthicsManual);
+
+        $doc->refresh();
+        $xml = $this->readDocxXml($doc->docx_storage_path);
+        $this->assertStringContainsString('Policy regenerated following an update.', $xml);
+        $this->assertStringNotContainsString('Initial policy generated.', $xml);
+
+        Storage::disk('local')->deleteDirectory("private/compliance/{$order->id}");
+    }
+
+    private function readDocxXml(string $storagePath): string
+    {
+        $zip = new \ZipArchive;
+        $zip->open(Storage::disk('local')->path($storagePath));
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        return $xml;
+    }
 }

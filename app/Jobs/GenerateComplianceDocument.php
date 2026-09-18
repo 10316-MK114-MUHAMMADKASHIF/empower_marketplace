@@ -70,7 +70,7 @@ class GenerateComplianceDocument implements ShouldQueue
             }
 
             if ($this->documentType->isDocxOnly()) {
-                $docxPath = $this->generateDocx($basePath, $slug, $viewData);
+                $docxPath = $this->generateDocx($basePath, $slug, $viewData, $doc);
 
                 if (! $docxPath) {
                     throw new \RuntimeException("Template not found for {$this->documentType->value}");
@@ -97,7 +97,7 @@ class GenerateComplianceDocument implements ShouldQueue
             $pdfPath = "{$basePath}/{$slug}.pdf";
             Storage::disk('local')->put($pdfPath, $pdfContent);
 
-            $docxPath = $this->generateDocx($basePath, $slug, $viewData);
+            $docxPath = $this->generateDocx($basePath, $slug, $viewData, $doc);
 
             $doc->update([
                 'status' => DocumentStatus::Completed,
@@ -166,7 +166,7 @@ class GenerateComplianceDocument implements ShouldQueue
         string $slug,
         array $viewData,
     ): void {
-        $docxPath = $this->generateDocx($basePath, $slug, $viewData);
+        $docxPath = $this->generateDocx($basePath, $slug, $viewData, $doc);
 
         if (! $docxPath) {
             throw new \RuntimeException("Template not found for {$this->documentType->value}");
@@ -268,7 +268,7 @@ class GenerateComplianceDocument implements ShouldQueue
     }
 
     /** @param array<string, mixed> $viewData */
-    private function generateDocx(string $basePath, string $slug, array $viewData): ?string
+    private function generateDocx(string $basePath, string $slug, array $viewData, GeneratedDocument $doc): ?string
     {
         $templatePath = storage_path("app/templates/{$this->documentType->value}.docx");
 
@@ -296,6 +296,10 @@ class GenerateComplianceDocument implements ShouldQueue
             'package_name' => $viewData['order']->package?->name ?? '',
             'date' => $viewData['generatedAt']->format('F j, Y'),
             'osha_location_name' => $viewData['oshaLocation']?->name ?? '',
+            'manual_history_change_type' => $doc->wasRecentlyCreated ? 'New' : 'Revision',
+            'manual_history_description' => $doc->wasRecentlyCreated
+                ? 'Initial policy generated.'
+                : 'Policy regenerated following an update.',
         ];
 
         $schema = ManualQuestionSets::forDocumentType($this->documentType);
