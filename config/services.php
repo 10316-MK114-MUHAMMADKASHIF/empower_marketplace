@@ -26,6 +26,20 @@ return [
         'business_name' => env('CLOVER_MTBC_BUSINESS_NAME', config('app.name')),
     ],
 
+    'empower_payment_api' => [
+        'base_url' => env('EMPOWER_PAYMENT_API_BASE_URL'),
+        'username' => env('EMPOWER_PAYMENT_API_USERNAME'),
+        'password' => env('EMPOWER_PAYMENT_API_PASSWORD'),
+        'aes_key' => env('EMPOWER_PAYMENT_API_AES_KEY'),
+        // Create_Charge's body-level username/password are the same CLOVER_MTBC_* merchant
+        // credentials already used for the existing single-payment flow (confirmed) — not the
+        // auth-token credentials above (those are rejected here: "Invalid username or password").
+        'charge_username' => env('EMPOWER_PAYMENT_API_CHARGE_USERNAME', env('CLOVER_MTBC_USERNAME')),
+        'charge_password' => env('EMPOWER_PAYMENT_API_CHARGE_PASSWORD', env('CLOVER_MTBC_PASSWORD')),
+        'business_name' => env('EMPOWER_PAYMENT_API_BUSINESS_NAME', env('CLOVER_MTBC_BUSINESS_NAME', config('app.name'))),
+        'trial_reminder_days_before' => env('EMPOWER_PAYMENT_API_TRIAL_REMINDER_DAYS', 3),
+    ],
+
     'carecloud' => [
         'msa_url' => env('CARECLOUD_MSA_URL', '#'),
     ],

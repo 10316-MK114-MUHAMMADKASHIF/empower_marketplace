@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Storage;
     'cancelled_at', 'notes', 'terms_accepted_at', 'terms_accepted_ip',
     'discount_code_id', 'discount_code', 'discount_percentage', 'original_price', 'discount_amount',
     'trial_ends_at', 'trial_confirmed_at', 'trial_reminder_sent_at', 'clover_card_token',
+    'card_expiry_month', 'card_expiry_year', 'card_last_four', 'mtbc_reference_number',
+    'next_bill_date', 'renewal_attempts', 'last_renewal_attempt_at', 'last_renewal_error',
 ])]
 class Order extends Model
 {
@@ -30,7 +32,9 @@ class Order extends Model
      * strictly "money was collected" (Trialing hasn't been charged yet, SimulatedPaid never
      * charges a real card either; both still grant full portal access like a real payment does).
      */
-    public const PAID_STATUSES = [PaymentStatus::SimulatedPaid, PaymentStatus::Paid, PaymentStatus::Trialing];
+    public const PAID_STATUSES = [
+        PaymentStatus::SimulatedPaid, PaymentStatus::Paid, PaymentStatus::Trialing, PaymentStatus::PastDue,
+    ];
 
     /**
      * @return array<string, string>
@@ -52,6 +56,11 @@ class Order extends Model
             'trial_ends_at' => 'datetime',
             'trial_confirmed_at' => 'datetime',
             'trial_reminder_sent_at' => 'datetime',
+            'card_expiry_month' => 'integer',
+            'card_expiry_year' => 'integer',
+            'next_bill_date' => 'date',
+            'renewal_attempts' => 'integer',
+            'last_renewal_attempt_at' => 'datetime',
         ];
     }
 
@@ -91,14 +100,14 @@ class Order extends Model
     }
 
     /**
-     * A free trial that ended without converting to a paid subscription — either the client
-     * explicitly cancelled or never responded before trial_ends_at. AI document generation
+     * A cancelled order — a lapsed/rejected free trial, a subscription cancelled after repeated
+     * failed renewals, or one an admin cancelled directly (e.g. a refund). AI document generation
      * (new intake submissions, regenerating a document) is blocked for these; documents already
-     * generated/approved during the trial remain downloadable.
+     * generated/approved beforehand remain downloadable.
      */
     public function blockedFromAiGeneration(): bool
     {
-        return $this->status === OrderStatus::Cancelled && $this->payment_status === PaymentStatus::Trialing;
+        return $this->status === OrderStatus::Cancelled;
     }
 
     /**

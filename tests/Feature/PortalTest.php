@@ -15,6 +15,8 @@ use App\Jobs\ProcessIntakeUpload;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
 use App\Mail\ClientPaymentReceiptMail;
+use App\Mail\ClientTrialCancelledMail;
+use App\Mail\ClientTrialStartedMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\DiscountCode;
 use App\Models\GeneratedDocument;
@@ -24,6 +26,7 @@ use App\Models\Order;
 use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
+use App\Services\MtbcCardCipher;
 use App\Support\Questionnaires;
 use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -62,6 +65,36 @@ class PortalTest extends TestCase
                 'status' => true,
                 'message' => 'Payment Successful',
                 'data' => ['id' => 'TEST_TXN_ID', 'amount' => 1, 'paid' => true, 'status' => 'succeeded'],
+            ]),
+        ]);
+    }
+
+    private function fakeSuccessfulTokenize(): void
+    {
+        Http::fake([
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/tokenize' => Http::response([
+                'status' => true,
+                'message' => 'Card tokenized successfully',
+                'data' => ['token' => '4111114281501111', 'firstSix' => '411111', 'lastFour' => '1111', 'referenceNumber' => 'REF123'],
+            ]),
+        ]);
+    }
+
+    private function fakeSuccessfulDetokenizeAndCharge(): void
+    {
+        $cipher = new MtbcCardCipher;
+
+        Http::fake([
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/detokenize' => Http::response([
+                'status' => true,
+                'data' => ['value' => $cipher->encrypt('4111111111111111'), 'cvv' => $cipher->encrypt('123'), 'referenceNumber' => 'REF123'],
+            ]),
+            '*/api/payment/Create_Charge' => Http::response([
+                'status' => true,
+                'message' => 'Payment Successful',
+                'data' => ['id' => 'TEST_RENEWAL_TXN_ID'],
             ]),
         ]);
     }
@@ -1046,18 +1079,283 @@ class PortalTest extends TestCase
 
     // ── Free trial checkout ─────────────────────────────────────────────────
 
-    public function test_applying_a_free_trial_code_shows_not_available_yet(): void
+    public function test_applying_a_free_trial_code_succeeds(): void
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
         DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
 
         Livewire::actingAs($user)
             ->test('portal')
+            ->set('selectedPackageId', $package->id)
             ->set('discountCodeInput', 'TRIAL30')
             ->call('applyDiscountCode')
-            ->assertHasErrors(['discountCodeInput'])
-            ->assertSet('appliedDiscountCodeId', null);
+            ->assertHasNoErrors()
+            ->assertSet('appliedDiscountCodeId', fn ($id) => $id !== null)
+            ->assertSee('Free Trial (TRIAL30)')
+            ->assertSee('Due Today')
+            ->assertSee('$0.00')
+            ->assertSee('Start Free Trial');
+    }
+
+    public function test_free_trial_checkout_tokenizes_card_and_creates_trialing_order(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulTokenize();
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->call('payFreeTrial', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+
+        $this->assertSame(PaymentStatus::Trialing, $order->payment_status);
+        $this->assertEquals(0, (float) $order->amount_paid);
+        $this->assertSame('4111114281501111', $order->clover_card_token);
+        $this->assertSame(12, $order->card_expiry_month);
+        $this->assertSame(2027, $order->card_expiry_year);
+        $this->assertSame('1111', $order->card_last_four);
+        $this->assertSame('REF123', $order->mtbc_reference_number);
+        $this->assertNotNull($order->trial_ends_at);
+        $this->assertEqualsWithDelta(now()->addDays(30)->timestamp, $order->trial_ends_at->timestamp, 5);
+
+        Mail::assertQueued(ClientTrialStartedMail::class);
+    }
+
+    public function test_free_trial_checkout_fails_gracefully_when_tokenize_fails(): void
+    {
+        Http::fake([
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/tokenize' => Http::response(['status' => false, 'message' => 'Invalid card number', 'data' => null]),
+        ]);
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->call('payFreeTrial', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasErrors(['payment']);
+
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+    }
+
+    public function test_guest_can_start_free_trial_and_account_is_created(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulTokenize();
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+
+        Livewire::test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('accountName', 'Jane Provider')
+            ->set('accountEmail', 'jane@practice.com')
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->call('payFreeTrial', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        $user = User::where('email', 'jane@practice.com')->first();
+        $this->assertNotNull($user);
+        $this->assertNotNull($user->practice);
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_proceed_with_payment_converts_trial_to_paid(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulDetokenizeAndCharge();
+
+        $package = Package::factory()->create(['annual_price' => 999, 'is_active' => true]);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'original_price' => 999,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('dashboardOrderId', $order->id)
+            ->call('convertTrialToPaid', $order->id)
+            ->assertHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Paid, $order->payment_status);
+        $this->assertNotNull($order->trial_confirmed_at);
+        $this->assertNotNull($order->next_bill_date);
+        $this->assertEquals(999.0, (float) $order->amount_paid);
+
+        Mail::assertQueued(ClientPaymentReceiptMail::class);
+    }
+
+    public function test_proceed_with_payment_shows_decline_message_on_failed_conversion(): void
+    {
+        $cipher = new MtbcCardCipher;
+
+        Http::fake([
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/detokenize' => Http::response([
+                'status' => true,
+                'data' => ['value' => $cipher->encrypt('4111111111111111'), 'cvv' => $cipher->encrypt('123'), 'referenceNumber' => 'REF123'],
+            ]),
+            '*/api/payment/Create_Charge' => Http::response(['status' => false, 'message' => 'Card declined', 'data' => null], 400),
+        ]);
+
+        $package = Package::factory()->create(['annual_price' => 999, 'is_active' => true]);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'original_price' => 999,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('dashboardOrderId', $order->id)
+            ->call('convertTrialToPaid', $order->id)
+            ->assertHasErrors(['payment']);
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Trialing, $order->payment_status);
+    }
+
+    public function test_client_can_update_the_stored_card_on_a_trial_order(): void
+    {
+        $this->fakeSuccessfulTokenize();
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->set('dashboardOrderId', $order->id)
+            ->call('updateTrialCard', $order->id, '4242 4242 4242 4242', '11/28', '321')
+            ->assertHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame('4111114281501111', $order->clover_card_token);
+        $this->assertSame(11, $order->card_expiry_month);
+        $this->assertSame(2028, $order->card_expiry_year);
+        $this->assertSame('1111', $order->card_last_four);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'event_type' => 'order.card_updated',
+            'order_id' => $order->id,
+        ]);
+    }
+
+    public function test_updating_the_stored_card_rejects_an_invalid_card_number(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->set('dashboardOrderId', $order->id)
+            ->call('updateTrialCard', $order->id, '123', '11/28', '321')
+            ->assertHasErrors(['cardNumber']);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_dashboard_shows_an_active_trial_banner_with_proceed_and_cancel_actions(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->set('dashboardOrderId', $order->id)
+            ->assertSee('Free trial active')
+            ->assertSee('Proceed with Payment')
+            ->assertSeeHtml('wire:click="cancelSubscription('.$order->id.')"');
+    }
+
+    public function test_client_can_cancel_trial_subscription(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('dashboardOrderId', $order->id)
+            ->call('cancelSubscription', $order->id);
+
+        $order->refresh();
+        $this->assertSame(OrderStatus::Cancelled, $order->status);
+
+        Mail::assertQueued(ClientTrialCancelledMail::class);
+    }
+
+    public function test_dashboard_shows_a_past_due_banner_with_the_last_renewal_error(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->pastDue()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->set('dashboardOrderId', $order->id)
+            ->assertSee('couldn')
+            ->assertSee($order->last_renewal_error);
+    }
+
+    public function test_dashboard_shows_a_renewal_date_and_cancel_link_for_a_healthy_subscription(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->convertedFromTrial()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('step', 5)
+            ->set('dashboardOrderId', $order->id)
+            ->assertSee('Renews')
+            ->assertSee($order->next_bill_date->format('M j, Y'));
     }
 
     public function test_a_client_with_a_cancelled_trial_cannot_submit_intake(): void

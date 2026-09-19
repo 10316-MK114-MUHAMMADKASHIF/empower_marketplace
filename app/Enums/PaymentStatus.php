@@ -8,4 +8,5 @@ enum PaymentStatus: string
     case SimulatedPaid = 'simulated_paid';
     case Paid = 'paid';
     case Trialing = 'trialing';
+    case PastDue = 'past_due';
 }

@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Models\ActivityLog;
+use App\Models\Order;
 use App\Models\User;
+use App\Services\TrialBillingService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
@@ -20,6 +23,8 @@ new class extends Component
     #[Url]
     public string $role = '';
 
+    public ?string $endTrialSuccessMessage = null;
+
     public function updatedSearch(): void
     {
         $this->resetPage();
@@ -36,6 +41,7 @@ new class extends Component
         return User::query()
             ->withCount('orders')
             ->with('practice')
+            ->with(['orders' => fn ($q) => $q->where('payment_status', PaymentStatus::Trialing)->latest()])
             ->when($this->search !== '', function ($q) {
                 $search = $this->search;
                 $q->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%"));
@@ -43,6 +49,29 @@ new class extends Component
             ->when($this->role !== '', fn ($q) => $q->where('role', $this->role))
             ->latest()
             ->paginate(10);
+    }
+
+    /**
+     * Admin testing tool: forces an immediate charge attempt on a trial order's stored card — the
+     * exact same code path the client's own "Proceed with Payment" action uses — so an admin can
+     * verify the real MTBC Create_Charge integration works without waiting for a client to convert.
+     */
+    public function endTrial(int $orderId): void
+    {
+        $this->resetErrorBag('endTrial');
+        $this->endTrialSuccessMessage = null;
+
+        $order = Order::where('payment_status', PaymentStatus::Trialing)->findOrFail($orderId);
+
+        $result = app(TrialBillingService::class)->convertTrialToPaid($order);
+
+        if ($result->success) {
+            $this->endTrialSuccessMessage = 'Charge succeeded'.($result->transactionId ? " (transaction {$result->transactionId})" : '').' — trial converted to paid.';
+        } else {
+            $this->addError('endTrial', $result->declineMessage ?? 'The charge failed.');
+        }
+
+        unset($this->users);
     }
 
     public function delete(int $userId): void
@@ -73,10 +102,18 @@ new class extends Component
 };
 ?>
 
-<div class="space-y-4" x-data="{ confirmId: null, confirmLabel: '' }">
+<div class="space-y-4" x-data="{ confirmId: null, confirmLabel: '', confirmEndTrialOrderId: null, confirmEndTrialLabel: '' }">
     @error('delete')
         <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>
     @enderror
+
+    @error('endTrial')
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Charge failed: {{ $message }}</div>
+    @enderror
+
+    @if($endTrialSuccessMessage)
+        <div class="rounded-xl border border-[#bfe3d2] bg-[#eef8f3] px-4 py-3 text-sm text-[#0f7a4f]">{{ $endTrialSuccessMessage }}</div>
+    @endif
 
     <div class="flex flex-wrap items-center gap-3 justify-end">
         <select wire:model.live="role"
@@ -127,8 +164,18 @@ new class extends Component
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider {{ $user->is_active ? 'bg-[#dff7f0] text-[#0f7a4f]' : 'bg-[#fde8e8] text-red-700' }}">
                                 {{ $user->is_active ? 'Active' : 'Deactivated' }}
                             </span>
+                            @if($trialOrder = $user->orders->first())
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold uppercase tracking-wider bg-[#eaf4ff] text-[#1a7aad]">
+                                    Trialing
+                                </span>
+                            @endif
                         </td>
                         <td class="px-5 py-3.5 text-right space-x-3">
+                            @if($trialOrder)
+                                <button type="button"
+                                    x-on:click="confirmEndTrialOrderId = {{ $trialOrder->id }}; confirmEndTrialLabel = @js($user->name.' ('.$user->email.')')"
+                                    class="text-xs font-bold text-[#1a7aad] hover:underline">End Trial</button>
+                            @endif
                             <a href="{{ route('admin.users.edit', $user) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
                             @if($user->id !== auth()->id())
                                 <button type="button" x-on:click="confirmId = {{ $user->id }}; confirmLabel = @js($user->name.' ('.$user->email.')')"
@@ -164,6 +211,27 @@ new class extends Component
                     class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-red-600 text-white hover:bg-red-700">
                     <span wire:loading.remove wire:target="delete">Delete</span>
                     <span wire:loading.inline-flex wire:target="delete" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Deleting…</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="confirmEndTrialOrderId !== null" x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div class="w-full max-w-sm bg-white rounded-[1.25rem] shadow-xl p-6" x-on:click.outside="confirmEndTrialOrderId = null">
+            <h3 class="text-base font-semibold text-navy mb-2">End trial for <span x-text="confirmEndTrialLabel"></span>?</h3>
+            <p class="text-sm text-empower-muted mb-5">This immediately charges the card on file via the real payment gateway — exactly as if the client had clicked "Proceed with Payment" themselves. Use this to verify the live payment integration is working.</p>
+            <div class="flex justify-end gap-3">
+                <button type="button" x-on:click="confirmEndTrialOrderId = null"
+                    class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                    Cancel
+                </button>
+                <button type="button" wire:target="endTrial"
+                    x-on:click="$wire.endTrial(confirmEndTrialOrderId).then(() => confirmEndTrialOrderId = null).catch(() => {})"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="endTrial"
+                    class="inline-flex items-center gap-1 rounded px-5 py-2 text-sm font-bold transition-colors bg-[#1a7aad] text-white hover:bg-[#0b9ed0]">
+                    <span wire:loading.remove wire:target="endTrial">Charge Now</span>
+                    <span wire:loading.inline-flex wire:target="endTrial" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Charging…</span>
                 </button>
             </div>
         </div>

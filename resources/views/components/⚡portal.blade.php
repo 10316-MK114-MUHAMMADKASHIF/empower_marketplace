@@ -10,11 +10,13 @@ use App\Enums\IntakeUploadType;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
+use App\Exceptions\EmpowerPaymentApiException;
 use App\Jobs\GenerateComplianceDocument;
 use App\Jobs\ProcessIntakeUpload;
 use App\Mail\AdminIntakeSubmittedMail;
 use App\Mail\AdminPaymentReceivedMail;
 use App\Mail\ClientPaymentReceiptMail;
+use App\Mail\ClientTrialStartedMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\ActivityLog;
 use App\Models\DiscountCode;
@@ -27,6 +29,8 @@ use App\Models\PaymentLog;
 use App\Models\Practice;
 use App\Models\User;
 use App\Services\CloverChargeService;
+use App\Services\EmpowerPaymentApiClient;
+use App\Services\TrialBillingService;
 use App\Support\Questionnaires;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -160,6 +164,12 @@ new class extends Component
     public function discountedTotal(): float
     {
         return max(0, (float) ($this->selectedPackage?->annual_price ?? 0) - $this->discountAmount);
+    }
+
+    #[Computed]
+    public function isFreeTrialCheckout(): bool
+    {
+        return $this->appliedDiscountCode?->type === DiscountType::FreeTrial;
     }
 
     /** Every order created by the checkout batch currently being walked through Steps 1/3/4. */
@@ -633,14 +643,6 @@ new class extends Component
             return;
         }
 
-        // Free trial checkout is not implemented yet — see plan.md "Phase 2: Free trial checkout"
-        // for the design and everything learned about which payment gateway can support it.
-        if ($discountCode->type === DiscountType::FreeTrial) {
-            $this->addError('discountCodeInput', 'Free trial checkout is not available yet. Please check back soon.');
-
-            return;
-        }
-
         if (! $discountCode->is_active) {
             $this->addError('discountCodeInput', 'This discount code is inactive.');
 
@@ -1062,6 +1064,255 @@ new class extends Component
             $this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders,
             $this->appliedDiscountCode, $this->discountAmount, $this->discountedTotal,
         );
+    }
+
+    /**
+     * Mirrors pay() (same validation, guest-account bootstrap, and activity/payment logging
+     * conventions) except no charge happens today — the card is tokenized via MTBC's Empower
+     * Payment API and stored for later, and the created Order is $0/Trialing rather than
+     * Paid/charged. Card fields arrive as method arguments for the same reason as pay(): never
+     * bound to a Livewire property, never logged, never persisted beyond the token MTBC returns.
+     */
+    public function payFreeTrial(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
+    {
+        $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
+
+        $this->validateBillingAndCardFields($cardName, $cardNumber, $cardExpiry, $cardCvc);
+
+        try {
+            Validator::make(compact('termsAccepted'), ['termsAccepted' => 'accepted'], $this->messages())->validate();
+        } catch (ValidationException $e) {
+            $this->cardErrors = array_merge($this->cardErrors, $e->validator->errors()->messages());
+
+            throw $e;
+        }
+
+        $package = $this->selectedPackageId ? Package::find($this->selectedPackageId) : null;
+
+        if (! $package) {
+            $this->addError('selectedPackageId', 'Please select a package.');
+
+            return;
+        }
+
+        if ($package->isCustomQuote()) {
+            $this->redirect(route('contact', ['package' => $package->slug]), navigate: true);
+
+            return;
+        }
+
+        $discountCode = $this->appliedDiscountCodeId ? DiscountCode::find($this->appliedDiscountCodeId) : null;
+
+        if (! $discountCode || $discountCode->type !== DiscountType::FreeTrial || ! $discountCode->isCurrentlyValid()) {
+            $this->appliedDiscountCodeId = null;
+            $this->addError('discountCodeInput', 'This discount code is no longer valid. Please remove it and try again.');
+
+            return;
+        }
+
+        [$expMonth, $expYear] = explode('/', $cardExpiry);
+        $expMonth = (int) $expMonth;
+        $expYear = (int) ('20'.$expYear);
+
+        try {
+            $tokenizeResult = app(EmpowerPaymentApiClient::class)->tokenize($cardNumber, $cardCvc);
+        } catch (EmpowerPaymentApiException $e) {
+            report($e);
+
+            PaymentLog::record(
+                success: false,
+                amount: 0,
+                user: auth()->user(),
+                guestEmail: auth()->guest() ? $this->accountEmail : null,
+                package: $package,
+                message: 'Free trial signup failed to tokenize the card.',
+            );
+
+            $this->addError('payment', 'We could not save your card. Please check your details and try again.');
+
+            return;
+        }
+
+        // Tokenize succeeded — only now do we create an account or any orders, same as pay().
+        if (auth()->guest()) {
+            $generatedPassword = Str::password(16);
+
+            $user = User::create([
+                'name' => $this->accountName,
+                'email' => $this->accountEmail,
+                'password' => $generatedPassword,
+                'role' => UserRole::Client,
+            ]);
+
+            Practice::create([
+                'user_id' => $user->id,
+                'name' => '',
+            ]);
+
+            try {
+                Mail::to($user->email)->queue(new WelcomeCredentialsMail($user, $generatedPassword));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
+            Auth::login($user);
+            $this->dispatch('user-logged-in');
+        }
+
+        $billingAddress = [
+            'name' => $cardName,
+            'address1' => $this->billingAddress1,
+            'city' => $this->billingCity,
+            'state' => $this->billingState,
+            'zip' => $this->billingZip,
+        ];
+
+        $order = Order::create([
+            'user_id' => auth()->id(),
+            'package_id' => $package->id,
+            'checkout_batch_id' => (string) Str::ulid(),
+            'status' => OrderStatus::Paid,
+            'payment_status' => PaymentStatus::Trialing,
+            'billing_address' => $billingAddress,
+            'amount_paid' => 0,
+            'original_price' => $package->annual_price,
+            'discount_amount' => $package->annual_price,
+            'discount_code_id' => $discountCode->id,
+            'discount_code' => $discountCode->code,
+            'paid_at' => now(),
+            'terms_accepted_at' => now(),
+            'terms_accepted_ip' => request()->ip(),
+            'trial_ends_at' => now()->addDays($discountCode->trial_days),
+            'clover_card_token' => $tokenizeResult['token'],
+            'card_expiry_month' => $expMonth,
+            'card_expiry_year' => $expYear,
+            'card_last_four' => $tokenizeResult['lastFour'],
+            'mtbc_reference_number' => $tokenizeResult['referenceNumber'],
+        ]);
+
+        ActivityLog::record(
+            'trial.started',
+            "Free trial started for {$package->name}, ending {$order->trial_ends_at->format('M j, Y')}.",
+            user: auth()->user(),
+            order: $order,
+        );
+
+        ActivityLog::record(
+            'order.terms_accepted',
+            "Accepted the Terms & Conditions and the CareCloud MSA for {$package->name}.",
+            user: auth()->user(),
+            order: $order,
+        );
+
+        PaymentLog::record(
+            success: true,
+            amount: 0,
+            user: auth()->user(),
+            package: $package,
+            order: $order,
+            message: 'Free trial started — card tokenized via Empower Payment API, no charge.',
+        );
+
+        try {
+            Mail::to($order->user->email)->queue(new ClientTrialStartedMail($order));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $discountCode->increment('used_count');
+        $this->appliedDiscountCodeId = null;
+
+        $this->orderIds = [$order->id];
+        $this->dashboardOrderId = $order->id;
+
+        $practice = auth()->user()->practice;
+        $this->practiceName = $practice->name ?? '';
+        $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($billingAddress);
+        $this->npiNumber = $practice->npi_number ?? '';
+        $this->specialty = $practice->specialty ?? 'General Practice';
+        $this->billableProviders = $practice->billable_providers_count ?? 1;
+
+        unset(
+            $this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders,
+            $this->appliedDiscountCode, $this->discountAmount, $this->discountedTotal, $this->isFreeTrialCheckout,
+        );
+    }
+
+    /**
+     * Called from the dashboard's "Proceed with Payment" action on an active trial — the client's
+     * first real charge, converting the order from Trialing to Paid.
+     */
+    public function convertTrialToPaid(int $orderId): void
+    {
+        $order = Order::where('user_id', auth()->id())
+            ->where('payment_status', PaymentStatus::Trialing)
+            ->findOrFail($orderId);
+
+        $result = app(TrialBillingService::class)->convertTrialToPaid($order);
+
+        if (! $result->success) {
+            $this->addError('payment', $result->declineMessage ?? 'Your card was declined. Please update your payment details and try again.');
+
+            return;
+        }
+
+        unset($this->userOrders, $this->batchOrders, $this->currentOrder);
+    }
+
+    /** Called from the dashboard to cancel an active trial or a converted paid subscription. */
+    public function cancelSubscription(int $orderId): void
+    {
+        $order = Order::where('user_id', auth()->id())->findOrFail($orderId);
+
+        app(TrialBillingService::class)->cancel($order, 'client_requested');
+
+        unset($this->userOrders, $this->batchOrders, $this->currentOrder);
+    }
+
+    /**
+     * Re-tokenizes a fresh card for an existing trial/subscription order, so a client whose stored
+     * card is expired or was declined has a self-service way to fix it before cancellation.
+     */
+    public function updateTrialCard(int $orderId, string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): void
+    {
+        $order = Order::where('user_id', auth()->id())->findOrFail($orderId);
+
+        $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
+
+        try {
+            Validator::make(compact('cardNumber', 'cardExpiry', 'cardCvc'), [
+                'cardNumber' => 'required|digits:16',
+                'cardExpiry' => $this->cardRules()['cardExpiry'],
+                'cardCvc' => 'required|digits_between:3,4',
+            ])->validate();
+        } catch (ValidationException $e) {
+            $this->setErrorBag($e->validator->errors());
+
+            return;
+        }
+
+        [$expMonth, $expYear] = explode('/', $cardExpiry);
+
+        try {
+            $tokenizeResult = app(EmpowerPaymentApiClient::class)->tokenize($cardNumber, $cardCvc);
+        } catch (EmpowerPaymentApiException $e) {
+            report($e);
+            $this->addError('payment', 'We could not save your card. Please check your details and try again.');
+
+            return;
+        }
+
+        $order->update([
+            'clover_card_token' => $tokenizeResult['token'],
+            'card_expiry_month' => (int) $expMonth,
+            'card_expiry_year' => (int) ('20'.$expYear),
+            'card_last_four' => $tokenizeResult['lastFour'],
+            'mtbc_reference_number' => $tokenizeResult['referenceNumber'],
+        ]);
+
+        ActivityLog::record('order.card_updated', "Payment method updated for {$order->package->name}.", user: auth()->user(), order: $order);
+
+        unset($this->userOrders, $this->batchOrders, $this->currentOrder);
     }
 
     /** @return array<string, mixed> */
@@ -1621,6 +1872,13 @@ $progressPct = ($milestone / 4) * 100;
                     </button>
                 </div>
                 @error('discountCodeInput') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                @elseif($this->isFreeTrialCheckout)
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-[#0f7a4f]">Free Trial ({{ $this->appliedDiscountCode->code
+                        }}) — {{ $this->appliedDiscountCode->trial_days }} days</span>
+                    <button type="button" wire:click="removeDiscountCode"
+                        class="text-xs text-empower-muted hover:underline">Remove</button>
+                </div>
                 @else
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $this->appliedDiscountCode->code
@@ -1635,11 +1893,19 @@ $progressPct = ($milestone / 4) * 100;
                 @endif
             </div>
 
+            @if($this->isFreeTrialCheckout)
+            <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
+                <span class="text-sm font-semibold text-[#173045]">Due Today</span>
+                <span class="text-lg font-extrabold text-navy">$0.00</span>
+            </div>
+            <p class="text-xs text-empower-muted mt-1">Then ${{ number_format((float) $this->selectedPackage->annual_price, 2) }}/year once your free trial ends, unless you cancel first.</p>
+            @else
             <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                 <span class="text-sm font-semibold text-[#173045]">Total</span>
                 <span class="text-lg font-extrabold text-navy">${{ number_format($this->discountedTotal, 2)
                     }}</span>
             </div>
+            @endif
             @endif
         </div>
 
@@ -1780,9 +2046,14 @@ $progressPct = ($milestone / 4) * 100;
                     class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
                     wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
                     wire:target="validatePayment">
-                    <span wire:loading.remove wire:target="validatePayment">Pay ${{
-                        number_format($this->discountedTotal, 2) }}
-                        &rarr;</span>
+                    <span wire:loading.remove wire:target="validatePayment">
+                        @if($this->isFreeTrialCheckout)
+                        Start Free Trial &rarr;
+                        @else
+                        Pay ${{ number_format($this->discountedTotal, 2) }}
+                        &rarr;
+                        @endif
+                    </span>
                     <span wire:loading.inline-flex wire:target="validatePayment"
                         class="inline-flex items-center gap-1.5">
                         <x-spinner class="h-3.5 w-3.5" /> Checking…
@@ -1811,7 +2082,21 @@ $progressPct = ($milestone / 4) * 100;
                             class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
                             Cancel
                         </button>
-                        <button type="button"
+                        @if($this->isFreeTrialCheckout)
+                        <button type="button" wire:key="terms-confirm-payfreetrial"
+                            x-on:click="$wire.payFreeTrial($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)"
+                            :disabled="!termsAccepted"
+                            :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
+                            class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
+                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                            wire:target="payFreeTrial">
+                            <span wire:loading.remove wire:target="payFreeTrial">I Agree — Start Free Trial &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="payFreeTrial" class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Processing…
+                            </span>
+                        </button>
+                        @else
+                        <button type="button" wire:key="terms-confirm-pay"
                             x-on:click="$wire.pay($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)"
                             :disabled="!termsAccepted"
                             :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
@@ -1823,6 +2108,7 @@ $progressPct = ($milestone / 4) * 100;
                                 <x-spinner class="h-3.5 w-3.5" /> Processing…
                             </span>
                         </button>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -2446,10 +2732,103 @@ $progressPct = ($milestone / 4) * 100;
         </button>
     </div>
 
-    @if($this->currentOrder?->blockedFromAiGeneration())
+    @php $dashOrder = $this->currentOrder; @endphp
+    @if($dashOrder && ! $dashOrder->blockedFromAiGeneration() && $dashOrder->payment_status === PaymentStatus::Trialing)
+    <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 flex flex-wrap items-center justify-between gap-3">
+        <span>
+            Free trial active — ends {{ $dashOrder->trial_ends_at?->format('M j, Y') }}. Card on file ending in
+            {{ $dashOrder->card_last_four ?? '····' }}.
+        </span>
+        <div class="flex items-center gap-2">
+            <button type="button" wire:click="convertTrialToPaid({{ $dashOrder->id }})"
+                wire:target="convertTrialToPaid({{ $dashOrder->id }})" wire:loading.attr="disabled"
+                wire:loading.class="opacity-70 cursor-not-allowed"
+                class="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-bold text-navy-dark hover:bg-accent-dark transition-colors">
+                <span wire:loading.remove wire:target="convertTrialToPaid({{ $dashOrder->id }})">Proceed with Payment</span>
+                <span wire:loading.inline-flex wire:target="convertTrialToPaid({{ $dashOrder->id }})"
+                    class="inline-flex items-center gap-1.5">
+                    <x-spinner class="h-3.5 w-3.5" /> Processing…
+                </span>
+            </button>
+            <button type="button" wire:click="cancelSubscription({{ $dashOrder->id }})"
+                wire:target="cancelSubscription({{ $dashOrder->id }})" wire:loading.attr="disabled"
+                class="rounded-lg border border-blue-300 px-3.5 py-1.5 text-xs font-semibold text-blue-800 hover:bg-blue-100 transition-colors">
+                Cancel
+            </button>
+        </div>
+        <div x-data="{ showUpdateCard: false }" class="w-full">
+            <button type="button" x-on:click="showUpdateCard = ! showUpdateCard"
+                class="text-xs font-semibold text-blue-800 hover:underline">Update Card</button>
+            <div x-show="showUpdateCard" x-cloak class="mt-2 flex flex-wrap items-end gap-2">
+                <input x-ref="cardNumber" type="text" placeholder="Card number" inputmode="numeric" maxlength="19"
+                    class="rounded-lg border border-empower-border bg-white px-3 py-1.5 text-sm w-40">
+                <input x-ref="cardExpiry" type="text" placeholder="MM/YY" maxlength="5"
+                    class="rounded-lg border border-empower-border bg-white px-3 py-1.5 text-sm w-20">
+                <input x-ref="cardCvc" type="text" placeholder="CVC" inputmode="numeric" maxlength="4"
+                    class="rounded-lg border border-empower-border bg-white px-3 py-1.5 text-sm w-16">
+                <button type="button"
+                    x-on:click="$wire.updateTrialCard({{ $dashOrder->id }}, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then(() => showUpdateCard = false)"
+                    wire:loading.attr="disabled" wire:target="updateTrialCard"
+                    class="rounded-lg bg-navy px-3 py-1.5 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
+                    Save Card
+                </button>
+            </div>
+            @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+        </div>
+    </div>
+    @error('payment') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+    @elseif($dashOrder && $dashOrder->payment_status === PaymentStatus::PastDue)
+    <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex flex-wrap items-center justify-between gap-3">
+        <span>
+            We couldn't process your last renewal payment{{ $dashOrder->last_renewal_error ? ": {$dashOrder->last_renewal_error}" : '.' }}
+            We'll retry automatically — please update your card to avoid cancellation.
+        </span>
+        <button type="button" wire:click="cancelSubscription({{ $dashOrder->id }})"
+            wire:target="cancelSubscription({{ $dashOrder->id }})" wire:loading.attr="disabled"
+            class="rounded-lg border border-amber-300 px-3.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors">
+            Cancel Subscription
+        </button>
+        <div x-data="{ showUpdateCard: false }" class="w-full">
+            <button type="button" x-on:click="showUpdateCard = ! showUpdateCard"
+                class="text-xs font-semibold text-amber-800 hover:underline">Update Card</button>
+            <div x-show="showUpdateCard" x-cloak class="mt-2 flex flex-wrap items-end gap-2">
+                <input x-ref="cardNumber" type="text" placeholder="Card number" inputmode="numeric" maxlength="19"
+                    class="rounded-lg border border-empower-border bg-white px-3 py-1.5 text-sm w-40">
+                <input x-ref="cardExpiry" type="text" placeholder="MM/YY" maxlength="5"
+                    class="rounded-lg border border-empower-border bg-white px-3 py-1.5 text-sm w-20">
+                <input x-ref="cardCvc" type="text" placeholder="CVC" inputmode="numeric" maxlength="4"
+                    class="rounded-lg border border-empower-border bg-white px-3 py-1.5 text-sm w-16">
+                <button type="button"
+                    x-on:click="$wire.updateTrialCard({{ $dashOrder->id }}, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then(() => showUpdateCard = false)"
+                    wire:loading.attr="disabled" wire:target="updateTrialCard"
+                    class="rounded-lg bg-navy px-3 py-1.5 text-xs font-bold text-white hover:bg-navy-dark transition-colors">
+                    Save Card
+                </button>
+            </div>
+            @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            @error('cardExpiry') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            @error('cardCvc') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+        </div>
+    </div>
+    @error('payment') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+    @elseif($dashOrder?->blockedFromAiGeneration())
     <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        @if($dashOrder->payment_status === PaymentStatus::Trialing)
         Your free trial ended without a subscription — AI document generation is no longer available for this
         practice. Contact us to resubscribe.
+        @else
+        This subscription has been cancelled — AI document generation is no longer available for this practice.
+        Contact us to resubscribe.
+        @endif
+    </div>
+    @elseif($dashOrder && $dashOrder->payment_status === PaymentStatus::Paid && $dashOrder->next_bill_date)
+    <div class="rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-3 text-xs text-empower-muted flex items-center justify-between gap-3">
+        <span>Renews {{ $dashOrder->next_bill_date->format('M j, Y') }}</span>
+        <button type="button" wire:click="cancelSubscription({{ $dashOrder->id }})"
+            wire:target="cancelSubscription({{ $dashOrder->id }})"
+            class="text-xs font-semibold text-empower-muted hover:underline">Cancel subscription</button>
     </div>
     @endif
 

@@ -61,6 +61,10 @@ class OrderFactory extends Factory
             'paid_at' => now(),
             'trial_ends_at' => now()->addDays(30),
             'clover_card_token' => 'tok_'.fake()->lexify('????????????'),
+            'card_expiry_month' => 12,
+            'card_expiry_year' => (int) now()->addYears(3)->format('Y'),
+            'card_last_four' => fake()->numerify('####'),
+            'mtbc_reference_number' => fake()->numerify('####################'),
         ]);
     }
 
@@ -71,6 +75,30 @@ class OrderFactory extends Factory
             'status' => OrderStatus::Cancelled,
             'cancelled_at' => now(),
             'trial_ends_at' => now()->subDay(),
+        ]);
+    }
+
+    /** A trial that converted to a real paying subscription, now waiting on its next annual charge. */
+    public function convertedFromTrial(): static
+    {
+        return $this->trialing()->state(fn (array $attributes) => [
+            'payment_status' => PaymentStatus::Paid,
+            'payment_reference' => 'SIM-'.strtoupper(fake()->lexify('????????')),
+            'amount_paid' => fake()->randomElement([1490.00, 2490.00, 3990.00]),
+            'trial_confirmed_at' => now(),
+            'next_bill_date' => now()->addYear(),
+        ]);
+    }
+
+    /** A converted subscription whose most recent renewal attempt(s) failed. */
+    public function pastDue(int $attempts = 1): static
+    {
+        return $this->convertedFromTrial()->state(fn (array $attributes) => [
+            'payment_status' => PaymentStatus::PastDue,
+            'next_bill_date' => now()->subDays(1),
+            'renewal_attempts' => $attempts,
+            'last_renewal_attempt_at' => now(),
+            'last_renewal_error' => 'Your card was declined. Please check your details and try again.',
         ]);
     }
 }

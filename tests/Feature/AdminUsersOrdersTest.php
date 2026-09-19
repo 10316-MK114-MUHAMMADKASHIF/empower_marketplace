@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
@@ -12,8 +13,11 @@ use App\Models\OshaLocation;
 use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
+use App\Services\MtbcCardCipher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -214,6 +218,75 @@ class AdminUsersOrdersTest extends TestCase
             ->assertSeeHtml('confirmId = '.$otherUser->id.';');
     }
 
+    public function test_users_list_shows_end_trial_only_for_trialing_users(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $trialingUser = User::factory()->create();
+        $order = Order::factory()->trialing()->create(['user_id' => $trialingUser->id]);
+        $otherUser = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-list')
+            ->assertSeeHtml('confirmEndTrialOrderId = '.$order->id.';')
+            ->assertSee('Trialing');
+    }
+
+    public function test_admin_ending_a_trial_charges_the_card_and_converts_it_to_paid(): void
+    {
+        Mail::fake();
+        $cipher = new MtbcCardCipher;
+
+        Http::fake([
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/detokenize' => Http::response([
+                'status' => true,
+                'data' => ['value' => $cipher->encrypt('4111111111111111'), 'cvv' => $cipher->encrypt('123'), 'referenceNumber' => 'REF123'],
+            ]),
+            '*/api/payment/Create_Charge' => Http::response(['status' => true, 'message' => 'Payment Successful', 'data' => ['id' => 'TEST_END_TRIAL_TXN']]),
+        ]);
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+        $package = Package::factory()->create(['annual_price' => 999]);
+        $order = Order::factory()->trialing()->create(['user_id' => $client->id, 'package_id' => $package->id, 'original_price' => 999]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-list')
+            ->call('endTrial', $order->id)
+            ->assertHasNoErrors()
+            ->assertSee('Charge succeeded');
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Paid, $order->payment_status);
+        $this->assertSame('TEST_END_TRIAL_TXN', $order->payment_reference);
+    }
+
+    public function test_admin_ending_a_trial_shows_the_decline_reason_on_a_failed_charge(): void
+    {
+        $cipher = new MtbcCardCipher;
+
+        Http::fake([
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/detokenize' => Http::response([
+                'status' => true,
+                'data' => ['value' => $cipher->encrypt('4111111111111111'), 'cvv' => $cipher->encrypt('123'), 'referenceNumber' => 'REF123'],
+            ]),
+            '*/api/payment/Create_Charge' => Http::response(['status' => false, 'message' => 'Card declined', 'data' => null], 400),
+        ]);
+
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+        $order = Order::factory()->trialing()->create(['user_id' => $client->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-list')
+            ->call('endTrial', $order->id)
+            ->assertHasErrors(['endTrial']);
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Trialing, $order->payment_status);
+    }
+
     public function test_user_edit_page_shows_a_terms_accepted_badge_when_an_order_accepted_terms(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
@@ -260,6 +333,35 @@ class AdminUsersOrdersTest extends TestCase
         $this->assertTrue($practice->is_profile_locked);
         $this->assertNotNull($practice->locked_at);
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'practice.updated']);
+    }
+
+    public function test_admin_cannot_clear_required_practice_profile_fields(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+        Practice::factory()->create(['user_id' => $client->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-form', ['user' => $client])
+            ->set('practiceAddress', '')
+            ->set('practiceNpiNumber', '')
+            ->set('practiceSpecialty', '')
+            ->set('practiceBillableProvidersCount', null)
+            ->call('save')
+            ->assertHasErrors(['practiceAddress', 'practiceNpiNumber', 'practiceSpecialty', 'practiceBillableProvidersCount']);
+    }
+
+    public function test_admin_editing_a_practice_requires_a_ten_digit_npi_number(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $client = User::factory()->create();
+        Practice::factory()->create(['user_id' => $client->id]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.user-form', ['user' => $client])
+            ->set('practiceNpiNumber', '12345')
+            ->call('save')
+            ->assertHasErrors(['practiceNpiNumber']);
     }
 
     public function test_editing_a_practice_preserves_a_specialty_outside_the_preset_list(): void

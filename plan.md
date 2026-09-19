@@ -288,6 +288,115 @@ but only worth revisiting if they come back with an unambiguous answer to Q6 (a 
 charge-with-token endpoint that actually exists and has been tested) — until then there's nothing
 further to build against on that side.
 
+### Update (2026-09-19): MTBC delivered a concrete tokenize/detokenize API — but it reintroduces the CVV-storage blocker
+
+MTBC handed over full working credentials + sample curls for a **new, separate API**:
+`https://uat-webservices.mtbc.com/Empower_Payment_Api` (distinct host+path from `Clover_Api` above)
+— `POST /api/auth/token` (username/password → short-lived JWT, ~10 min expiry per their notes,
+10 req/min/IP rate limit), `POST /api/payment/tokenize`, `POST /api/payment/detokenize`. Card data
+sent to tokenize/detokenize must be pre-encrypted by us with a shared AES key they provided
+(`AesKey=2595874569321569`) — algorithm reverse-engineered from their C# reference: AES-128-CBC,
+PKCS7 padding, **static all-zero 16-byte IV** (not random — `GenerateIV()` is called then
+immediately overwritten), key = the raw ASCII bytes of the shared key string used as-is (their
+`GetKey()` byte-cycling loop is a no-op here since the key string is exactly 16 bytes = the AES-128
+key size). **Verified compatible**: a PHP `openssl_encrypt('aes-128-cbc', ..., OPENSSL_RAW_DATA,
+$zeroIv)` + base64 round-trips correctly in isolation (self-consistency confirmed; full live
+round-trip against their tokenize→detokenize not completed — see blocker below).
+
+Pulled this API's own `swagger.json` (`/Empower_Payment_Api/swagger/v1/swagger.json`) to see the
+complete route list, since the sample curls didn't mention a charge endpoint at all. It has 5 routes
+total: `auth/token`, `tokenize`, `detokenize`, and **`Create_Charge` / `Create_Charge_Response`** —
+and those last two use a `CloverChargeRequest` schema (`username`, `password`, `name`, `address1`,
+`city`, `state`, `zip`, `product_Name`, `business_Name`, `amount`, `cardNumber`, `expMonth`,
+`expYear`, `cvv`) that is **byte-for-byte identical** to the old `Clover_Api`'s already-proven
+charge-only schema above — no `token` field anywhere. So even in this new API, there is still no
+literal "charge by token" call.
+
+**The actual intended flow, reverse-engineered from this and confirmed by the user (2026-09-19):**
+tokenize once at signup (get back a masked/format-preserving reference — first6+last4 real, middle
+digits randomized — for display and lookup only); to charge again later, call detokenize to get the
+encrypted blob back, decrypt it ourselves with the same AES key, and submit the recovered **raw**
+`cardNumber`+`cvv` to `Create_Charge` exactly like a fresh one-shot charge — decrypting detokenize's
+`value`/`cvv` fields yields the actual, usable card number and CVV, not an intermediate value.
+`Create_Charge`'s body-level `username`/`password`, and its plaintext (not AES-encrypted)
+`cardNumber`/`cvv` fields, are **confirmed to be the same mechanism/credentials already used for the
+existing single (one-time) payment flow** — i.e. `CLOVER_MTBC_USERNAME`/`PASSWORD`, matching
+`CloverChargeService`'s existing usage — not something new to figure out. (Empirically, the
+`auth/token` credentials, `mtbcpayments`/..., do NOT work here — live rejection: `"Invalid username
+or password"` — which is consistent with this confirmation.)
+
+**Why this doesn't actually resolve Q6 (the real blocker): detokenize hands back the CVV.**
+`tokenize`'s sample request includes a `cvv` field, and `detokenize`'s response returns a decrypted
+`cvv` value alongside the card number — meaning MTBC is storing the CVV (encrypted, but stored) for
+later retrieval and reuse. **PCI-DSS prohibits storing CVV/CVV2 after the initial authorization,
+full stop — encryption does not remove it from scope, and this applies to any party in the payment
+chain, not just the merchant.** This is the exact same rule that ruled out naive "encrypt and store
+the raw card" designs on 2026-09-04 (see project memory `trial-billing-clover-ecomm`). The reason
+this AES dance exists at all is almost certainly to keep feeding a CVV back into `Create_Charge`,
+which — being schema-identical to the already-proven old endpoint — very likely hard-requires CVV on
+every call with no stored-credential/MIT exception (exactly like "What we learned" item 2 above:
+"CardNumber and Cvv are hard-required on every request, always"). That would make this whole API,
+as demoed, structurally unable to support compliant recurring billing, regardless of how the crypto
+or credentials shake out.
+
+Compare to the direct Clover eCommerce design below: `chargeSavedCard(customerId, amount, ...)`
+never touches CVV again after the first charge, because a real card-on-file reference is sufficient
+— the standard, compliant pattern for recurring/stored-credential transactions industry-wide. The
+AES tokenize/detokenize flow does not match that pattern — it does not remove CVV from scope.
+
+**Decision (2026-09-19): built anyway, on the user's explicit instruction, with the CVV-storage
+trade-off knowingly accepted.** The user confirmed live (a real `Create_Charge` test call returned
+`"incorrect_cvc": "Please provide valid cvv value."`) that CVV is in fact mandatory on every call,
+with no stored-credential/MIT exception discovered — so the sharp follow-up question above is
+answered, and it's the answer that made this API structurally incompatible with a CVV-free
+recurring-billing design. Rather than fall back to the (more complex, browser-side-crypto-dependent)
+Clover eCommerce path below, the user chose to proceed with this API regardless, accepting that MTBC
+is retaining the CVV after authorization. The one mitigation fully within this app's control was
+applied: **the app itself never persists a CVV anywhere** — `TrialBillingService::chargeStoredCard()`
+is the sole place the recovered raw card/CVV briefly exist, and they go out of scope the instant the
+charge call returns (no `orders` column can hold one; nothing is ever logged with it either — see
+`EmpowerPaymentApiClientTest::test_declined_charge_is_logged_without_leaking_the_raw_card_number`).
+
+**What was actually built** (see `resources/views/components/⚡portal.blade.php`,
+`app/Services/{MtbcCardCipher,EmpowerPaymentApiClient,TrialBillingService}.php`,
+`app/Console/Commands/ProcessSubscriptionBilling.php`, and the 5 new `App\Mail\Client*` classes):
+free-trial signup tokenizes the card server-side and creates a `Trialing` order with no charge; the
+client explicitly clicks "Proceed with Payment" to convert to the first paid year; every subsequent
+annual renewal is fully automatic (detokenize → decrypt → `Create_Charge`), with a 3-attempt
+(0/3/7-day) retry policy before cancelling on repeated failure; a self-service "Update Card" action
+covers an expired/declined stored card. An admin-only "End Trial" action (users list) forces this
+exact same charge attempt on demand, specifically so the real gateway integration can be verified by
+hand without waiting for a client to convert. 429 tests passing, including live-verified crypto
+compatibility and full dashboard-state rendering. The direct Clover eCommerce path below remains
+documented but is no longer the active plan.
+
+### Update (2026-09-19): `Create_Charge` also requires the Bearer token — confirmed by a real failure
+
+First live use of "End Trial" against the real UAT sandbox failed with a logged, empty-body 401:
+`{"http_status":401,"body":""}`. This is a materially different failure shape from an app-level
+rejection (which comes back as `{"status":false,"message":"..."}` — e.g. the `"Invalid username or
+password"` seen earlier in this doc when the wrong body credentials were used **with** a Bearer
+token attached). An empty-body 401 means the request never reached the app's own controller logic at
+all — it was rejected by the API's auth gateway before that point. The only difference between the
+"Invalid username or password" test (worked, reached app logic) and this live failure (rejected at
+the gateway) was the Bearer header.
+
+**Conclusion, now fixed in code**: `Create_Charge` on this API requires the same Bearer token as
+tokenize/detokenize, contrary to the assumption this doc's "actual flow" section stated (mirroring
+the older, separate `Clover_Api` gateway, which never used one). `EmpowerPaymentApiClient::charge()`
+now calls the same cached `accessToken()` used by tokenize/detokenize, and retries once with a fresh
+token on a 401 — identical resilience to `postAuthenticated()`. The body-level `username`/`password`
+(`CLOVER_MTBC_*`) are unaffected by this and remain the confirmed credentials for that field.
+
+Caught a second, unrelated issue while fixing this: several `EmpowerPaymentApiClientTest` cases for
+`charge()` didn't fake `/api/auth/token`, so — since `Http::fake()` only stubs the URLs it's given —
+those tests were silently making a real network call to MTBC's live UAT sandbox on every run. It
+happened to "work" because the sandbox is genuinely reachable, but it's exactly the kind of hidden
+live-network dependency a test suite must never have (slow, consumes MTBC's 10-req/min limit on every
+test run, would fail unpredictably if the sandbox were ever down). Every test now explicitly fakes
+`/api/auth/token`; a new `test_charge_clears_the_cached_token_and_retries_once_on_a_gateway_401` test
+reproduces the exact empty-body-401 shape seen live.
+
 ## The proven alternative: direct Clover eCommerce API (built + tested, now removed)
 
 This is what was actually implemented and passing all tests before being stripped out today. It's
