@@ -335,11 +335,11 @@ class AdminUsersOrdersTest extends TestCase
         $this->assertDatabaseHas('activity_logs', ['event_type' => 'practice.updated']);
     }
 
-    public function test_admin_cannot_clear_required_practice_profile_fields(): void
+    public function test_admin_can_clear_optional_practice_profile_fields(): void
     {
         $admin = User::factory()->create(['role' => UserRole::Admin]);
         $client = User::factory()->create();
-        Practice::factory()->create(['user_id' => $client->id]);
+        $practice = Practice::factory()->create(['user_id' => $client->id]);
 
         Livewire::actingAs($admin)
             ->test('admin.user-form', ['user' => $client])
@@ -348,7 +348,13 @@ class AdminUsersOrdersTest extends TestCase
             ->set('practiceSpecialty', '')
             ->set('practiceBillableProvidersCount', null)
             ->call('save')
-            ->assertHasErrors(['practiceAddress', 'practiceNpiNumber', 'practiceSpecialty', 'practiceBillableProvidersCount']);
+            ->assertHasNoErrors(['practiceAddress', 'practiceNpiNumber', 'practiceSpecialty', 'practiceBillableProvidersCount']);
+
+        $practice->refresh();
+        $this->assertNull($practice->address);
+        $this->assertNull($practice->npi_number);
+        $this->assertNull($practice->specialty);
+        $this->assertSame(1, $practice->billable_providers_count);
     }
 
     public function test_admin_editing_a_practice_requires_a_ten_digit_npi_number(): void

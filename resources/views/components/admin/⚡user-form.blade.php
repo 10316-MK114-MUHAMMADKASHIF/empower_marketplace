@@ -144,15 +144,12 @@ new class extends Component
         }
 
         if ($this->practiceId) {
-            // Mirrors the client-side profileRules() in ⚡portal.blade.php exactly (minus logoFile —
-            // this form has no logo upload field), so an admin can't save a practice profile in a
-            // state the client themselves would never be allowed to submit.
             $this->validate([
-                'practiceName' => 'required|string|max:150',
-                'practiceAddress' => 'required|string|max:255',
-                'practiceNpiNumber' => 'required|digits:10',
-                'practiceSpecialty' => 'required|string|max:100',
-                'practiceBillableProvidersCount' => 'required|integer|min:1|max:9999',
+                'practiceName' => 'nullable|string|max:150',
+                'practiceAddress' => 'nullable|string|max:255',
+                'practiceNpiNumber' => 'nullable|digits:10',
+                'practiceSpecialty' => 'nullable|string|max:100',
+                'practiceBillableProvidersCount' => 'nullable|integer|min:1|max:9999',
             ]);
 
             $practice = Practice::findOrFail($this->practiceId);
@@ -161,7 +158,7 @@ new class extends Component
                 'address' => $this->practiceAddress ?: null,
                 'npi_number' => $this->practiceNpiNumber ?: null,
                 'specialty' => $this->practiceSpecialty ?: null,
-                'billable_providers_count' => $this->practiceBillableProvidersCount,
+                'billable_providers_count' => $this->practiceBillableProvidersCount ?? 1,
                 'is_profile_locked' => $this->practiceIsLocked,
                 'locked_at' => $this->practiceIsLocked ? ($practice->locked_at ?? now()) : null,
             ]);
@@ -366,21 +363,21 @@ new class extends Component
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Practice Name <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Practice Name</label>
                     <input wire:model="practiceName" type="text"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="sm:col-span-2">
-                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Address <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Address</label>
                     <input wire:model="practiceAddress" type="text"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">NPI Number <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">NPI Number</label>
                     <input wire:model="practiceNpiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
                         x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
@@ -388,7 +385,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Specialty <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Specialty</label>
                     <select wire:model="practiceSpecialty"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         @if($practiceSpecialty !== '' && ! in_array($practiceSpecialty, Practice::SPECIALTIES, true))
@@ -402,7 +399,7 @@ new class extends Component
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Billable Providers <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Billable Providers</label>
                     <input wire:model="practiceBillableProvidersCount" type="number" min="1" max="9999"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceBillableProvidersCount') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
