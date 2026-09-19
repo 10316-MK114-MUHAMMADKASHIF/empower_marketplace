@@ -186,7 +186,7 @@ new class extends Component
         $this->uploadNotice = null;
 
         $this->validate([
-            'questionnaireFiles.*' => 'nullable|file|max:20480',
+            'questionnaireFiles.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png,docx|max:20480',
         ]);
 
         $filledFiles = collect($this->questionnaireFiles)->filter();

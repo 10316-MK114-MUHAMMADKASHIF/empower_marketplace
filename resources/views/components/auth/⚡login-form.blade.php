@@ -1,11 +1,17 @@
 <?php
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
 new class extends Component
 {
+    private const MAX_LOGIN_ATTEMPTS = 5;
+
+    private const LOGIN_DECAY_SECONDS = 60;
+
     #[Validate('required|email:rfc,filter')]
     public string $email = '';
 
@@ -14,15 +20,30 @@ new class extends Component
 
     public bool $remember = false;
 
+    private function throttleKey(): string
+    {
+        return Str::transliterate(Str::lower($this->email).'|'.request()->ip());
+    }
+
     public function login(): void
     {
         $this->validate();
 
+        if (RateLimiter::tooManyAttempts($this->throttleKey(), self::MAX_LOGIN_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($this->throttleKey());
+            $this->addError('email', "Too many login attempts. Please try again in {$seconds} seconds.");
+
+            return;
+        }
+
         if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
+            RateLimiter::hit($this->throttleKey(), self::LOGIN_DECAY_SECONDS);
             $this->addError('email', 'These credentials do not match our records.');
 
             return;
         }
+
+        RateLimiter::clear($this->throttleKey());
 
         if (! Auth::user()->is_active) {
             Auth::logout();

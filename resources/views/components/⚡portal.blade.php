@@ -1322,7 +1322,7 @@ new class extends Component
 
         return [
             'practiceName' => 'required|string|max:150',
-            'logoFile' => $isLocked ? 'nullable|file|mimes:png,jpg,jpeg,svg|max:2048' : 'required|file|mimes:png,jpg,jpeg,svg|max:2048',
+            'logoFile' => $isLocked ? 'nullable|file|mimes:png,jpg,jpeg|max:2048' : 'required|file|mimes:png,jpg,jpeg|max:2048',
             'practiceAddress' => 'required|string|max:255',
             'npiNumber' => 'required|digits:10',
             'specialty' => 'required|string|max:100',
@@ -1427,7 +1427,7 @@ new class extends Component
         }
 
         $this->validate([
-            'questionnaireFiles.*' => 'nullable|file|max:20480',
+            'questionnaireFiles.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png,docx|max:20480',
         ]);
 
         $orders = $this->batchOrders;
@@ -1555,7 +1555,7 @@ new class extends Component
         // from before a rejection) satisfies the requirement — the client isn't forced to
         // re-pick every file just to resubmit one that was fine.
         $rules['reviewDocumentFiles'] = $this->existingReviewUploads->isEmpty() ? 'required|array|min:1' : 'nullable|array';
-        $rules['reviewDocumentFiles.*'] = 'file|max:20480';
+        $rules['reviewDocumentFiles.*'] = 'file|mimes:pdf,jpg,jpeg,png,docx|max:20480';
 
         $this->validate($rules);
 
@@ -2167,11 +2167,11 @@ $progressPct = ($milestone / 4) * 100;
                     @endif
                 </label>
                 @unless($this->practice?->is_profile_locked)
-                <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg"
+                <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg"
                     class="block w-full text-sm text-[#5d6e7f] file:mr-3 file:py-1.5 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-[#12304f] file:text-white hover:file:bg-[#0a2037] cursor-pointer">
                 @error('logoFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 @endunless
-                <p class="mt-1 text-xs text-[#5d6e7f]">PNG or SVG recommended, square aspect ratio.</p>
+                <p class="mt-1 text-xs text-[#5d6e7f]">PNG or JPG recommended, square aspect ratio.</p>
             </div>
         </div>
 
