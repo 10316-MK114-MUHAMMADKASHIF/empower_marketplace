@@ -4,6 +4,9 @@ namespace App\Jobs;
 
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
+use App\Enums\IntakeSubmissionStatus;
+use App\Mail\ClientDocumentsApprovedMail;
+use App\Models\ActivityLog;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeUpload;
 use App\Models\Order;
@@ -14,6 +17,7 @@ use App\Support\ManualQuestionSets;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\IOFactory;
@@ -30,6 +34,15 @@ class GenerateComplianceDocument implements ShouldQueue
         public readonly ?IntakeUpload $intakeUpload = null,
     ) {}
 
+    /**
+     * Whether this document was already approved (and so already delivered to the client)
+     * before this run — captured before the "revoke prior approval" step below overwrites it.
+     * finalizeGeneration() uses this to tell an untouched document that's simply finishing late
+     * apart from one that's being deliberately regenerated after already going out; only the
+     * former is safe to auto-approve.
+     */
+    private bool $wasApprovedBeforeThisRun = false;
+
     public function handle(CompliancePdfGenerator $pdfGenerator): void
     {
         $doc = GeneratedDocument::firstOrCreate(
@@ -41,6 +54,8 @@ class GenerateComplianceDocument implements ShouldQueue
             ],
             ['status' => DocumentStatus::Pending]
         );
+
+        $this->wasApprovedBeforeThisRun = $doc->isApproved();
 
         // Revoke any prior admin approval — a (re)generated document must be reviewed again.
         $doc->update(['status' => DocumentStatus::Generating, 'reviewed_at' => null, 'reviewed_by' => null]);
@@ -76,7 +91,7 @@ class GenerateComplianceDocument implements ShouldQueue
                     throw new \RuntimeException("Template not found for {$this->documentType->value}");
                 }
 
-                $doc->update([
+                $this->finalizeGeneration($doc, [
                     'status' => DocumentStatus::Completed,
                     'pdf_storage_path' => null,
                     'docx_storage_path' => $docxPath,
@@ -99,7 +114,7 @@ class GenerateComplianceDocument implements ShouldQueue
 
             $docxPath = $this->generateDocx($basePath, $slug, $viewData, $doc);
 
-            $doc->update([
+            $this->finalizeGeneration($doc, [
                 'status' => DocumentStatus::Completed,
                 'pdf_storage_path' => $pdfPath,
                 'docx_storage_path' => $docxPath,
@@ -118,6 +133,57 @@ class GenerateComplianceDocument implements ShouldQueue
             $doc->update([
                 'status' => DocumentStatus::Failed,
                 'failure_reason' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Applies a successful generation result, then — only for a document completing for the
+     * first time, never previously approved/delivered — if the submission was already approved
+     * before it finished (e.g. it was still generating at approval time), immediately replays
+     * that approval decision onto it. Approving a submission is meant to be a one-time decision
+     * covering every document for the order (see SubmissionDetail::approve()), not just whichever
+     * ones happened to be ready at that exact moment; without this, a late-finishing document is
+     * stranded "Pending Review" forever, since the only approval action is hidden once the
+     * submission itself is no longer awaiting review.
+     *
+     * A document that WAS already approved before this run (wasApprovedBeforeThisRun) is
+     * deliberately excluded: that means it was already delivered and is now being regenerated,
+     * which per the "revoke any prior admin approval" step above must go through a real human
+     * re-review before going out again, submission status notwithstanding.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function finalizeGeneration(GeneratedDocument $doc, array $attributes): void
+    {
+        $doc->update($attributes);
+
+        $submission = $this->order->intakeSubmission;
+
+        if ($this->wasApprovedBeforeThisRun
+            || ! $submission
+            || $submission->status !== IntakeSubmissionStatus::Approved
+            || ! $doc->canBeApproved()) {
+            return;
+        }
+
+        $doc->update(['reviewed_at' => now(), 'reviewed_by' => $submission->reviewed_by, 'revoked_at' => null]);
+
+        ActivityLog::record(
+            'documents.approved',
+            "{$doc->document_type->label()} for order #{$this->order->id} auto-approved after finishing generation (the submission was already approved).",
+            user: $submission->reviewer,
+            order: $this->order,
+            subject: $doc,
+        );
+
+        try {
+            Mail::to($this->order->user->email)->send(new ClientDocumentsApprovedMail($this->order, $doc->newCollection([$doc])));
+        } catch (\Throwable $e) {
+            Log::error('Failed to send the documents-ready email for an auto-approved document', [
+                'order_id' => $this->order->id,
+                'document_id' => $doc->id,
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -147,7 +213,7 @@ class GenerateComplianceDocument implements ShouldQueue
         $pdfPath = "{$basePath}/{$slug}.pdf";
         Storage::disk('local')->put($pdfPath, $pdfContent);
 
-        $doc->update([
+        $this->finalizeGeneration($doc, [
             'status' => DocumentStatus::Completed,
             'pdf_storage_path' => $pdfPath,
             'docx_storage_path' => null,
@@ -191,7 +257,7 @@ class GenerateComplianceDocument implements ShouldQueue
         $pdfPath = "{$basePath}/{$slug}.pdf";
         Storage::disk('local')->put($pdfPath, $pdfContent);
 
-        $doc->update([
+        $this->finalizeGeneration($doc, [
             'status' => DocumentStatus::Completed,
             'pdf_storage_path' => $pdfPath,
             'docx_storage_path' => $docxPath,

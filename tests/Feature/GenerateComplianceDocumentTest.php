@@ -8,6 +8,7 @@ use App\Enums\DocumentType;
 use App\Enums\IntakeUploadType;
 use App\Enums\PaymentStatus;
 use App\Jobs\GenerateComplianceDocument;
+use App\Mail\ClientDocumentsApprovedMail;
 use App\Models\GeneratedDocument;
 use App\Models\IntakeSubmission;
 use App\Models\IntakeUpload;
@@ -19,6 +20,7 @@ use App\Models\User;
 use App\Services\CompliancePdfGenerator;
 use Database\Seeders\QuestionnaireSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -143,6 +145,39 @@ class GenerateComplianceDocumentTest extends TestCase
         $this->assertNull($document->reviewed_at);
         $this->assertNull($document->reviewed_by);
         $this->assertEquals(DocumentStatus::Completed, $document->status);
+    }
+
+    /**
+     * Reproduces a real production bug: an admin approves a submission while one of its
+     * documents is still generating (or generation just hadn't started yet). The submission-level
+     * Approve button is the only approval action and it's gone once the submission is Approved,
+     * so without this fix the document — despite finishing successfully moments later — was
+     * stranded "Pending Review" forever and never delivered to the client.
+     */
+    public function test_a_document_that_finishes_after_its_submission_was_already_approved_is_auto_approved(): void
+    {
+        Storage::fake('local');
+        $this->mockPdfGenerator();
+        Mail::fake();
+
+        $order = $this->makeOrder();
+        $admin = User::factory()->create();
+        $order->intakeSubmission->update(['reviewed_by' => $admin->id]);
+
+        // Never generated before — this is exactly the "still generating at approval time" case,
+        // not a regeneration of something already delivered.
+        $this->assertDatabaseMissing('generated_documents', ['order_id' => $order->id]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::EmployeeHandbookBasic);
+
+        $document = GeneratedDocument::where('order_id', $order->id)->firstOrFail();
+        $this->assertEquals(DocumentStatus::Completed, $document->status);
+        $this->assertNotNull($document->reviewed_at);
+        $this->assertEquals($admin->id, $document->reviewed_by);
+        $this->assertTrue($document->isReady());
+
+        Mail::assertSent(ClientDocumentsApprovedMail::class, fn ($mail) => $mail->order->id === $order->id
+            && $mail->documents->contains('id', $document->id));
     }
 
     public function test_idempotent_upsert_does_not_create_duplicate_records(): void
