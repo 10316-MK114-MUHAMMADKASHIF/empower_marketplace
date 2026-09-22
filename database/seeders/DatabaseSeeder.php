@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
 
         // Admin user for local development
         User::factory()->create([
-            'name' => 'Empower Admin',
-            'email' => 'muhammadmaaz2@carecloud.com',
+            'name' => 'Admin',
+            'email' => 'muhammadkashif8@carecloud.com',
             'role' => UserRole::Admin,
         ]);
 
