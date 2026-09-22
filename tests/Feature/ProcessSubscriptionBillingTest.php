@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\BillingCycle;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Mail\ClientRenewalFailedMail;
@@ -93,6 +94,29 @@ class ProcessSubscriptionBillingTest extends TestCase
         $this->assertSame(PaymentStatus::Paid, $order->payment_status);
         $this->assertSame(0, $order->renewal_attempts);
         $this->assertTrue($order->next_bill_date->isSameDay($originalNextBillDate->copy()->addYear()));
+    }
+
+    public function test_successful_monthly_renewal_advances_next_bill_date_by_one_month_and_charges_the_monthly_price(): void
+    {
+        Mail::fake();
+        $this->fakeDetokenizeAndCharge(chargeSucceeds: true);
+
+        $package = Package::factory()->create(['annual_price' => 999, 'monthly_price' => 89]);
+        $originalNextBillDate = now()->subDays(2)->startOfDay();
+        $order = Order::factory()->convertedFromTrial()->create([
+            'package_id' => $package->id,
+            'billing_cycle' => BillingCycle::Monthly,
+            'original_price' => 89,
+            'next_bill_date' => $originalNextBillDate,
+        ]);
+
+        $this->artisan('subscriptions:process-billing');
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Paid, $order->payment_status);
+        $this->assertSame(0, $order->renewal_attempts);
+        $this->assertEquals(89.0, (float) $order->amount_paid);
+        $this->assertTrue($order->next_bill_date->isSameDay($originalNextBillDate->copy()->addMonth()));
     }
 
     public function test_failed_renewal_sets_past_due_and_only_retries_after_the_configured_delay(): void

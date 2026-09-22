@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BillingCycle;
 use App\Enums\PackageTier;
 use Database\Factories\PackageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -46,5 +47,18 @@ class Package extends Model
     public function isCustomQuote(): bool
     {
         return $this->tier()->isCustomQuote();
+    }
+
+    /** Null for Monthly means this package has no monthly price set — see hasMonthlyPricing(). */
+    public function priceForCycle(BillingCycle $cycle): ?float
+    {
+        return $cycle === BillingCycle::Monthly
+            ? ($this->monthly_price !== null ? (float) $this->monthly_price : null)
+            : (float) $this->annual_price;
+    }
+
+    public function hasMonthlyPricing(): bool
+    {
+        return $this->monthly_price !== null;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\BillingCycle;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
@@ -57,7 +58,7 @@ class TrialBillingService
             'amount_paid' => $amount,
             'paid_at' => now(),
             'trial_confirmed_at' => now(),
-            'next_bill_date' => now()->addYear(),
+            'next_bill_date' => $order->billing_cycle === BillingCycle::Monthly ? now()->addMonth() : now()->addYear(),
         ]);
 
         ActivityLog::record(
@@ -86,7 +87,11 @@ class TrialBillingService
      *  count and cancels after MAX_RENEWAL_ATTEMPTS consecutive failures on failure. */
     public function renew(Order $order): ChargeResult
     {
-        $amount = (float) $order->package->annual_price;
+        $cycle = $order->billing_cycle ?? BillingCycle::Annual;
+        // Falls back to the order's own frozen original_price if the package's price for this
+        // cycle has since been unset (e.g. an admin cleared monthly_price after monthly
+        // subscribers already exist on it) — a renewal must never silently charge $0.
+        $amount = $order->package->priceForCycle($cycle) ?? (float) $order->original_price;
         $result = $this->chargeStoredCard($order, $amount);
 
         if (! $result->success) {
@@ -117,8 +122,10 @@ class TrialBillingService
         }
 
         // Advanced from the order's own scheduled date, not now() — a late retry never drifts the
-        // annual anniversary forward.
-        $nextBillDate = ($order->next_bill_date ?? now())->copy()->addYear();
+        // billing anniversary forward.
+        $nextBillDate = $cycle === BillingCycle::Monthly
+            ? ($order->next_bill_date ?? now())->copy()->addMonth()
+            : ($order->next_bill_date ?? now())->copy()->addYear();
 
         $order->update([
             'payment_status' => PaymentStatus::Paid,

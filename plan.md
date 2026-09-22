@@ -397,6 +397,22 @@ test run, would fail unpredictably if the sandbox were ever down). Every test no
 `/api/auth/token`; a new `test_charge_clears_the_cached_token_and_retries_once_on_a_gateway_401` test
 reproduces the exact empty-body-401 shape seen live.
 
+### Update (2026-09-22): Annual/Monthly billing choice added to Step 1 — deliberately one-time-only on the direct `pay()` path
+
+Clients now pick Annually or Monthly on Step 1 (right after the discount code field, default
+Annually). New `App\Enums\BillingCycle`, `Package::priceForCycle()`/`hasMonthlyPricing()` (reusing
+the `Package.monthly_price`/`Order.billing_cycle` columns that already existed in the schema but
+were never wired up), the toggle only renders when the selected package has a `monthly_price` set.
+
+**Deliberately asymmetric, confirmed with the user — do not "fix" this without asking again**: the
+cycle choice only produces genuine recurring billing on the **free-trial path**
+(`payFreeTrial()` → `TrialBillingService::convertTrialToPaid()` → `ProcessSubscriptionBilling`'s
+`renew()`, all now cycle-aware for both charge amount and `next_bill_date` cadence). The direct,
+no-trial `pay()` checkout has never set `next_bill_date` on the order it creates (true before this
+feature too), so picking Monthly there charges the monthly amount **once**, with no follow-up
+billing — same one-time nature Annual already had on that path. The user explicitly chose to leave
+this as-is for now rather than wire `pay()` into the renewal engine.
+
 ## The proven alternative: direct Clover eCommerce API (built + tested, now removed)
 
 This is what was actually implemented and passing all tests before being stripped out today. It's

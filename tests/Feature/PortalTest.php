@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AiExtractionStatus;
+use App\Enums\BillingCycle;
 use App\Enums\DocumentType;
 use App\Enums\IntakeMethod;
 use App\Enums\IntakeSubmissionStatus;
@@ -1075,6 +1076,184 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->assertSet('practiceAddress', '7 Clyde Road, Somerset, NJ, 08873');
+    }
+
+    // ── Billing cycle ────────────────────────────────────────────────────────
+
+    public function test_billing_cycle_toggle_is_hidden_when_the_package_has_no_monthly_price(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => null, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->assertSet('billingCycle', 'annual')
+            ->assertDontSee('Annually')
+            ->assertDontSee('Monthly');
+    }
+
+    public function test_billing_cycle_toggle_is_visible_and_defaults_to_annual_when_the_package_has_a_monthly_price(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->assertSet('billingCycle', 'annual')
+            ->assertSee('Annually')
+            ->assertSee('Monthly');
+    }
+
+    public function test_selecting_monthly_billing_updates_the_displayed_price_and_discount(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+        DiscountCode::factory()->create(['code' => 'SAVE20', 'percentage' => 20]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'SAVE20')
+            ->call('applyDiscountCode')
+            ->set('billingCycle', 'monthly')
+            ->assertSee('-$20.00')
+            ->assertSee('$80.00');
+    }
+
+    public function test_switching_to_a_package_without_monthly_pricing_resets_billing_cycle_to_annual(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $monthlyPackage = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+        $annualOnlyPackage = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'monthly_price' => null, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $monthlyPackage->id)
+            ->set('billingCycle', 'monthly')
+            ->assertSet('billingCycle', 'monthly')
+            ->set('selectedPackageId', $annualOnlyPackage->id)
+            ->assertSet('billingCycle', 'annual');
+    }
+
+    public function test_paying_monthly_charges_the_flat_monthly_price_and_persists_the_cycle(): void
+    {
+        Http::fake([
+            config('services.clover_mtbc.base_url') => Http::response([
+                'status' => true,
+                'message' => 'Payment Successful',
+                'data' => ['id' => 'TEST_TXN_ID'],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'monthly_price' => 129, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingCycle', 'monthly')
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        Http::assertSent(fn ($request) => $request['amount'] === 129.0);
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame(BillingCycle::Monthly, $order->billing_cycle);
+        $this->assertEquals(129.0, (float) $order->original_price);
+        $this->assertEquals(129.0, (float) $order->amount_paid);
+    }
+
+    public function test_a_forged_monthly_billing_cycle_is_clamped_back_to_annual_when_the_package_has_no_monthly_price(): void
+    {
+        $this->fakeSuccessfulCharge();
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => null, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            // Never reachable via the UI (the toggle doesn't render for this package) — simulates
+            // a forged Livewire request bypassing the client-side hide.
+            ->set('billingCycle', 'monthly')
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame(BillingCycle::Annual, $order->billing_cycle);
+        $this->assertEquals(999.0, (float) $order->original_price);
+    }
+
+    public function test_free_trial_checkout_on_monthly_billing_freezes_the_monthly_price_and_persists_the_cycle(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulTokenize();
+
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingCycle', 'monthly')
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->call('payFreeTrial', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame(BillingCycle::Monthly, $order->billing_cycle);
+        $this->assertEquals(100.0, (float) $order->original_price);
+        $this->assertEquals(0, (float) $order->amount_paid);
+    }
+
+    public function test_proceed_with_payment_on_a_monthly_trial_advances_next_bill_date_by_one_month(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulDetokenizeAndCharge();
+
+        $package = Package::factory()->create(['annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = Order::factory()->trialing()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'billing_cycle' => BillingCycle::Monthly,
+            'original_price' => 100,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('dashboardOrderId', $order->id)
+            ->call('convertTrialToPaid', $order->id)
+            ->assertHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Paid, $order->payment_status);
+        $this->assertEquals(100.0, (float) $order->amount_paid);
+        $this->assertTrue($order->next_bill_date->isSameDay(now()->addMonth()));
     }
 
     // ── Free trial checkout ─────────────────────────────────────────────────

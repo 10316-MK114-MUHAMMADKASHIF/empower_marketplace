@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BillingCycle;
 use App\Enums\OrderStatus;
 use App\Enums\PaymentStatus;
 use Database\Factories\OrderFactory;
@@ -44,6 +45,7 @@ class Order extends Model
         return [
             'status' => OrderStatus::class,
             'payment_status' => PaymentStatus::class,
+            'billing_cycle' => BillingCycle::class,
             'billing_address' => 'array',
             'amount_paid' => 'decimal:2',
             'paid_at' => 'datetime',

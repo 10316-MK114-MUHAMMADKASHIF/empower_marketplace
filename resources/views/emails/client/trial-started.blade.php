@@ -8,7 +8,7 @@ payment has been charged today.
 **Order #:** {{ $order->id }}<br>
 **Trial Ends:** {{ $order->trial_ends_at?->format('F j, Y') }}<br>
 **Card on File:** ending in {{ $order->card_last_four ?? '····' }}<br>
-**Price After Trial:** ${{ number_format((float) $order->original_price, 2) }}/year
+**Price After Trial:** ${{ number_format((float) $order->original_price, 2) }}/{{ ($order->billing_cycle ?? \App\Enums\BillingCycle::Annual)->period() }}
 </x-mail::panel>
 
 Before your trial ends, we'll email you a reminder. You can confirm your subscription or cancel at

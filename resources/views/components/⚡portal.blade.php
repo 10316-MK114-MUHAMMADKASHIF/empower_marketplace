@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AiExtractionStatus;
+use App\Enums\BillingCycle;
 use App\Enums\DiscountType;
 use App\Enums\DocumentStatus;
 use App\Enums\DocumentType;
@@ -64,6 +65,8 @@ new class extends Component
     public string $discountCodeInput = '';
 
     public ?int $appliedDiscountCodeId = null;
+
+    public string $billingCycle = 'annual';
 
     public string $accountName = '';
 
@@ -150,6 +153,18 @@ new class extends Component
         return $this->appliedDiscountCodeId ? DiscountCode::find($this->appliedDiscountCodeId) : null;
     }
 
+    /** Falls back to Annual for a stale/tampered value rather than erroring. */
+    public function currentBillingCycle(): BillingCycle
+    {
+        return BillingCycle::tryFrom($this->billingCycle) ?? BillingCycle::Annual;
+    }
+
+    #[Computed]
+    public function monthlyBillingAvailable(): bool
+    {
+        return $this->selectedPackage?->hasMonthlyPricing() ?? false;
+    }
+
     #[Computed]
     public function discountAmount(): float
     {
@@ -157,13 +172,17 @@ new class extends Component
             return 0.0;
         }
 
-        return round(((float) $this->selectedPackage->annual_price) * $this->appliedDiscountCode->percentage / 100, 2);
+        $price = $this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0;
+
+        return round($price * $this->appliedDiscountCode->percentage / 100, 2);
     }
 
     #[Computed]
     public function discountedTotal(): float
     {
-        return max(0, (float) ($this->selectedPackage?->annual_price ?? 0) - $this->discountAmount);
+        $price = $this->selectedPackage?->priceForCycle($this->currentBillingCycle()) ?? 0.0;
+
+        return max(0, $price - $this->discountAmount);
     }
 
     #[Computed]
@@ -774,6 +793,14 @@ new class extends Component
         $paymentFields = ['selectedPackageId', 'accountName', 'accountEmail', 'billingAddress1', 'billingCity', 'billingState', 'billingZip'];
         $profileFields = ['practiceName', 'practiceAddress', 'npiNumber', 'specialty', 'billableProviders', 'logoFile'];
 
+        // Switching to a package with no monthly price while Monthly is selected would otherwise
+        // leave the toggle pointed at an option that's about to disappear.
+        if ($property === 'selectedPackageId'
+            && $this->billingCycle === BillingCycle::Monthly->value
+            && ! Package::find($this->selectedPackageId)?->hasMonthlyPricing()) {
+            $this->billingCycle = BillingCycle::Annual->value;
+        }
+
         if (in_array($property, $paymentFields, true)) {
             $rules = $this->paymentRules();
 
@@ -852,6 +879,25 @@ new class extends Component
         return true;
     }
 
+    /**
+     * The authoritative billing cycle for a charge — never trust the client-supplied
+     * $billingCycle alone for money math, same as the discount code re-check just above. Clamps
+     * back to Annual if Monthly was requested for a package that has no monthly price, which
+     * would otherwise let a forged request charge $0.
+     *
+     * @param  Collection<int, Package>  $packages
+     */
+    private function effectiveBillingCycle(Collection $packages): BillingCycle
+    {
+        $cycle = $this->currentBillingCycle();
+
+        if ($cycle === BillingCycle::Monthly && $packages->contains(fn (Package $p) => ! $p->hasMonthlyPricing())) {
+            return BillingCycle::Annual;
+        }
+
+        return $cycle;
+    }
+
     public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
     {
         $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
@@ -906,7 +952,8 @@ new class extends Component
             }
         }
 
-        $originalAmount = (float) $packages->sum('annual_price');
+        $cycle = $this->effectiveBillingCycle($packages);
+        $originalAmount = (float) $packages->sum(fn (Package $p) => $p->priceForCycle($cycle) ?? 0.0);
         $discountAmount = $discountCode ? round($originalAmount * $discountCode->percentage / 100, 2) : 0.0;
         $chargeAmount = max(0, $originalAmount - $discountAmount);
 
@@ -983,7 +1030,8 @@ new class extends Component
         $orderIds = [];
 
         foreach ($packages as $package) {
-            $packageShare = $originalAmount > 0 ? $package->annual_price / $originalAmount * $discountAmount : 0.0;
+            $packagePrice = $package->priceForCycle($cycle) ?? 0.0;
+            $packageShare = $originalAmount > 0 ? $packagePrice / $originalAmount * $discountAmount : 0.0;
 
             $order = Order::create([
                 'user_id' => auth()->id(),
@@ -993,8 +1041,9 @@ new class extends Component
                 'payment_status' => PaymentStatus::Paid,
                 'payment_reference' => $chargeResult->transactionId,
                 'billing_address' => $billingAddress,
-                'amount_paid' => $package->annual_price - $packageShare,
-                'original_price' => $package->annual_price,
+                'billing_cycle' => $cycle,
+                'amount_paid' => $packagePrice - $packageShare,
+                'original_price' => $packagePrice,
                 'discount_amount' => $packageShare,
                 'discount_code_id' => $discountCode?->id,
                 'discount_code' => $discountCode?->code,
@@ -1101,6 +1150,8 @@ new class extends Component
             return;
         }
 
+        $cycle = $this->effectiveBillingCycle(collect([$package]));
+
         $discountCode = $this->appliedDiscountCodeId ? DiscountCode::find($this->appliedDiscountCodeId) : null;
 
         if (! $discountCode || $discountCode->type !== DiscountType::FreeTrial || ! $discountCode->isCurrentlyValid()) {
@@ -1174,9 +1225,10 @@ new class extends Component
             'status' => OrderStatus::Paid,
             'payment_status' => PaymentStatus::Trialing,
             'billing_address' => $billingAddress,
+            'billing_cycle' => $cycle,
             'amount_paid' => 0,
-            'original_price' => $package->annual_price,
-            'discount_amount' => $package->annual_price,
+            'original_price' => $package->priceForCycle($cycle) ?? 0.0,
+            'discount_amount' => $package->priceForCycle($cycle) ?? 0.0,
             'discount_code_id' => $discountCode->id,
             'discount_code' => $discountCode->code,
             'paid_at' => now(),
@@ -1722,7 +1774,15 @@ $progressPct = ($milestone / 4) * 100;
     @php
     $heroPackages = $milestone >= 1 ? $this->batchOrders->pluck('package')->filter()->values() :
     collect([$this->selectedPackage])->filter()->values();
-    $heroTotal = $heroPackages->sum('annual_price');
+    // Post-payment, sum each order's own frozen original_price rather than re-reading the
+    // package's live price — otherwise this display would silently drift if an admin edits a
+    // package's price after checkout, and it wouldn't reflect the cycle actually billed.
+    $heroCycle = $milestone >= 1
+        ? ($this->batchOrders->first()?->billing_cycle ?? BillingCycle::Annual)
+        : $this->currentBillingCycle();
+    $heroTotal = $milestone >= 1
+        ? $this->batchOrders->sum('original_price')
+        : $heroPackages->sum(fn ($p) => $p->priceForCycle($heroCycle) ?? 0.0);
     @endphp
     <div class="rounded-[1.25rem] p-4 sm:p-4"
         style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
@@ -1747,7 +1807,7 @@ $progressPct = ($milestone / 4) * 100;
                 <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
                 <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal, $heroTotal ==
                     floor($heroTotal) ? 0 : 2) }}</div>
-                <div class="text-empower-muted text-xs">per provider / year</div>
+                <div class="text-empower-muted text-xs">per provider / {{ $heroCycle->period() }}</div>
                 <div class="text-empower-muted text-xs mt-1">
                     {{ $heroPackages->pluck('name')->implode(' + ') }}
                 </div>
@@ -1847,10 +1907,10 @@ $progressPct = ($milestone / 4) * 100;
             <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
                 <div>
                     <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
-                    @php $annualPrice = (float) $this->selectedPackage->annual_price; @endphp
-                    <p class="text-xs text-empower-muted">${{ number_format($annualPrice, $annualPrice ==
-                        floor($annualPrice) ? 0 : 2) }} /
-                        year</p>
+                    @php $displayPrice = $this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0; @endphp
+                    <p class="text-xs text-empower-muted">${{ number_format($displayPrice, $displayPrice ==
+                        floor($displayPrice) ? 0 : 2) }} /
+                        {{ $this->currentBillingCycle()->period() }}</p>
                 </div>
                 <a href="{{ route('home') }}#pricing"
                     class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
@@ -1893,12 +1953,30 @@ $progressPct = ($milestone / 4) * 100;
                 @endif
             </div>
 
+            @if($this->monthlyBillingAvailable)
+            <div class="py-2.5 border-b border-[#eef2f6] mb-2">
+                <p class="text-xs font-semibold text-[#173045] mb-1.5">Billing <span class="text-[0.65rem] font-normal text-empower-muted">(Please choose your billing cycle)</span></p>
+                <div class="flex gap-1 rounded-lg border border-empower-border bg-[#f8fbfd] p-1">
+                    @foreach(['annual' => 'Annually', 'monthly' => 'Monthly'] as $cycleValue => $cycleLabel)
+                    <button type="button" wire:click="$set('billingCycle', '{{ $cycleValue }}')"
+                        wire:target="$set('billingCycle', '{{ $cycleValue }}')" wire:loading.attr="disabled"
+                        class="flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer {{ $billingCycle === $cycleValue ? 'bg-[#12304f] text-white' : 'text-[#5d6e7f] hover:bg-white' }}">
+                        <span wire:loading.remove wire:target="$set('billingCycle', '{{ $cycleValue }}')">{{ $cycleLabel }}</span>
+                        <span wire:loading wire:target="$set('billingCycle', '{{ $cycleValue }}')">
+                            <x-spinner class="h-3.5 w-3.5" />
+                        </span>
+                    </button>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             @if($this->isFreeTrialCheckout)
             <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                 <span class="text-sm font-semibold text-[#173045]">Due Today</span>
                 <span class="text-lg font-extrabold text-navy">$0.00</span>
             </div>
-            <p class="text-xs text-empower-muted mt-1">Then ${{ number_format((float) $this->selectedPackage->annual_price, 2) }}/year once your free trial ends, unless you cancel first.</p>
+            <p class="text-xs text-empower-muted mt-1">Then ${{ number_format($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0, 2) }}/{{ $this->currentBillingCycle()->period() }} once your free trial ends, unless you cancel first.</p>
             @else
             <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                 <span class="text-sm font-semibold text-[#173045]">Total</span>
