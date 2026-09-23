@@ -2,6 +2,8 @@
 
 use App\Models\ActivityLog;
 use App\Models\Lead;
+use App\Models\Package;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 new class extends Component
@@ -19,6 +21,12 @@ new class extends Component
     public string $packageInterest = '';
 
     public string $adminNotes = '';
+
+    #[Computed]
+    public function packages()
+    {
+        return Package::where('is_active', true)->orderBy('sort_order')->get();
+    }
 
     public function mount(?Lead $lead = null): void
     {
@@ -104,8 +112,16 @@ new class extends Component
 
             <div>
                 <label class="block text-sm font-semibold text-[#173a59] mb-1.5">Package Interest</label>
-                <input wire:model="packageInterest" type="text"
+                <select wire:model="packageInterest"
                     class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <option value="">Select a package…</option>
+                    @if($packageInterest !== '' && ! $this->packages->contains('slug', $packageInterest))
+                        <option value="{{ $packageInterest }}">{{ $packageInterest }}</option>
+                    @endif
+                    @foreach($this->packages as $package)
+                        <option value="{{ $package->slug }}">{{ $package->name }}</option>
+                    @endforeach
+                </select>
                 @error('packageInterest') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 

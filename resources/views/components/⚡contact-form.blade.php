@@ -4,8 +4,10 @@ use App\Enums\UserRole;
 use App\Mail\LeadConfirmationMail;
 use App\Mail\NewLeadNotificationMail;
 use App\Models\Lead;
+use App\Models\Package;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
@@ -26,6 +28,12 @@ new class extends Component
     public string $packageInterest = '';
 
     public bool $submitted = false;
+
+    #[Computed]
+    public function packages()
+    {
+        return Package::where('is_active', true)->orderBy('sort_order')->get();
+    }
 
     /**
      * @return array<string, string>
@@ -117,6 +125,21 @@ new class extends Component
                 <input wire:model="phone" id="cf-phone" type="tel" inputmode="tel" placeholder="+15551234567" maxlength="16"
                     class="w-full rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] placeholder-[#5c778d]/60 focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
                 @error('phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-[#173a59] mb-1.5" for="cf-package">Package</label>
+                <select wire:model="packageInterest" id="cf-package"
+                    class="w-full rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    <option value="">Select a package…</option>
+                    @if($packageInterest !== '' && ! $this->packages->contains('slug', $packageInterest))
+                        <option value="{{ $packageInterest }}">{{ $packageInterest }}</option>
+                    @endif
+                    @foreach($this->packages as $package)
+                        <option value="{{ $package->slug }}">{{ $package->name }}</option>
+                    @endforeach
+                </select>
+                @error('packageInterest') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div class="mb-6">
