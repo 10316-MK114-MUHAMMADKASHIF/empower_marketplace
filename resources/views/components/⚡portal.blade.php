@@ -3051,8 +3051,8 @@ $progressPct = ($milestone / 4) * 100;
                     privileged legal analysis letter.</p>
             </div>
             <div class="text-right flex-shrink-0">
-                <div class="text-lg font-extrabold text-[#12304f]">$2,500</div>
-                <div class="text-[0.65rem] text-[#5d6e7f]">flat-fee / practice</div>
+                <a href="{{ route('contact') }}?addon=legal-review"
+                    class="inline-block rounded-lg bg-[#12304f] px-4 py-2 text-xs font-bold text-white hover:bg-[#0a2037] transition-colors">Contact us about this add-on</a>
             </div>
         </div>
     </div>
