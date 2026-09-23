@@ -23,7 +23,7 @@ class ReceiptDownloadTest extends TestCase
         $response = $this->withoutVite()->actingAs($user)->get(route('orders.receipt', $order));
 
         $response->assertOk();
-        $response->assertSee('Payment Receipt');
+        $response->assertSee('Order Form');
         $response->assertSee('Essential Compliance');
         $response->assertSee('PAID');
     }
