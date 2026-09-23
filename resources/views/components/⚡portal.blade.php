@@ -1801,6 +1801,7 @@ $progressPct = ($milestone / 4) * 100;
                     @endif
                 </h1>
                 <p class="text-white/60 text-sm">Payment, practice intake, review, and document generation.</p>
+                <p class="text-white text-sm mt-1.5">Need help? <a href="mailto:support@empowerhci.com" class="font-bold text-white underline hover:text-[#dff7f3]">support@empowerhci.com</a></p>
             </div>
             @if($heroPackages->isNotEmpty())
             <div class="bg-white/92 rounded-[1.25rem] p-4 min-w-48">
