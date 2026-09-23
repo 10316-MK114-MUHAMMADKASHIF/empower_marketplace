@@ -5,7 +5,6 @@
     <table>
         <tr><td class="label">Practice Name</td><td>{{ $practice?->name ?? 'N/A' }}</td></tr>
         <tr><td class="label">Address</td><td>{{ $practice?->address ?: 'N/A' }}</td></tr>
-        <tr><td class="label">NPI Number</td><td>{{ $practice?->npi_number ?? 'N/A' }}</td></tr>
         <tr><td class="label">Specialty</td><td>{{ $practice?->specialty ?? 'N/A' }}</td></tr>
         <tr><td class="label">Billable Providers</td><td>{{ $practice?->billable_providers_count ?? 'N/A' }}</td></tr>
     </table>

@@ -1683,14 +1683,10 @@ class PortalTest extends TestCase
             ->set('practiceName', '')
             ->assertHasErrors(['practiceName'])
             ->set('practiceName', 'Sunrise Family Medicine')
-            ->assertHasNoErrors(['practiceName'])
-            ->set('npiNumber', '123')
-            ->assertHasErrors(['npiNumber'])
-            ->set('npiNumber', '1234567890')
-            ->assertHasNoErrors(['npiNumber']);
+            ->assertHasNoErrors(['practiceName']);
     }
 
-    public function test_save_profile_requires_logo_address_npi_and_specialty_on_first_submission(): void
+    public function test_save_profile_requires_logo_address_and_specialty_on_first_submission(): void
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
@@ -1706,10 +1702,9 @@ class PortalTest extends TestCase
             ->test('portal')
             ->set('practiceName', 'Sunrise Family Medicine')
             ->set('practiceAddress', '')
-            ->set('npiNumber', '')
             ->set('specialty', '')
             ->call('saveProfile')
-            ->assertHasErrors(['logoFile', 'practiceAddress', 'npiNumber', 'specialty']);
+            ->assertHasErrors(['logoFile', 'practiceAddress', 'specialty']);
     }
 
     public function test_save_profile_does_not_require_a_new_logo_once_profile_is_locked(): void
@@ -1726,7 +1721,7 @@ class PortalTest extends TestCase
             ->assertHasNoErrors(['logoFile']);
     }
 
-    public function test_save_profile_validates_npi_number_and_specialty_length(): void
+    public function test_save_profile_validates_specialty_length(): void
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
@@ -1741,50 +1736,9 @@ class PortalTest extends TestCase
         Livewire::actingAs($user)
             ->test('portal')
             ->set('practiceName', 'Sunrise Family Medicine')
-            ->set('npiNumber', '123456789012345')
             ->set('specialty', str_repeat('x', 101))
             ->call('saveProfile')
-            ->assertHasErrors(['npiNumber', 'specialty']);
-    }
-
-    public function test_save_profile_rejects_non_digit_npi_number(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
-        Order::factory()->create([
-            'user_id' => $user->id,
-            'package_id' => $package->id,
-            'payment_status' => PaymentStatus::SimulatedPaid,
-            'status' => OrderStatus::Paid,
-        ]);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->set('practiceName', 'Sunrise Family Medicine')
-            ->set('npiNumber', 'sdfsdfsdfsdf')
-            ->call('saveProfile')
-            ->assertHasErrors(['npiNumber']);
-    }
-
-    public function test_save_profile_accepts_a_valid_ten_digit_npi_number(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
-        Order::factory()->create([
-            'user_id' => $user->id,
-            'package_id' => $package->id,
-            'payment_status' => PaymentStatus::SimulatedPaid,
-            'status' => OrderStatus::Paid,
-        ]);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->set('practiceName', 'Sunrise Family Medicine')
-            ->set('npiNumber', '1234567890')
-            ->call('saveProfile')
-            ->assertHasNoErrors(['npiNumber']);
+            ->assertHasErrors(['specialty']);
     }
 
     // ── Step 2: Questionnaire downloads ─────────────────────────────────────

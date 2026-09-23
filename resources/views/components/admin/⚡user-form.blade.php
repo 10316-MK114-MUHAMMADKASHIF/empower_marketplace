@@ -28,8 +28,6 @@ new class extends Component
 
     public string $practiceAddress = '';
 
-    public string $practiceNpiNumber = '';
-
     public string $practiceSpecialty = '';
 
     public ?int $practiceBillableProvidersCount = null;
@@ -65,7 +63,6 @@ new class extends Component
         $this->practiceId = $practice->id;
         $this->practiceName = $practice->name;
         $this->practiceAddress = $practice->address ?? '';
-        $this->practiceNpiNumber = $practice->npi_number ?? '';
         $this->practiceSpecialty = $practice->specialty ?? '';
         $this->practiceBillableProvidersCount = $practice->billable_providers_count;
         $this->practiceIsLocked = $practice->is_profile_locked;
@@ -147,7 +144,6 @@ new class extends Component
             $this->validate([
                 'practiceName' => 'nullable|string|max:150',
                 'practiceAddress' => 'nullable|string|max:255',
-                'practiceNpiNumber' => 'nullable|digits:10',
                 'practiceSpecialty' => 'nullable|string|max:100',
                 'practiceBillableProvidersCount' => 'nullable|integer|min:1|max:9999',
             ]);
@@ -156,7 +152,6 @@ new class extends Component
             $practice->update([
                 'name' => $this->practiceName,
                 'address' => $this->practiceAddress ?: null,
-                'npi_number' => $this->practiceNpiNumber ?: null,
                 'specialty' => $this->practiceSpecialty ?: null,
                 'billable_providers_count' => $this->practiceBillableProvidersCount ?? 1,
                 'is_profile_locked' => $this->practiceIsLocked,
@@ -374,14 +369,6 @@ new class extends Component
                     <input wire:model="practiceAddress" type="text"
                         class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                     @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-[#173a59] mb-1.5">NPI Number</label>
-                    <input wire:model="practiceNpiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
-                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
-                        class="w-full rounded-xl border border-empower-border bg-page px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                    @error('practiceNpiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                 </div>
 
                 <div>

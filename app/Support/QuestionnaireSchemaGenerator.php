@@ -24,7 +24,7 @@ class QuestionnaireSchemaGenerator
      * part of a questionnaire's own extraction schema even if present in its template.
      */
     private const ALWAYS_FILLED_FIELDS = [
-        'practice_name', 'practice_address', 'npi_number', 'specialty', 'provider_count',
+        'practice_name', 'practice_address', 'specialty', 'provider_count',
         'package_name', 'date', 'osha_location_name', 'practice_logo',
     ];
 

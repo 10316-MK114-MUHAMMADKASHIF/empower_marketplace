@@ -344,30 +344,15 @@ class AdminUsersOrdersTest extends TestCase
         Livewire::actingAs($admin)
             ->test('admin.user-form', ['user' => $client])
             ->set('practiceAddress', '')
-            ->set('practiceNpiNumber', '')
             ->set('practiceSpecialty', '')
             ->set('practiceBillableProvidersCount', null)
             ->call('save')
-            ->assertHasNoErrors(['practiceAddress', 'practiceNpiNumber', 'practiceSpecialty', 'practiceBillableProvidersCount']);
+            ->assertHasNoErrors(['practiceAddress', 'practiceSpecialty', 'practiceBillableProvidersCount']);
 
         $practice->refresh();
         $this->assertNull($practice->address);
-        $this->assertNull($practice->npi_number);
         $this->assertNull($practice->specialty);
         $this->assertSame(1, $practice->billable_providers_count);
-    }
-
-    public function test_admin_editing_a_practice_requires_a_ten_digit_npi_number(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::Admin]);
-        $client = User::factory()->create();
-        Practice::factory()->create(['user_id' => $client->id]);
-
-        Livewire::actingAs($admin)
-            ->test('admin.user-form', ['user' => $client])
-            ->set('practiceNpiNumber', '12345')
-            ->call('save')
-            ->assertHasErrors(['practiceNpiNumber']);
     }
 
     public function test_editing_a_practice_preserves_a_specialty_outside_the_preset_list(): void

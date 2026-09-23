@@ -432,7 +432,7 @@ PROMPT;
 
         return <<<PROMPT
 Extract all compliance-relevant information from this {$type} document and return it as a JSON object.
-Include fields such as: practice_name, address, npi_number, specialty, provider_count,
+Include fields such as: practice_name, address, specialty, provider_count,
 services_offered, safety_programs, hazardous_materials, training_requirements, and any other
 compliance-relevant data found in the document.
 Return only valid JSON with no additional text or markdown formatting.

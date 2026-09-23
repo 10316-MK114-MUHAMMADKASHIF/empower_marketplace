@@ -356,7 +356,6 @@ class GenerateComplianceDocument implements ShouldQueue
         $values = [
             'practice_name' => $practice?->name ?? '',
             'practice_address' => $practice?->address ?? '',
-            'npi_number' => $practice?->npi_number ?? '',
             'specialty' => $practice?->specialty ?? '',
             'provider_count' => (string) ($practice?->billable_providers_count ?? ''),
             'package_name' => $viewData['order']->package?->name ?? '',

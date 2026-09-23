@@ -21,7 +21,6 @@ class PracticeFactory extends Factory
             'name' => fake()->company().' Medical Practice',
             'logo_path' => null,
             'address' => fake()->streetAddress().', '.fake()->city().', '.fake()->stateAbbr(),
-            'npi_number' => fake()->numerify('##########'),
             'specialty' => fake()->randomElement(Practice::SPECIALTIES),
             'billable_providers_count' => fake()->numberBetween(1, 20),
             'is_profile_locked' => false,

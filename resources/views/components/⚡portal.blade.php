@@ -101,8 +101,6 @@ new class extends Component
 
     public string $practiceAddress = '';
 
-    public string $npiNumber = '';
-
     public string $specialty = 'General Practice';
 
     public int $billableProviders = 1;
@@ -474,7 +472,6 @@ new class extends Component
 
         $this->practiceName = $practice->name ?? '';
         $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($checkoutBillingAddress);
-        $this->npiNumber = $practice->npi_number ?? '';
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
 
@@ -791,7 +788,7 @@ new class extends Component
     public function updated(string $property): void
     {
         $paymentFields = ['selectedPackageId', 'accountName', 'accountEmail', 'billingAddress1', 'billingCity', 'billingState', 'billingZip'];
-        $profileFields = ['practiceName', 'practiceAddress', 'npiNumber', 'specialty', 'billableProviders', 'logoFile'];
+        $profileFields = ['practiceName', 'practiceAddress', 'specialty', 'billableProviders', 'logoFile'];
 
         // Switching to a package with no monthly price while Monthly is selected would otherwise
         // leave the toggle pointed at an option that's about to disappear.
@@ -1105,7 +1102,6 @@ new class extends Component
         $practice = auth()->user()->practice;
         $this->practiceName = $practice->name ?? '';
         $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($billingAddress);
-        $this->npiNumber = $practice->npi_number ?? '';
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
 
@@ -1280,7 +1276,6 @@ new class extends Component
         $practice = auth()->user()->practice;
         $this->practiceName = $practice->name ?? '';
         $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($billingAddress);
-        $this->npiNumber = $practice->npi_number ?? '';
         $this->specialty = $practice->specialty ?? 'General Practice';
         $this->billableProviders = $practice->billable_providers_count ?? 1;
 
@@ -1376,7 +1371,6 @@ new class extends Component
             'practiceName' => 'required|string|max:150',
             'logoFile' => $isLocked ? 'nullable|file|mimes:png,jpg,jpeg|max:2048' : 'required|file|mimes:png,jpg,jpeg|max:2048',
             'practiceAddress' => 'required|string|max:255',
-            'npiNumber' => 'required|digits:10',
             'specialty' => 'required|string|max:100',
             'billableProviders' => 'required|integer|min:1|max:9999',
         ];
@@ -1397,7 +1391,6 @@ new class extends Component
             'name' => $practice->is_profile_locked ? $practice->name : $this->practiceName,
             'logo_path' => $logoPath,
             'address' => $this->practiceAddress ?: null,
-            'npi_number' => $this->npiNumber ?: null,
             'specialty' => $this->specialty ?: null,
             'billable_providers_count' => $this->billableProviders,
             'is_profile_locked' => true,
@@ -2281,15 +2274,6 @@ $progressPct = ($milestone / 4) * 100;
                 <input wire:model.live="practiceAddress" type="text" placeholder="123 Main St, Springfield, IL"
                     class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
                 @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">NPI Number <span
-                        class="text-red-500">*</span></label>
-                <input wire:model.live="npiNumber" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10"
-                    placeholder="1234567890" x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '')"
-                    class="w-full rounded-xl border {{ $errors->has('npiNumber') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#009bde] focus:border-transparent transition">
-                @error('npiNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             <div>

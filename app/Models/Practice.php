@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'user_id', 'name', 'logo_path', 'address',
-    'npi_number', 'specialty', 'billable_providers_count',
+    'specialty', 'billable_providers_count',
     'is_profile_locked', 'locked_at',
 ])]
 class Practice extends Model
@@ -53,7 +53,7 @@ class Practice extends Model
                 return;
             }
 
-            if (! $practice->wasChanged(['name', 'logo_path', 'address', 'npi_number', 'specialty', 'billable_providers_count'])) {
+            if (! $practice->wasChanged(['name', 'logo_path', 'address', 'specialty', 'billable_providers_count'])) {
                 return;
             }
 
