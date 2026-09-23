@@ -575,6 +575,10 @@ new class extends Component
 
             if ($method) {
                 $this->intakeMethod = $method->value;
+            } elseif (! ($this->selectedPackage?->allowsQuestionnaireDownload() ?? true)) {
+                // Essential Compliance only ever offers the upload-for-review path — nothing to
+                // choose, so pre-select it instead of showing an empty, unusable choice.
+                $this->intakeMethod = IntakeMethod::UploadForReview->value;
             }
         }
 
@@ -586,7 +590,23 @@ new class extends Component
      *  intercepts action calls (wire:click), not property-binding updates. */
     public function setIntakeMethod(string $method): void
     {
+        // Never trust a client-supplied method alone — a forged request could call this directly
+        // for a package whose Step 2 UI never even shows the download option.
+        if ($method === IntakeMethod::Download->value && ! ($this->selectedPackage?->allowsQuestionnaireDownload() ?? true)) {
+            return;
+        }
+
         $this->intakeMethod = $method;
+    }
+
+    /** The authoritative guard on `saveProfile()`/`submitForReview()` — never trust
+     *  `$this->intakeMethod` alone, since a public Livewire property can be set directly by a
+     *  forged request regardless of what setIntakeMethod() would have allowed. */
+    private function clampIntakeMethodToPackage(): void
+    {
+        if (! ($this->selectedPackage?->allowsQuestionnaireDownload() ?? true)) {
+            $this->intakeMethod = IntakeMethod::UploadForReview->value;
+        }
     }
 
     public function editProfile(): void
@@ -1407,6 +1427,8 @@ new class extends Component
     {
         abort_unless(auth()->check(), 403);
 
+        $this->clampIntakeMethodToPackage();
+
         $rules = $this->profileRules();
 
         if (! $this->editingProfile) {
@@ -1585,6 +1607,8 @@ new class extends Component
     public function submitForReview(): void
     {
         abort_unless(auth()->check(), 403);
+
+        $this->clampIntakeMethodToPackage();
 
         $this->resetErrorBag();
 
@@ -2299,6 +2323,7 @@ $progressPct = ($milestone / 4) * 100;
 
         @unless($editingProfile)
         <div class="mt-5 pt-5" x-data="{ confirmDownload: false }">
+            @if($this->selectedPackage?->allowsQuestionnaireDownload() ?? true)
             <label class="block text-sm font-semibold text-[#31465b] mb-2">
                 Do you want to upload your documents for review or do you want to download our questionnaires?
                 <span class="text-red-500">*</span>
@@ -2351,6 +2376,10 @@ $progressPct = ($milestone / 4) * 100;
                     </div>
                 </div>
             </div>
+            @else
+            <p class="text-sm text-[#5d6e7f]">Since Essential Compliance is based on your own documents, we'll review
+                whatever you upload below.</p>
+            @endif
 
             @if($intakeMethod === 'upload_for_review')
             <div class="mt-4">

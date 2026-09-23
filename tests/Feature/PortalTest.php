@@ -2165,13 +2165,84 @@ class PortalTest extends TestCase
         Http::assertSentCount(2);
     }
 
+    // ── Step 2: Essential-only upload intake ─────────────────────────────────
+
+    public function test_essential_package_step2_hides_the_choice_and_preselects_upload_for_review(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->assertSet('intakeMethod', 'upload_for_review')
+            ->assertDontSee('Do you want to upload your documents')
+            ->assertDontSee('Download our questionnaires')
+            ->assertSee('Since Essential Compliance is based on your own documents');
+    }
+
+    public function test_essential_package_can_submit_for_review_without_ever_choosing_an_intake_method(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+        $file = UploadedFile::fake()->create('handbook.pdf', 100, 'application/pdf');
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->set('practiceName', 'Sunrise Family Medicine')
+            ->set('logoFile', UploadedFile::fake()->image('logo.png'))
+            ->set('practiceAddress', '7 Clyde Road, Somerset, NJ, 08873')
+            ->set('specialty', 'General Practice')
+            ->set('billableProviders', 2)
+            ->set('reviewDocumentFiles', [$file])
+            ->call('submitForReview')
+            ->assertHasNoErrors()
+            ->assertSet('step', 4);
+    }
+
+    public function test_a_forged_download_request_is_ignored_for_an_essential_package(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        Order::factory()->create([
+            'user_id' => $user->id,
+            'package_id' => $package->id,
+            'payment_status' => PaymentStatus::SimulatedPaid,
+            'status' => OrderStatus::Paid,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->call('goToStep', 2)
+            ->assertSet('intakeMethod', 'upload_for_review')
+            ->call('setIntakeMethod', 'download')
+            ->assertSet('intakeMethod', 'upload_for_review');
+    }
+
     // ── Step 2: Upload for review (alternate to questionnaire downloads) ────
 
     public function test_step2_shows_intake_method_radio_buttons_after_billable_providers(): void
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        // Not essential — that tier only offers upload-for-review, so there'd be no choice to show.
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
         Order::factory()->create([
             'user_id' => $user->id,
             'package_id' => $package->id,
@@ -2191,7 +2262,8 @@ class PortalTest extends TestCase
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        // Not essential — that tier only offers upload-for-review, so "download" isn't reachable.
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
         Order::factory()->create([
             'user_id' => $user->id,
             'package_id' => $package->id,
@@ -2218,7 +2290,8 @@ class PortalTest extends TestCase
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        // Not essential — that tier auto-selects upload-for-review, so there's nothing to require.
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
         Order::factory()->create([
             'user_id' => $user->id,
             'package_id' => $package->id,
@@ -2243,7 +2316,8 @@ class PortalTest extends TestCase
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id, 'is_profile_locked' => false]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        // Not essential — that tier refuses to set 'download' via setIntakeMethod() at all.
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
         Order::factory()->create([
             'user_id' => $user->id,
             'package_id' => $package->id,
@@ -2462,7 +2536,9 @@ class PortalTest extends TestCase
     {
         $user = User::factory()->create();
         Practice::factory()->locked()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        // Not essential — that tier's Step 2 no longer shows the "Upload your existing documents"
+        // choice card text this test checks for (it shows a short info line instead).
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
         $order = Order::factory()->create([
             'user_id' => $user->id,
             'package_id' => $package->id,

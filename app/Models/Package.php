@@ -49,6 +49,11 @@ class Package extends Model
         return $this->tier()->isCustomQuote();
     }
 
+    public function allowsQuestionnaireDownload(): bool
+    {
+        return $this->tier()->allowsQuestionnaireDownload();
+    }
+
     /** Null for Monthly means this package has no monthly price set — see hasMonthlyPricing(). */
     public function priceForCycle(BillingCycle $cycle): ?float
     {

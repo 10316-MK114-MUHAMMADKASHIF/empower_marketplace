@@ -24,4 +24,11 @@ enum PackageTier: string
     {
         return $this === self::Complete;
     }
+
+    /** Whether Step 2 offers the "download our questionnaires" intake path — Essential Compliance
+     *  only ever offers document upload for review. */
+    public function allowsQuestionnaireDownload(): bool
+    {
+        return $this !== self::Essential;
+    }
 }
