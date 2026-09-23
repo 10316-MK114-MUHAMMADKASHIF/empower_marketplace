@@ -17,10 +17,11 @@
     <nav class="sticky top-0 z-50 bg-white/96 backdrop-blur border-b border-[#d4e5f1] shadow-sm">
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between">
-                <a href="{{ route('home') }}" class="flex items-center gap-3">
+                <a href="{{ route('home') }}" class="flex items-center gap-2.5">
                     <span class="inline-flex items-center bg-white rounded-[0.6rem] px-2.5 py-[0.35rem] leading-none">
                         <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[28px] sm:h-[45px] w-auto" onerror="this.parentElement.innerHTML='<span class=\'font-extrabold text-[#0e3a61] text-xs\'>EMPOWER</span>'">
                     </span>
+                    <span class="hidden sm:block text-[0.6rem] font-extrabold tracking-widest uppercase text-[#5c778d]">Marketplace</span>
                 </a>
                 <a href="{{ route('home') }}#pricing"
                     class="border border-[#9ed3e9] bg-white text-[#087fa9] text-sm font-medium px-4 py-2 rounded hover:bg-[#eef8fd] transition-colors">
