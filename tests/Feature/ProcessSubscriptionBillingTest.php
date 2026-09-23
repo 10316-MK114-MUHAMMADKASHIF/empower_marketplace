@@ -119,6 +119,37 @@ class ProcessSubscriptionBillingTest extends TestCase
         $this->assertTrue($order->next_bill_date->isSameDay($originalNextBillDate->copy()->addMonth()));
     }
 
+    public function test_a_direct_pay_order_with_no_trial_history_renews_automatically(): void
+    {
+        Mail::fake();
+        $this->fakeDetokenizeAndCharge(chargeSucceeds: true);
+
+        // Shaped exactly like a direct pay() checkout creates it — no trial_ends_at or
+        // trial_confirmed_at anywhere in its history — proving the renewal engine only cares
+        // about clover_card_token/next_bill_date, not whether the order ever went through a trial.
+        $originalNextBillDate = now()->subDays(2)->startOfDay();
+        $order = Order::factory()->create([
+            'status' => OrderStatus::Paid,
+            'payment_status' => PaymentStatus::Paid,
+            'billing_cycle' => BillingCycle::Annual,
+            'clover_card_token' => 'tok_'.fake()->lexify('????????????'),
+            'card_expiry_month' => 12,
+            'card_expiry_year' => (int) now()->addYears(3)->format('Y'),
+            'card_last_four' => '4242',
+            'next_bill_date' => $originalNextBillDate,
+        ]);
+
+        $this->assertNull($order->trial_ends_at);
+        $this->assertNull($order->trial_confirmed_at);
+
+        $this->artisan('subscriptions:process-billing');
+
+        $order->refresh();
+        $this->assertSame(PaymentStatus::Paid, $order->payment_status);
+        $this->assertSame(0, $order->renewal_attempts);
+        $this->assertTrue($order->next_bill_date->isSameDay($originalNextBillDate->copy()->addYear()));
+    }
+
     public function test_failed_renewal_sets_past_due_and_only_retries_after_the_configured_delay(): void
     {
         Mail::fake();

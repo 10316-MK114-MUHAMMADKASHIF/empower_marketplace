@@ -59,6 +59,11 @@ class PortalTest extends TestCase
      * blanket default in setUp() can never be overridden by a later, more specific fake in an
      * individual test — every test that reaches pay()'s charge step registers its own.
      */
+    /**
+     * Also fakes the Empower Payment API's auth/tokenize endpoints: pay() tokenizes the card
+     * (for recurring billing) right after a successful charge, so every test reaching pay()'s
+     * charge step must have both faked or it'll make a real network call to MTBC's UAT sandbox.
+     */
     private function fakeSuccessfulCharge(): void
     {
         Http::fake([
@@ -66,6 +71,12 @@ class PortalTest extends TestCase
                 'status' => true,
                 'message' => 'Payment Successful',
                 'data' => ['id' => 'TEST_TXN_ID', 'amount' => 1, 'paid' => true, 'status' => 'succeeded'],
+            ]),
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/tokenize' => Http::response([
+                'status' => true,
+                'message' => 'Card tokenized successfully',
+                'data' => ['token' => '4111114281501111', 'firstSix' => '411111', 'lastFour' => '1111', 'referenceNumber' => 'REF123'],
             ]),
         ]);
     }
@@ -739,13 +750,7 @@ class PortalTest extends TestCase
 
     public function test_paying_charges_exactly_once_for_the_selected_packages_price(): void
     {
-        Http::fake([
-            config('services.clover_mtbc.base_url') => Http::response([
-                'status' => true,
-                'message' => 'Payment Successful',
-                'data' => ['id' => 'TEST_TXN_ID'],
-            ]),
-        ]);
+        $this->fakeSuccessfulCharge();
 
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
@@ -761,8 +766,11 @@ class PortalTest extends TestCase
             ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasNoErrors();
 
-        Http::assertSentCount(1);
-        Http::assertSent(fn ($request) => $request['amount'] === 1299.0);
+        // The charge itself must still fire exactly once (not once per package); the other two
+        // requests are the tokenize call afterward for recurring billing (an access-token fetch,
+        // then the tokenize call itself).
+        Http::assertSentCount(3);
+        Http::assertSent(fn ($request) => ($request['amount'] ?? null) === 1299.0);
     }
 
     public function test_paying_prefills_step_2_practice_address_with_the_full_billing_address(): void
@@ -1017,7 +1025,7 @@ class PortalTest extends TestCase
             ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasNoErrors();
 
-        Http::assertSent(fn ($request) => $request['amount'] === 799.2);
+        Http::assertSent(fn ($request) => ($request['amount'] ?? null) === 799.2);
 
         $order = Order::where('user_id', $user->id)->firstOrFail();
         $this->assertSame('799.20', $order->amount_paid);
@@ -1143,13 +1151,7 @@ class PortalTest extends TestCase
 
     public function test_paying_monthly_charges_the_flat_monthly_price_and_persists_the_cycle(): void
     {
-        Http::fake([
-            config('services.clover_mtbc.base_url') => Http::response([
-                'status' => true,
-                'message' => 'Payment Successful',
-                'data' => ['id' => 'TEST_TXN_ID'],
-            ]),
-        ]);
+        $this->fakeSuccessfulCharge();
 
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
@@ -1166,12 +1168,20 @@ class PortalTest extends TestCase
             ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
             ->assertHasNoErrors();
 
-        Http::assertSent(fn ($request) => $request['amount'] === 129.0);
+        Http::assertSent(fn ($request) => ($request['amount'] ?? null) === 129.0);
 
         $order = Order::where('user_id', $user->id)->firstOrFail();
         $this->assertSame(BillingCycle::Monthly, $order->billing_cycle);
         $this->assertEquals(129.0, (float) $order->original_price);
         $this->assertEquals(129.0, (float) $order->amount_paid);
+
+        // Recurring billing: a direct-pay order now also tokenizes its card and schedules the
+        // next renewal exactly like the free-trial-converted path does.
+        $this->assertSame('4111114281501111', $order->clover_card_token);
+        $this->assertSame('1111', $order->card_last_four);
+        $this->assertSame('REF123', $order->mtbc_reference_number);
+        $this->assertNotNull($order->next_bill_date);
+        $this->assertTrue($order->next_bill_date->isSameDay(now()->addMonth()));
     }
 
     public function test_a_forged_monthly_billing_cycle_is_clamped_back_to_annual_when_the_package_has_no_monthly_price(): void
@@ -1197,6 +1207,68 @@ class PortalTest extends TestCase
         $order = Order::where('user_id', $user->id)->firstOrFail();
         $this->assertSame(BillingCycle::Annual, $order->billing_cycle);
         $this->assertEquals(999.0, (float) $order->original_price);
+    }
+
+    public function test_paying_annually_stores_a_reusable_card_token_and_schedules_the_next_renewal(): void
+    {
+        $this->fakeSuccessfulCharge();
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame('4111114281501111', $order->clover_card_token);
+        $this->assertSame(12, $order->card_expiry_month);
+        $this->assertSame(2027, $order->card_expiry_year);
+        $this->assertSame('1111', $order->card_last_four);
+        $this->assertSame('REF123', $order->mtbc_reference_number);
+        $this->assertNotNull($order->next_bill_date);
+        $this->assertTrue($order->next_bill_date->isSameDay(now()->addYear()));
+    }
+
+    public function test_pay_still_completes_checkout_when_tokenizing_the_card_for_renewal_fails(): void
+    {
+        Http::fake([
+            config('services.clover_mtbc.base_url') => Http::response([
+                'status' => true,
+                'message' => 'Payment Successful',
+                'data' => ['id' => 'TEST_TXN_ID'],
+            ]),
+            '*/api/auth/token' => Http::response(['status' => true, 'data' => ['accessToken' => 'fake-jwt-token']]),
+            '*/api/payment/tokenize' => Http::response(['status' => false, 'message' => 'Invalid card number', 'data' => null]),
+        ]);
+
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'professional', 'annual_price' => 1299, 'is_active' => true]);
+
+        // The charge already succeeded above, so a tokenize failure must not surface as a
+        // checkout error — the client already paid and expects a completed order.
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame(PaymentStatus::Paid, $order->payment_status);
+        $this->assertNull($order->clover_card_token);
+        $this->assertNotNull($order->next_bill_date);
     }
 
     public function test_free_trial_checkout_on_monthly_billing_freezes_the_monthly_price_and_persists_the_cycle(): void

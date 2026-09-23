@@ -1011,6 +1011,18 @@ new class extends Component
             return;
         }
 
+        // Save a reusable card token so this subscription can auto-renew later via the same
+        // ProcessSubscriptionBilling engine the free-trial path already uses. Money has already
+        // moved above, so a tokenize failure must never fail checkout — it just means this order
+        // won't have a saved card yet (surfaces as the existing "no payment method on file" decline
+        // on its first renewal attempt, recoverable via the dashboard's "Update Card" action).
+        try {
+            $tokenizeResult = app(EmpowerPaymentApiClient::class)->tokenize($cardNumber, $cardCvc);
+        } catch (EmpowerPaymentApiException $e) {
+            report($e);
+            $tokenizeResult = null;
+        }
+
         // Charge succeeded — only now do we create an account or any orders, so a decline never
         // leaves behind an orphaned guest account.
         if (auth()->guest()) {
@@ -1068,6 +1080,14 @@ new class extends Component
                 'paid_at' => now(),
                 'terms_accepted_at' => now(),
                 'terms_accepted_ip' => request()->ip(),
+                'next_bill_date' => $cycle === BillingCycle::Monthly ? now()->addMonth() : now()->addYear(),
+                ...($tokenizeResult ? [
+                    'clover_card_token' => $tokenizeResult['token'],
+                    'card_expiry_month' => (int) $expMonth,
+                    'card_expiry_year' => (int) ('20'.$expYear),
+                    'card_last_four' => $tokenizeResult['lastFour'],
+                    'mtbc_reference_number' => $tokenizeResult['referenceNumber'],
+                ] : []),
             ]);
 
             ActivityLog::record(

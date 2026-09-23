@@ -413,6 +413,21 @@ feature too), so picking Monthly there charges the monthly amount **once**, with
 billing — same one-time nature Annual already had on that path. The user explicitly chose to leave
 this as-is for now rather than wire `pay()` into the renewal engine.
 
+**Update (2026-09-23): reversed — `pay()` is now wired into the same renewal engine.** The user
+decided the asymmetry above was a temporary gap, not a permanent design choice. `renew()` and
+`ProcessSubscriptionBilling` turned out to already be fully origin-agnostic (they only ever look at
+`payment_status`/`next_bill_date`/`clover_card_token` on the order, nothing trial-specific), and the
+dashboard's renewal UI (`⚡portal.blade.php`, the `Paid && next_bill_date` "Renews {date}" banner and
+the `PastDue` "Update Card" banner) was already equally generic — so the entire fix was contained to
+`pay()` itself: right after its existing `CloverChargeService::charge()` call succeeds, it now also
+calls `EmpowerPaymentApiClient::tokenize()` (same call `payFreeTrial()` already made) and stores
+`clover_card_token`/`card_expiry_month`/`card_expiry_year`/`card_last_four`/`mtbc_reference_number`
+plus a cycle-aware `next_bill_date` on the created order. A tokenize failure never fails checkout
+(money already moved by that point) — the order is created without a card on file and degrades
+through the existing "no payment method on file" decline → `PastDue` → self-service "Update Card"
+path on its first renewal attempt. No changes were needed to `TrialBillingService`,
+`ProcessSubscriptionBilling`, or the dashboard Blade.
+
 ## The proven alternative: direct Clover eCommerce API (built + tested, now removed)
 
 This is what was actually implemented and passing all tests before being stripped out today. It's
