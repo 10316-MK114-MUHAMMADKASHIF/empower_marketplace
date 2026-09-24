@@ -1088,21 +1088,11 @@ class PortalTest extends TestCase
 
     // ── Billing cycle ────────────────────────────────────────────────────────
 
-    public function test_billing_cycle_toggle_is_hidden_when_the_package_has_no_monthly_price(): void
-    {
-        $user = User::factory()->create();
-        Practice::factory()->create(['user_id' => $user->id]);
-        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => null, 'is_active' => true]);
-
-        Livewire::actingAs($user)
-            ->test('portal')
-            ->set('selectedPackageId', $package->id)
-            ->assertSet('billingCycle', 'annual')
-            ->assertDontSee('Annually')
-            ->assertDontSee('Monthly');
-    }
-
-    public function test_billing_cycle_toggle_is_visible_and_defaults_to_annual_when_the_package_has_a_monthly_price(): void
+    /**
+     * The Annually/Monthly toggle was removed from Step 1 — the cycle is now chosen on the
+     * pricing page and carried into checkout via the billing_cycle query param instead.
+     */
+    public function test_billing_cycle_toggle_no_longer_renders_in_step_1(): void
     {
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
@@ -1112,8 +1102,31 @@ class PortalTest extends TestCase
             ->test('portal')
             ->set('selectedPackageId', $package->id)
             ->assertSet('billingCycle', 'annual')
-            ->assertSee('Annually')
-            ->assertSee('Monthly');
+            ->assertDontSee('Please choose your billing cycle');
+    }
+
+    public function test_billing_cycle_is_set_from_the_query_string_carried_over_from_the_pricing_page(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+
+        $this->withoutVite()->actingAs($user)->get('/portal?package=essential&billing_cycle=monthly')
+            ->assertOk()
+            ->assertSee('$100')
+            ->assertSee('/ month', false);
+    }
+
+    public function test_an_invalid_billing_cycle_query_value_falls_back_to_the_annual_default(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'monthly_price' => 100, 'is_active' => true]);
+
+        $this->withoutVite()->actingAs($user)->get('/portal?package=essential&billing_cycle=garbage')
+            ->assertOk()
+            ->assertSee('$999')
+            ->assertSee('/ year', false);
     }
 
     public function test_selecting_monthly_billing_updates_the_displayed_price_and_discount(): void

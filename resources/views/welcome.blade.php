@@ -136,14 +136,26 @@
         @php
             $formatPrice = fn (?float $price) => number_format($price ?? 0, ((int) ($price ?? 0)) == ($price ?? 0) ? 0 : 2);
 
-            $leadLines = [
-                'essential' => 'Reviews & updates the documents you already have.',
-                'professional' => 'Everything in Essential',
-                'advanced' => 'Everything in Essential & Professional',
-                'complete' => 'Everything in Essential, Professional & Advanced',
+            $featureGroups = [
+                'essential' => [
+                    'provides' => ['sublabel' => null, 'items' => ['Exclusions Screening', 'Compliance Hotline']],
+                    'second' => ['label' => 'You Provide (We Review & Update)', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security Policies', 'Trainings¹']],
+                ],
+                'professional' => [
+                    'provides' => ['sublabel' => 'Includes Essential, plus', 'items' => ['Exclusions Screening', 'Compliance Hotline']],
+                    'second' => ['label' => 'Empower Reviews, Updates, or Creates', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security', 'Trainings']],
+                ],
+                'advanced' => [
+                    'provides' => ['sublabel' => 'Includes Professional, plus', 'items' => ['Coding & Documentation Mini Audit² (10 encounters/provider)', 'Security Risk Assessment (SRA)', 'Guidance of Compliance Structure', 'Periodic Compliance Meeting']],
+                    'second' => ['label' => 'You Provide (We Review & Update)', 'items' => ['Your employee manual']],
+                ],
+                'complete' => [
+                    'provides' => ['sublabel' => 'Includes Advanced, plus', 'items' => ['Customized Compliance Program', 'Compliance Officer Needs: Co-Sourced, Fractional, or Outsourced']],
+                    'second' => null,
+                ],
             ];
         @endphp
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" x-data="{ cycle: 'monthly' }">
             <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Pricing</span>
                 <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">Choose Your Compliance Package</h2>
@@ -153,35 +165,59 @@
                 </p>
             </div>
 
+            <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="inline-flex self-start gap-1 rounded-lg border border-[#d4e5f1] bg-[#f2f8fd] p-1">
+                    <button type="button" @click="cycle = 'monthly'"
+                        :class="cycle === 'monthly' ? 'bg-[#0e3a61] text-white' : 'text-[#5c778d] hover:bg-white'"
+                        class="rounded-md px-4 py-1.5 text-xs font-bold transition-colors">Billed monthly</button>
+                    <button type="button" @click="cycle = 'annual'"
+                        :class="cycle === 'annual' ? 'bg-[#0e3a61] text-white' : 'text-[#5c778d] hover:bg-white'"
+                        class="rounded-md px-4 py-1.5 text-xs font-bold transition-colors">Billed annually</button>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-sm text-[#5c778d]">Not sure what package is right?</span>
+                    <a href="{{ route('contact') }}"
+                        class="inline-block whitespace-nowrap rounded-lg border border-[#9ed3e9] bg-white px-4 py-2 text-sm font-semibold text-[#087fa9] hover:bg-[#eef8fd] transition-colors">Contact
+                        us</a>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-stretch">
 
                 {{-- Essential --}}
                 <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
+                    <div class="absolute top-4 right-4" x-data="{ open: false }">
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
+                            @click="open = !open"
+                            class="flex h-6 w-6 items-center justify-center rounded-full text-[#5c778d] hover:text-[#087fa9] hover:bg-white transition-colors"
+                            aria-label="Package details">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                            </svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition
+                            class="absolute right-0 top-7 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
+                            {{ $packages['essential']->description ?? '' }}</div>
+                    </div>
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Essential</span>
-                        <div class="relative" x-data="{ open: false }">
-                            <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                                @click="open = !open"
-                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
-                                aria-label="Package disclaimer">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>Disclaimer
-                            </button>
-                            <div x-show="open" x-cloak x-transition
-                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['essential']->description ?? '' }}</div>
-                        </div>
                     </div>
-                    <div class="text-4xl font-extrabold text-[#0e3a61]">${{
-                        $formatPrice($packages['essential']->monthly_price ?? null) }}</div>
-                    <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / month</div>
-                    <div class="text-xs text-[#5c778d] mb-6">${{ $formatPrice($packages['essential']->annual_price ??
-                        null) }}/yr billed annually</div>
-                    <p class="text-sm font-semibold text-[#173a59] mb-3">{{ $leadLines['essential'] }}</p>
-                    <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
-                        @foreach($packages['essential']->features ?? [] as $f)
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-extrabold text-[#0e3a61]" x-show="cycle === 'monthly'">${{
+                            $formatPrice($packages['essential']->monthly_price ?? null) }}</span>
+                        <span class="text-4xl font-extrabold text-[#0e3a61]" x-show="cycle === 'annual'" x-cloak>${{
+                            $formatPrice($packages['essential']->annual_price ?? null) }}</span>
+                        <span class="text-sm text-[#5c778d]" x-text="cycle === 'monthly' ? '/month' : '/year'"></span>
+                    </div>
+                    <div class="text-sm text-[#5c778d] mt-1 mb-6">per billable provider</div>
+                    @php $groups = $featureGroups['essential']; @endphp
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-2">Empower Provides</p>
+                    @if($groups['provides']['sublabel'])
+                    <p class="text-xs text-[#5c778d] mb-2">{{ $groups['provides']['sublabel'] }}</p>
+                    @endif
+                    <ul class="space-y-2.5 text-sm text-[#173a59] {{ $groups['second'] ? 'mb-4' : 'mb-8 grow' }}">
+                        @foreach($groups['provides']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -189,38 +225,57 @@
                             </svg>{{ $f }}</li>
                         @endforeach
                     </ul>
-                    <a href="{{ route('portal', ['package' => 'essential']) }}"
+                    @if($groups['second'])
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-2">{{ $groups['second']['label'] }}</p>
+                    <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
+                        @foreach($groups['second']['items'] as $f)
+                        <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>{{ $f }}</li>
+                        @endforeach
+                    </ul>
+                    @endif
+                    <a :href="`{{ route('portal', ['package' => 'essential']) }}&billing_cycle=${cycle}`"
                         class="block w-full rounded-xl bg-[#0e3a61] py-3 text-center text-sm font-semibold text-white hover:bg-[#0b2e4b] transition-colors">Select
                         Package</a>
                 </div>
 
                 {{-- Professional --}}
                 <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
+                    <div class="absolute top-4 right-4" x-data="{ open: false }">
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
+                            @click="open = !open"
+                            class="flex h-6 w-6 items-center justify-center rounded-full text-[#5c778d] hover:text-[#087fa9] hover:bg-white transition-colors"
+                            aria-label="Package details">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                            </svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition
+                            class="absolute right-0 top-7 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
+                            {{ $packages['professional']->description ?? '' }}</div>
+                    </div>
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Professional</span>
-                        <div class="relative" x-data="{ open: false }">
-                            <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                                @click="open = !open"
-                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
-                                aria-label="Package disclaimer">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>Disclaimer
-                            </button>
-                            <div x-show="open" x-cloak x-transition
-                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['professional']->description ?? '' }}</div>
-                        </div>
                     </div>
-                    <div class="text-4xl font-extrabold text-[#0e3a61]">${{
-                        $formatPrice($packages['professional']->monthly_price ?? null) }}</div>
-                    <div class="text-sm text-[#5c778d] mt-1 mb-1">/ billable provider / month</div>
-                    <div class="text-xs text-[#5c778d] mb-6">${{
-                        $formatPrice($packages['professional']->annual_price ?? null) }}/yr billed annually</div>
-                    <p class="text-sm font-semibold text-[#173a59] mb-3">{{ $leadLines['professional'] }}</p>
-                    <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
-                        @foreach($packages['professional']->features ?? [] as $f)
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-extrabold text-[#0e3a61]" x-show="cycle === 'monthly'">${{
+                            $formatPrice($packages['professional']->monthly_price ?? null) }}</span>
+                        <span class="text-4xl font-extrabold text-[#0e3a61]" x-show="cycle === 'annual'" x-cloak>${{
+                            $formatPrice($packages['professional']->annual_price ?? null) }}</span>
+                        <span class="text-sm text-[#5c778d]" x-text="cycle === 'monthly' ? '/month' : '/year'"></span>
+                    </div>
+                    <div class="text-sm text-[#5c778d] mt-1 mb-6">per billable provider</div>
+                    @php $groups = $featureGroups['professional']; @endphp
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-2">Empower Provides</p>
+                    @if($groups['provides']['sublabel'])
+                    <p class="text-xs text-[#5c778d] mb-2">{{ $groups['provides']['sublabel'] }}</p>
+                    @endif
+                    <ul class="space-y-2.5 text-sm text-[#173a59] {{ $groups['second'] ? 'mb-4' : 'mb-8 grow' }}">
+                        @foreach($groups['provides']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -228,7 +283,19 @@
                             </svg>{{ $f }}</li>
                         @endforeach
                     </ul>
-                    <a href="{{ route('portal', ['package' => 'professional']) }}"
+                    @if($groups['second'])
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-2">{{ $groups['second']['label'] }}</p>
+                    <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
+                        @foreach($groups['second']['items'] as $f)
+                        <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>{{ $f }}</li>
+                        @endforeach
+                    </ul>
+                    @endif
+                    <a :href="`{{ route('portal', ['package' => 'professional']) }}&billing_cycle=${cycle}`"
                         class="block w-full rounded-xl bg-[#0e3a61] py-3 text-center text-sm font-semibold text-white hover:bg-[#0b2e4b] transition-colors">Select
                         Package</a>
                 </div>
@@ -239,31 +306,38 @@
                         <span
                             class="rounded-full bg-[#0b9ed0] px-4 py-1 text-xs font-bold text-white shadow">Popular</span>
                     </div>
+                    <div class="absolute top-4 right-4" x-data="{ open: false }">
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
+                            @click="open = !open"
+                            class="flex h-6 w-6 items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                            aria-label="Package details">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                            </svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition
+                            class="absolute right-0 top-7 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
+                            {{ $packages['advanced']->description ?? '' }}</div>
+                    </div>
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2]">Advanced</span>
-                        <div class="relative" x-data="{ open: false }">
-                            <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                                @click="open = !open"
-                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-white/60 hover:text-white transition-colors"
-                                aria-label="Package disclaimer">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>Disclaimer
-                            </button>
-                            <div x-show="open" x-cloak x-transition
-                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['advanced']->description ?? '' }}</div>
-                        </div>
                     </div>
-                    <div class="text-4xl font-extrabold text-white">${{
-                        $formatPrice($packages['advanced']->monthly_price ?? null) }}</div>
-                    <div class="text-sm text-white/60 mt-1 mb-1">/ billable provider / month</div>
-                    <div class="text-xs text-white/50 mb-6">${{ $formatPrice($packages['advanced']->annual_price ??
-                        null) }}/yr billed annually</div>
-                    <p class="text-sm font-semibold text-white mb-3">{{ $leadLines['advanced'] }}</p>
-                    <ul class="space-y-2.5 text-sm text-white/85 mb-8 grow">
-                        @foreach($packages['advanced']->features ?? [] as $f)
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-4xl font-extrabold text-white" x-show="cycle === 'monthly'">${{
+                            $formatPrice($packages['advanced']->monthly_price ?? null) }}</span>
+                        <span class="text-4xl font-extrabold text-white" x-show="cycle === 'annual'" x-cloak>${{
+                            $formatPrice($packages['advanced']->annual_price ?? null) }}</span>
+                        <span class="text-sm text-white/60" x-text="cycle === 'monthly' ? '/month' : '/year'"></span>
+                    </div>
+                    <div class="text-sm text-white/60 mt-1 mb-6">per billable provider</div>
+                    @php $groups = $featureGroups['advanced']; @endphp
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2] mb-2">Empower Provides</p>
+                    @if($groups['provides']['sublabel'])
+                    <p class="text-xs text-white/60 mb-2">{{ $groups['provides']['sublabel'] }}</p>
+                    @endif
+                    <ul class="space-y-2.5 text-sm text-white/85 {{ $groups['second'] ? 'mb-4' : 'mb-8 grow' }}">
+                        @foreach($groups['provides']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#8ddaf2]"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -271,35 +345,50 @@
                             </svg>{{ $f }}</li>
                         @endforeach
                     </ul>
-                    <a href="{{ route('portal', ['package' => 'advanced']) }}"
+                    @if($groups['second'])
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#8ddaf2] mb-2">{{ $groups['second']['label'] }}</p>
+                    <ul class="space-y-2.5 text-sm text-white/85 mb-8 grow">
+                        @foreach($groups['second']['items'] as $f)
+                        <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#8ddaf2]"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>{{ $f }}</li>
+                        @endforeach
+                    </ul>
+                    @endif
+                    <a :href="`{{ route('portal', ['package' => 'advanced']) }}&billing_cycle=${cycle}`"
                         class="block w-full rounded-xl bg-[#2299dd] py-3 text-center text-sm font-semibold text-white hover:bg-[#087fa9] transition-colors">Select
                         Package</a>
                 </div>
 
                 {{-- Complete --}}
                 <div class="relative rounded-2xl border border-[#d4e5f1] bg-[#f2f8fd] p-7 flex flex-col">
+                    <div class="absolute top-4 right-4" x-data="{ open: false }">
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
+                            @click="open = !open"
+                            class="flex h-6 w-6 items-center justify-center rounded-full text-[#5c778d] hover:text-[#087fa9] hover:bg-white transition-colors"
+                            aria-label="Package details">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                            </svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition
+                            class="absolute right-0 top-7 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
+                            {{ $packages['complete']->description ?? '' }}</div>
+                    </div>
                     <div class="flex items-center gap-1.5 mb-3">
                         <span class="text-xs font-bold tracking-widest uppercase text-[#5c778d]">Complete</span>
-                        <div class="relative" x-data="{ open: false }">
-                            <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                                @click="open = !open"
-                                class="flex items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-[#7fb8d4] hover:text-[#087fa9] transition-colors"
-                                aria-label="Package disclaimer">
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                        d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                                </svg>Disclaimer
-                            </button>
-                            <div x-show="open" x-cloak x-transition
-                                class="absolute left-0 top-6 z-20 w-64 rounded-xl border border-[#d4e5f1] bg-white p-3 text-xs leading-relaxed text-[#5c778d] shadow-lg whitespace-pre-line">
-                                {{ $packages['complete']->description ?? '' }}</div>
-                        </div>
                     </div>
-                    <div class="text-4xl font-extrabold text-[#0e3a61]">Call</div>
-                    <div class="text-sm text-[#5c778d] mt-1 mb-6">for pricing</div>
-                    <p class="text-sm font-semibold text-[#173a59] mb-3">{{ $leadLines['complete'] }}</p>
-                    <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
-                        @foreach($packages['complete']->features ?? [] as $f)
+                    <div class="text-2xl font-extrabold text-[#0e3a61] whitespace-nowrap mb-6">Custom Quote</div>
+                    @php $groups = $featureGroups['complete']; @endphp
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-2">Empower Provides</p>
+                    @if($groups['provides']['sublabel'])
+                    <p class="text-xs text-[#5c778d] mb-2">{{ $groups['provides']['sublabel'] }}</p>
+                    @endif
+                    <ul class="space-y-2.5 text-sm text-[#173a59] {{ $groups['second'] ? 'mb-4' : 'mb-8 grow' }}">
+                        @foreach($groups['provides']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -307,6 +396,18 @@
                             </svg>{{ $f }}</li>
                         @endforeach
                     </ul>
+                    @if($groups['second'])
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#5c778d] mb-2">{{ $groups['second']['label'] }}</p>
+                    <ul class="space-y-2.5 text-sm text-[#173a59] mb-8 grow">
+                        @foreach($groups['second']['items'] as $f)
+                        <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#0b9ed0]"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>{{ $f }}</li>
+                        @endforeach
+                    </ul>
+                    @endif
                     <a href="{{ route('contact') }}?package=complete"
                         class="block w-full rounded-xl bg-[#0e3a61] py-3 text-center text-sm font-semibold text-white hover:bg-[#0b2e4b] transition-colors">Request
                         a Quote</a>

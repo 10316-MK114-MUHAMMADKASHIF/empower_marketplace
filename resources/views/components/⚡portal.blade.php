@@ -158,12 +158,6 @@ new class extends Component
     }
 
     #[Computed]
-    public function monthlyBillingAvailable(): bool
-    {
-        return $this->selectedPackage?->hasMonthlyPricing() ?? false;
-    }
-
-    #[Computed]
     public function discountAmount(): float
     {
         if (! $this->selectedPackage || ! $this->appliedDiscountCode || $this->appliedDiscountCode->type !== DiscountType::Percentage) {
@@ -443,6 +437,13 @@ new class extends Component
             $this->redirect(route('admin.dashboard'), navigate: true);
 
             return;
+        }
+
+        // The billing cycle is now chosen on the pricing page and carried in via this query
+        // param, rather than a separate toggle in Step 1 — invalid/missing values keep the
+        // property's own 'annual' default.
+        if ($cycle = BillingCycle::tryFrom((string) request()->query('billing_cycle'))) {
+            $this->billingCycle = $cycle->value;
         }
 
         if (! $user) {
@@ -1990,24 +1991,6 @@ $progressPct = ($milestone / 4) * 100;
                 </div>
                 @endif
             </div>
-
-            @if($this->monthlyBillingAvailable)
-            <div class="py-2.5 border-b border-[#eef2f6] mb-2">
-                <p class="text-xs font-semibold text-[#173045] mb-1.5">Billing <span class="text-[0.65rem] font-normal text-empower-muted">(Please choose your billing cycle)</span></p>
-                <div class="flex gap-1 rounded-lg border border-empower-border bg-[#f8fbfd] p-1">
-                    @foreach(['annual' => 'Annually', 'monthly' => 'Monthly'] as $cycleValue => $cycleLabel)
-                    <button type="button" wire:click="$set('billingCycle', '{{ $cycleValue }}')"
-                        wire:target="$set('billingCycle', '{{ $cycleValue }}')" wire:loading.attr="disabled"
-                        class="flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer {{ $billingCycle === $cycleValue ? 'bg-[#12304f] text-white' : 'text-[#5d6e7f] hover:bg-white' }}">
-                        <span wire:loading.remove wire:target="$set('billingCycle', '{{ $cycleValue }}')">{{ $cycleLabel }}</span>
-                        <span wire:loading wire:target="$set('billingCycle', '{{ $cycleValue }}')">
-                            <x-spinner class="h-3.5 w-3.5" />
-                        </span>
-                    </button>
-                    @endforeach
-                </div>
-            </div>
-            @endif
 
             @if($this->isFreeTrialCheckout)
             <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
