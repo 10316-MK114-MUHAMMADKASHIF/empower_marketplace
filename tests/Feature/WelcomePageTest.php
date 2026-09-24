@@ -37,7 +37,13 @@ class WelcomePageTest extends TestCase
         $response->assertSeeText('Select Package');
     }
 
-    public function test_pricing_card_features_come_from_the_package_record(): void
+    /**
+     * The pricing cards' "Empower Provides" / "You Provide" copy is fixed marketing content
+     * (hardcoded in welcome.blade.php), independent of Package.features — which is still used
+     * elsewhere (e.g. the dashboard's "Services included" line) — so an admin editing a
+     * package's features must not change what the pricing page shows.
+     */
+    public function test_pricing_card_features_are_the_fixed_marketing_copy_not_the_package_record(): void
     {
         Package::factory()->create([
             'slug' => 'essential',
@@ -48,8 +54,10 @@ class WelcomePageTest extends TestCase
         $response = $this->withoutVite()->get('/');
 
         $response->assertOk();
-        $response->assertSee('A custom feature set by the admin');
-        $response->assertSee('Another admin-defined feature');
+        $response->assertDontSee('A custom feature set by the admin');
+        $response->assertDontSee('Another admin-defined feature');
+        $response->assertSee('Empower Provides');
+        $response->assertSee('Exclusions Screening');
     }
 
     public function test_an_unmatched_url_redirects_to_the_home_page(): void

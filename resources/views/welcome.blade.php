@@ -517,6 +517,116 @@
         </div>
     </section>
 
+    {{-- Compare Packages --}}
+    <section id="compare" class="py-14 lg:py-16 bg-[#f2f8fd]">
+        @php
+            $comparisonTiers = ['Essential', 'Professional', 'Advanced', 'Complete'];
+            $comparisonGroups = [
+                [
+                    'label' => 'Program & Policies',
+                    'rows' => [
+                        ['feature' => 'Review & update of your existing Compliance & Ethics Program', 'tiers' => [true, true, true, true]],
+                        ['feature' => 'Review & update of your existing HIPAA Privacy & Security Policies', 'tiers' => [true, true, true, true]],
+                        ['feature' => 'Creation of missing program documents & policies', 'tiers' => [false, true, true, true]],
+                        ['feature' => 'Customized Compliance Program', 'tiers' => [false, false, false, true]],
+                    ],
+                ],
+                [
+                    'label' => 'Training',
+                    'rows' => [
+                        ['feature' => 'Review & update of your existing trainings', 'tiers' => [true, true, true, true]],
+                        ['feature' => 'Access to Empower LMS', 'tiers' => [false, true, true, true]],
+                        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
+                    ],
+                ],
+                [
+                    'label' => 'Monitoring',
+                    'rows' => [
+                        ['feature' => 'Exclusions Screening', 'tiers' => [true, true, true, true]],
+                        ['feature' => 'Compliance Hotline', 'tiers' => [true, true, true, true]],
+                        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
+                    ],
+                ],
+                [
+                    'label' => 'Audit & Risk',
+                    'rows' => [
+                        ['feature' => 'Coding & Documentation Mini Audit (10 encounters/provider)', 'tiers' => [false, false, true, true]],
+                        ['feature' => 'Security Risk Assessment (SRA)', 'tiers' => [false, false, true, true]],
+                        ['feature' => 'Employee manual review & update', 'tiers' => [false, false, true, true]],
+                        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
+                    ],
+                ],
+                [
+                    'label' => 'Oversight',
+                    'rows' => [
+                        ['feature' => 'Guidance of Compliance Structure', 'tiers' => [false, false, true, true]],
+                        ['feature' => 'Periodic Compliance Meeting', 'tiers' => [false, false, true, true]],
+                        ['feature' => 'Compliance Officer support: co-sourced, fractional, or outsourced', 'tiers' => [false, false, false, true]],
+                    ],
+                ],
+            ];
+        @endphp
+        <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-10">
+                <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Compare Packages</span>
+                <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">What each tier includes</h2>
+            </div>
+
+            <div class="rounded-2xl border border-[#d4e5f1] bg-white shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-[#d4e5f1]">
+                                <th scope="col"
+                                    class="text-left font-semibold text-[#173a59] px-5 py-3 whitespace-nowrap">Feature
+                                </th>
+                                @foreach($comparisonTiers as $i => $tier)
+                                <th scope="col"
+                                    class="text-center font-bold text-xs uppercase tracking-wide px-4 py-3 whitespace-nowrap {{ $i === 2 ? 'bg-[#0e3a61] text-white' : 'text-[#5c778d]' }}">
+                                    {{ $tier }}</th>
+                                @endforeach
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($comparisonGroups as $group)
+                            <tr class="bg-[#f8fbfd]">
+                                <td colspan="5"
+                                    class="px-5 py-2 text-xs font-bold uppercase tracking-widest text-[#0b9ed0]">
+                                    {{ $group['label'] }}</td>
+                            </tr>
+                            @foreach($group['rows'] as $row)
+                            <tr class="border-b border-[#eef2f6] last:border-b-0">
+                                <td class="px-5 py-3 text-[#173a59]">{{ $row['feature'] }}</td>
+                                @foreach($row['tiers'] as $i => $included)
+                                <td class="text-center px-4 py-3 {{ $i === 2 ? 'bg-[#eef8fd]' : '' }}">
+                                    @if($included)
+                                    <svg class="h-4 w-4 mx-auto text-[#0b9ed0]" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                            d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    @endif
+                                </td>
+                                @endforeach
+                            </tr>
+                            @endforeach
+                            @endforeach
+                        </tbody>
+                        <tfoot>
+                            <tr class="border-t border-[#d4e5f1]">
+                                <td class="px-5 py-3 text-sm font-semibold text-[#173a59]">Legal Review &amp; Risk
+                                    Assessment</td>
+                                <td colspan="4" class="px-4 py-3 text-xs text-[#5c778d] text-center">Optional add-on
+                                    for any package</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <p class="mt-4 text-xs text-[#8598ab] text-center">See each tier's Disclaimer for scope details.</p>
+        </div>
+    </section>
+
     {{-- FAQ --}}
     <section id="faq" class="py-14 lg:py-16 bg-white">
         <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
