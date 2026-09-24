@@ -566,7 +566,7 @@
                 ],
             ];
         @endphp
-        <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Compare Packages</span>
                 <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">What each tier includes</h2>
