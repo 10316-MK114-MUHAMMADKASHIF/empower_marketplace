@@ -155,7 +155,7 @@
                 ],
             ];
         @endphp
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" x-data="{ cycle: 'monthly' }">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" x-data="{ cycle: 'annual' }">
             <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#0b9ed0]">Pricing</span>
                 <h2 class="mt-3 text-3xl font-bold text-[#0e3a61]">Choose Your Compliance Package</h2>
