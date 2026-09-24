@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\IntakeUploadDownloadController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\SsoController;
 use App\Models\DiscountCode;
 use App\Models\IntakeSubmission;
 use App\Models\Lead;
@@ -40,6 +41,14 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 // Client portal — guest-accessible: a first-time visitor creates their account as part of
 // paying for a package in Step 1, matching the marketplace's combined signup + payment flow.
 Route::get('/portal', fn () => view('portal'))->name('portal');
+
+// SSO — browser-facing half of the token handoff issued by Api\SsoController::issueToken(). Lives
+// here (not routes/api.php) because logging in needs the session/cookie middleware the api group
+// doesn't have.
+Route::get('/sso/consume/{token}', [SsoController::class, 'consume'])->name('sso.consume');
+
+// Swagger UI for partner developers integrating the SSO API — reads public/openapi/sso.yaml.
+Route::get('/api/docs', fn () => view('docs.sso-api'))->name('api.docs');
 
 Route::middleware('auth')->group(function () {
     Route::get('/documents/{document}/download', [DocumentDownloadController::class, 'show'])
