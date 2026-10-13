@@ -8,12 +8,15 @@ use App\Models\Order;
 use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
+use App\Services\MtbcCardCipher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -702,23 +705,179 @@ class AuthTest extends TestCase
             ->assertSet('ssoProvider', 'carecloud');
     }
 
-    public function test_a_carecloud_login_uses_the_carecloud_endpoint_and_is_recorded_as_cch(): void
+    private function enableCarecloud(): void
     {
-        config(['services.empower_sso_api.providers.carecloud' => 'https://cch.example.test/EmpowerSSOAPI']);
-        Http::fake([
-            'https://cch.example.test/EmpowerSSOAPI/api/Auth/Login' => Http::response([
-                'success' => true,
-                'message' => 'Login successful.',
-                'data' => $this->ssoPayload(),
-            ]),
+        config([
+            'services.empower_sso_api.providers.carecloud' => 'https://cch.example.test/empower-marketplace/login',
+            'services.empower_sso_api.cch_aes_key' => '6810369413101191',
         ]);
+    }
 
-        $this->ssoLogin('carecloud');
+    private function carecloudPayload(array $overrides = []): array
+    {
+        return array_replace_recursive([
+            'external_user_id' => '18759d01-226c-4355-89a9-b49b2892d502',
+            'first_name' => 'TALHA',
+            'last_name' => 'AHMED',
+            'email' => 'talha@practice.com',
+            'is_practice_admin' => false,
+            'selected_practice_id' => '77b81aa8',
+            'specialty' => 'Ophthalmology',
+            'practices' => [['id' => '77b81aa8', 'name' => 'CareCloud Clinic', 'user_name' => 'u1']],
+            'practice' => [
+                'id' => '77b81aa8',
+                'name' => 'CareCloud Clinic',
+                'address' => ['street' => '786 BOSTON POST ROAD', 'city' => 'MADISON', 'state' => 'CT', 'zip' => '064433036'],
+                'phone' => '3052654200',
+                'admins' => [],
+                'account_status' => true,
+                'subscription_account_id' => 'ACCT-1',
+                'preferred_billing_option' => 'carecloud_subscription',
+            ],
+        ], $overrides);
+    }
 
-        Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://cch.example.test/'));
-        $user = User::where('email', 'jane@practice.com')->first();
+    private function fakeCarecloud(array $data): void
+    {
+        Http::fake(['cch.example.test/*' => Http::response(['success' => true, 'message' => 'Login successful', 'data' => $data])]);
+    }
+
+    private function carecloudLogin(string $email = 'talha@practice.com'): Testable
+    {
+        return Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'carecloud')
+            ->set('ssoUsername', $email)
+            ->set('ssoPassword', 'Secret-Pass-1!')
+            ->call('loginViaSso');
+    }
+
+    public function test_a_carecloud_login_posts_the_email_and_an_aes_encrypted_password_and_is_recorded_as_cch(): void
+    {
+        $this->enableCarecloud();
+        $this->fakeCarecloud($this->carecloudPayload());
+
+        $this->carecloudLogin();
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://cch.example.test/empower-marketplace/login'
+                && $request['email'] === 'talha@practice.com'
+                && $request['password'] !== 'Secret-Pass-1!'
+                && (new MtbcCardCipher('6810369413101191'))->decrypt($request['password']) === 'Secret-Pass-1!';
+        });
+        $user = User::where('email', 'talha@practice.com')->first();
         $this->assertAuthenticatedAs($user);
         $this->assertSame('cch', $user->practice->source_system);
+        $this->assertSame('Ophthalmology', $user->practice->specialty);
+        $this->assertSame('CareCloud Clinic', $user->practice->name);
+        $this->assertTrue($user->practice->account_status);
+        $this->assertSame('ACCT-1', $user->practice->subscription_account_id);
+        $this->assertSame('carecloud_subscription', $user->practice->preferred_billing_option);
+    }
+
+    public function test_carecloud_billing_fields_that_are_null_stay_empty(): void
+    {
+        $this->enableCarecloud();
+        $this->fakeCarecloud($this->carecloudPayload(['practice' => ['subscription_account_id' => null, 'preferred_billing_option' => null]]));
+
+        $this->carecloudLogin();
+
+        $practice = User::where('email', 'talha@practice.com')->first()->practice;
+        $this->assertNull($practice->subscription_account_id);
+        $this->assertNull($practice->preferred_billing_option);
+        $this->assertTrue($practice->account_status);
+    }
+
+    public function test_carecloud_billing_standing_is_refreshed_on_a_later_login(): void
+    {
+        $this->enableCarecloud();
+        Http::fake(['cch.example.test/*' => Http::sequence()
+            ->push(['success' => true, 'message' => 'ok', 'data' => $this->carecloudPayload()])
+            ->push(['success' => true, 'message' => 'ok', 'data' => $this->carecloudPayload(['practice' => ['account_status' => false, 'subscription_account_id' => 'ACCT-2']])]),
+        ]);
+
+        $this->carecloudLogin();
+        auth()->logout();
+        $this->carecloudLogin();
+
+        $practice = User::where('email', 'talha@practice.com')->first()->practice;
+        $this->assertFalse($practice->account_status);
+        $this->assertSame('ACCT-2', $practice->subscription_account_id);
+    }
+
+    public function test_the_carecloud_form_asks_for_an_email_and_rejects_a_non_email(): void
+    {
+        $this->enableCarecloud();
+
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'carecloud')
+            ->assertSee('Email')
+            ->set('ssoUsername', 'not-an-email')
+            ->set('ssoPassword', 'x')
+            ->call('loginViaSso')
+            ->assertHasErrors(['ssoUsername'])
+            ->assertDispatched('toast', message: 'Please enter your email and password.', type: 'error');
+    }
+
+    public function test_a_wrong_carecloud_password_shows_their_message_as_an_error_toast(): void
+    {
+        $this->enableCarecloud();
+        Http::fake(['cch.example.test/*' => Http::response(['success' => false, 'message' => 'Invalid email or password.', 'data' => null], 401)]);
+
+        $this->carecloudLogin()
+            ->assertHasErrors(['ssoPassword'])
+            ->assertDispatched('toast', message: 'Invalid email or password.', type: 'error');
+
+        $this->assertGuest();
+    }
+
+    public function test_a_carecloud_server_error_gets_a_friendly_message(): void
+    {
+        $this->enableCarecloud();
+        Http::fake(['cch.example.test/*' => Http::response(['error' => ['error_code' => 500]], 500)]);
+
+        $this->carecloudLogin()
+            ->assertDispatched('toast', message: 'The sign-in service is having trouble right now. Please try again shortly.', type: 'error');
+    }
+
+    public function test_a_carecloud_user_with_thousands_of_practices_gets_a_searchable_capped_picker(): void
+    {
+        $this->enableCarecloud();
+        $practices = collect(range(1, 2605))->map(fn ($i) => ['id' => "p{$i}", 'name' => $i === 1500 ? 'Unique Needle Clinic' : "Practice Number {$i}", 'user_name' => 'u'])->all();
+        $this->fakeCarecloud($this->carecloudPayload(['practices' => $practices, 'selected_practice_id' => 'p7', 'practice' => ['id' => 'p7', 'name' => 'Practice Number 7']]));
+
+        $component = $this->carecloudLogin()
+            ->assertSet('choosingPractice', true)
+            ->assertSet('pickedPracticeId', 'p7');
+
+        $this->assertSame(2605, $component->get('practiceChoices')['total']);
+        $this->assertLessThanOrEqual(41, count($component->get('practiceChoices')['items']));
+        $this->assertGreaterThan(41, $component->get('practiceChoices')['matched']);
+
+        $component->set('practiceSearch', 'needle');
+        $this->assertSame(['p1500'], array_column($component->get('practiceChoices')['items'], 'id'));
+
+        $component->set('pickedPracticeId', 'p1500')->call('choosePractice');
+
+        $user = User::where('email', 'talha@practice.com')->first();
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame('Unique Needle Clinic', $user->practice->name);
+        $this->assertSame('p1500', $user->practice->external_practice_id);
+    }
+
+    public function test_the_pending_multi_practice_login_is_not_kept_in_the_session(): void
+    {
+        $this->enableCarecloud();
+        $practices = collect(range(1, 50))->map(fn ($i) => ['id' => "p{$i}", 'name' => "Practice {$i}", 'user_name' => 'u'])->all();
+        $this->fakeCarecloud($this->carecloudPayload(['practices' => $practices, 'selected_practice_id' => 'p1']));
+
+        $this->carecloudLogin();
+
+        $this->assertNull(session('sso_pending'));
+        $this->assertNotNull(session('sso_pending_key'));
+        $this->assertStringStartsWith('sso_pending:', session('sso_pending_key'));
+        // Stored as plain data, because the real cache stores won't unserialize objects.
+        $this->assertIsArray(Cache::get(session('sso_pending_key'))['result']);
+        $this->assertGuest();
     }
 
     public function test_a_talkehr_login_never_hits_the_carecloud_endpoint(): void

@@ -2,17 +2,20 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Wraps MTBC's EmpowerSSOAPI — a single-endpoint credential-verification API backing the "Sign in
- * with CareCloud"/"Sign in with talkEHR" login buttons (see sso.md §1a). Confirmed live against
- * the UAT sandbox on 2026-10-02: its only route is POST /api/Auth/Login, taking a plain username
- * and a password hashed client-side as an unsalted, unkeyed SHA-512 hex digest — no HMAC, no key
- * material involved despite the similarity to the AES-keyed scheme EmpowerPaymentApiClient uses
- * for card data. We don't yet know whether CareCloud and talkEHR share this exact same endpoint
- * or have separate ones — this is used for both buttons until MTBC says otherwise.
+ * Credential-verification clients for the "Sign in with talkEHR" and "Sign in with CareCloud" buttons
+ * (sso.md §1a). The two are different platforms with different endpoints and password schemes, but
+ * answer with the same JSON shape, which is normalised into one EmpowerSsoLoginResult:
+ *
+ * - talkEHR (MTBC's EmpowerSSOAPI): POST {base}/api/Auth/Login with a username and a password
+ *   hashed as an unsalted SHA-512 hex digest.
+ * - CareCloud (CCH): POST to the full login URL with an email and a password encrypted with
+ *   AES-128-CBC (zero IV, base64) under CCH's shared key — the same scheme as MtbcCardCipher,
+ *   confirmed live against CCH's staging service.
  */
 class EmpowerSsoApiClient
 {
@@ -24,19 +27,21 @@ class EmpowerSsoApiClient
 
     public function login(string $username, string $password, string $provider = 'talkehr'): EmpowerSsoLoginResult
     {
-        $baseUrl = config("services.empower_sso_api.providers.{$provider}");
+        $endpoint = config("services.empower_sso_api.providers.{$provider}");
 
-        if (! $baseUrl) {
+        if (! $endpoint) {
             return new EmpowerSsoLoginResult(success: false, declineMessage: 'This sign-in option is not configured.');
         }
 
         try {
-            $response = Http::asJson()->timeout(30)->post("{$baseUrl}/api/Auth/Login", [
-                'UserName' => $username,
-                'Password' => hash('sha512', $password),
-            ]);
+            $response = $provider === 'carecloud'
+                ? $this->carecloudRequest($endpoint, $username, $password)
+                : Http::asJson()->timeout(30)->post("{$endpoint}/api/Auth/Login", [
+                    'UserName' => $username,
+                    'Password' => hash('sha512', $password),
+                ]);
         } catch (\Throwable $e) {
-            Log::error('EmpowerSSOAPI login request failed to send', ['error' => $e->getMessage()]);
+            Log::error('SSO login request failed to send', ['provider' => $provider, 'error' => $e->getMessage()]);
 
             return new EmpowerSsoLoginResult(success: false, declineMessage: 'Could not reach the sign-in service. Please try again.');
         }
@@ -45,25 +50,29 @@ class EmpowerSsoApiClient
 
         if (! $response->successful() || ! ($json['success'] ?? false)) {
             if ($response->status() !== 401) {
-                Log::warning('EmpowerSSOAPI login declined or failed', [
+                Log::warning('SSO login declined or failed', [
+                    'provider' => $provider,
                     'http_status' => $response->status(),
                     'body' => $json ?? $response->body(),
                 ]);
             }
 
-            return new EmpowerSsoLoginResult(success: false, declineMessage: $json['message'] ?? 'Invalid username or password.');
+            return new EmpowerSsoLoginResult(success: false, declineMessage: $response->serverError()
+                ? 'The sign-in service is having trouble right now. Please try again shortly.'
+                : ($json['message'] ?? 'Invalid username or password.'));
         }
 
         $data = $json['data'] ?? null;
 
         if (! is_array($data) || ! isset($data['email'])) {
-            Log::warning('EmpowerSSOAPI login succeeded but returned no usable data', ['body' => $json]);
+            Log::warning('SSO login succeeded but returned no usable data', ['provider' => $provider, 'body' => $json]);
 
             return new EmpowerSsoLoginResult(success: false, declineMessage: 'Invalid username or password.');
         }
 
         $practice = $data['practice'] ?? [];
         $address = $practice['address'] ?? [];
+        $specialty = trim((string) ($data['specialty'] ?? $data['specialization'] ?? ''));
 
         return new EmpowerSsoLoginResult(
             success: true,
@@ -81,7 +90,20 @@ class EmpowerSsoApiClient
             practices: $data['practices'] ?? [],
             selectedPracticeId: isset($data['selected_practice_id']) ? (string) $data['selected_practice_id'] : null,
             practiceAdmins: $practice['admins'] ?? [],
-            specialization: isset($data['specialization']) && trim((string) $data['specialization']) !== '' ? trim((string) $data['specialization']) : null,
+            specialization: $specialty !== '' ? $specialty : null,
+            accountStatus: isset($practice['account_status']) ? (bool) $practice['account_status'] : null,
+            subscriptionAccountId: isset($practice['subscription_account_id']) ? (string) $practice['subscription_account_id'] : null,
+            preferredBillingOption: isset($practice['preferred_billing_option']) ? (string) $practice['preferred_billing_option'] : null,
         );
+    }
+
+    private function carecloudRequest(string $loginUrl, string $email, string $password): Response
+    {
+        $cipher = new MtbcCardCipher((string) config('services.empower_sso_api.cch_aes_key'));
+
+        return Http::asJson()->acceptJson()->timeout(30)->post($loginUrl, [
+            'email' => $email,
+            'password' => $cipher->encrypt($password),
+        ]);
     }
 }

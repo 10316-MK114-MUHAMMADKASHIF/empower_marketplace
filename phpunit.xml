@@ -30,6 +30,8 @@
         <env name="FINANCE_REPORT_EMAIL" value=""/>
         <env name="PUBLIC_LAUNCH_AT" value=""/>
         <env name="MOODLE_TOKEN" value=""/>
+        <env name="EMPOWER_SSO_CCH_LOGIN_URL" value=""/>
+        <env name="EMPOWER_SSO_CCH_AES_KEY" value=""/>
         <env name="LOG_CHANNEL" value="null"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

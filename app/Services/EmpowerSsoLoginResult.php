@@ -25,5 +25,8 @@ class EmpowerSsoLoginResult
         /** @var array<int, array{user_name?: string, first_name?: string, last_name?: string, email?: string}> */
         public readonly array $practiceAdmins = [],
         public readonly ?string $specialization = null,
+        public readonly ?bool $accountStatus = null,
+        public readonly ?string $subscriptionAccountId = null,
+        public readonly ?string $preferredBillingOption = null,
     ) {}
 }

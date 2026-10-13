@@ -15,6 +15,9 @@ namespace App\Services;
  */
 class MtbcCardCipher
 {
+    /** @param string|null $key An explicit 16-byte key (e.g. CareCloud's); defaults to the MTBC payment key. */
+    public function __construct(private ?string $key = null) {}
+
     private const CIPHER = 'aes-128-cbc';
 
     /** MTBC's own reference implementation generates a random IV, then immediately overwrites it
@@ -51,10 +54,10 @@ class MtbcCardCipher
 
     private function key(): string
     {
-        $key = config('services.empower_payment_api.aes_key');
+        $key = $this->key ?? config('services.empower_payment_api.aes_key');
 
         if (! is_string($key) || strlen($key) !== 16) {
-            throw new \RuntimeException('services.empower_payment_api.aes_key must be a 16-byte AES-128 key.');
+            throw new \RuntimeException('The AES key must be a 16-byte AES-128 key.');
         }
 
         return $key;

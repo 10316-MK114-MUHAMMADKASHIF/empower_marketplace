@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\EmpowerSsoApiClient;
 use App\Services\EmpowerSsoLoginResult;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
@@ -39,8 +40,7 @@ new class extends Component
 
     public string $ssoPassword = '';
 
-    /** @var array<int, array{id: string, name: string}> */
-    public array $practiceOptions = [];
+    public string $practiceSearch = '';
 
     public string $pickedPracticeId = '';
 
@@ -150,9 +150,9 @@ new class extends Component
 
     public function backFromSso(): void
     {
-        session()->forget('sso_pending');
+        $this->forgetPending();
         $this->choosingPractice = false;
-        $this->practiceOptions = [];
+        $this->practiceSearch = '';
         $this->ssoProvider = null;
         $this->ssoUsername = '';
         $this->ssoPassword = '';
@@ -169,11 +169,11 @@ new class extends Component
     {
         try {
             $this->validate([
-                'ssoUsername' => 'required|string',
+                'ssoUsername' => $this->ssoProvider === 'carecloud' ? 'required|email' : 'required|string',
                 'ssoPassword' => 'required|string',
             ]);
         } catch (ValidationException $e) {
-            $this->dispatch('toast', message: 'Please enter your username and password.', type: 'error');
+            $this->dispatch('toast', message: $this->ssoProvider === 'carecloud' ? 'Please enter your email and password.' : 'Please enter your username and password.', type: 'error');
 
             throw $e;
         }
@@ -205,9 +205,15 @@ new class extends Component
         // More than one practice: ask which one they're working in before signing in. The verified
         // result waits server-side in the session, never in the browser.
         if (count($result->practices) > 1) {
-            session(['sso_pending' => ['result' => $result, 'provider' => $this->ssoProvider]]);
-            $this->practiceOptions = collect($result->practices)->map(fn (array $p) => ['id' => (string) $p['id'], 'name' => (string) ($p['name'] ?? $p['id'])])->all();
-            $this->pickedPracticeId = $result->selectedPracticeId ?? $this->practiceOptions[0]['id'];
+            // A CareCloud user can belong to thousands of practices, so the verified result is parked
+            // in the cache (10 minutes) rather than in the session or the component's own state.
+            $key = 'sso_pending:'.Str::random(40);
+            // Plain arrays only: Laravel's cache refuses to unserialize objects by default.
+            Cache::put($key, ['result' => get_object_vars($result), 'provider' => $this->ssoProvider], now()->addMinutes(10));
+            session(['sso_pending_key' => $key]);
+
+            $this->pickedPracticeId = $result->selectedPracticeId ?? (string) $result->practices[0]['id'];
+            $this->practiceSearch = '';
             $this->choosingPractice = true;
 
             return;
@@ -216,9 +222,51 @@ new class extends Component
         $this->completeSsoLogin($result, null);
     }
 
+    /** @return array{result: EmpowerSsoLoginResult, provider: string}|null */
+    private function pending(): ?array
+    {
+        $key = session('sso_pending_key');
+        $data = $key ? Cache::get($key) : null;
+
+        return $data ? ['result' => new EmpowerSsoLoginResult(...$data['result']), 'provider' => $data['provider']] : null;
+    }
+
+    private function forgetPending(): void
+    {
+        if ($key = session('sso_pending_key')) {
+            Cache::forget($key);
+        }
+
+        session()->forget('sso_pending_key');
+    }
+
+    /** The practices to pick from, filtered by the search box and capped so a huge list stays usable.
+     *
+     *  @return array{items: array<int, array{id: string, name: string}>, total: int, matched: int}
+     */
+    #[Computed]
+    public function practiceChoices(): array
+    {
+        $all = collect($this->pending()['result']->practices ?? [])
+            ->map(fn (array $p) => ['id' => (string) $p['id'], 'name' => (string) ($p['name'] ?? $p['id'])]);
+
+        $search = mb_strtolower(trim($this->practiceSearch));
+        $matched = $search === '' ? $all : $all->filter(fn (array $p) => str_contains(mb_strtolower($p['name']), $search));
+
+        // Always keep the currently picked practice visible, even if it isn't in the first page.
+        $items = $matched->take(40);
+        $picked = $all->firstWhere('id', $this->pickedPracticeId);
+
+        if ($picked && ! $items->contains('id', $picked['id']) && $search === '') {
+            $items = $items->prepend($picked);
+        }
+
+        return ['items' => $items->values()->all(), 'total' => $all->count(), 'matched' => $matched->count()];
+    }
+
     public function choosePractice(): void
     {
-        $pending = session('sso_pending');
+        $pending = $this->pending();
         $ids = collect($pending['result']->practices ?? [])->pluck('id')->map(fn ($id) => (string) $id);
 
         if (! $pending || ! $ids->contains($this->pickedPracticeId)) {
@@ -227,7 +275,7 @@ new class extends Component
             return;
         }
 
-        session()->forget('sso_pending');
+        $this->forgetPending();
         $this->ssoProvider = $pending['provider'];
 
         $this->completeSsoLogin($pending['result'], $this->pickedPracticeId);
@@ -266,6 +314,9 @@ new class extends Component
                 'external_practice_id' => $chosenId,
                 'phone' => $detailsAvailable ? $result->practicePhone : null,
                 'specialty' => Practice::normalizeSpecialty($result->specialization),
+                'account_status' => $detailsAvailable ? $result->accountStatus : null,
+                'subscription_account_id' => $detailsAvailable ? $result->subscriptionAccountId : null,
+                'preferred_billing_option' => $detailsAvailable ? $result->preferredBillingOption : null,
                 'name' => ($detailsAvailable ? $result->practiceName : $chosenName) ?? '',
                 'address' => $detailsAvailable
                     ? (collect([$result->practiceAddress, $result->practiceCity, $result->practiceState, $result->practiceZip])->filter()->implode(', ') ?: null)
@@ -298,6 +349,15 @@ new class extends Component
 
             if ($practice && $practice->specialty === null && ($specialty = Practice::normalizeSpecialty($result->specialization))) {
                 $practice->update(['specialty' => $specialty]);
+            }
+
+            // Billing standing can change on the partner's side, so refresh it each time we have it.
+            if ($practice && $detailsAvailable && ($practice->external_practice_id === null || $practice->external_practice_id === $chosenId)) {
+                $practice->update(array_filter([
+                    'account_status' => $result->accountStatus,
+                    'subscription_account_id' => $result->subscriptionAccountId,
+                    'preferred_billing_option' => $result->preferredBillingOption,
+                ], fn ($value) => $value !== null));
             }
         }
 
@@ -375,15 +435,27 @@ new class extends Component
         <h3 class="text-base font-semibold text-[#0e3a61] mb-1">Which practice are you working in?</h3>
         <p class="text-sm text-[#5c778d] mb-4">Your account is linked to more than one practice.</p>
 
-        <div class="space-y-2 mb-4">
-            @foreach($practiceOptions as $option)
+        @if($this->practiceChoices['total'] > 8)
+        <input wire:model.live.debounce.300ms="practiceSearch" type="search" placeholder="Search your {{ number_format($this->practiceChoices['total']) }} practices…"
+            aria-label="Search practices"
+            class="w-full mb-3 rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] placeholder-[#5c778d]/60 focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+        @endif
+
+        <div class="space-y-2 mb-2 max-h-72 overflow-y-auto pr-1">
+            @forelse($this->practiceChoices['items'] as $option)
             <label wire:key="practice-option-{{ $option['id'] }}" class="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors {{ $pickedPracticeId === $option['id'] ? 'border-[#0b9ed0] bg-[#f4fbfe]' : 'border-[#d4e5f1] bg-white hover:bg-[#f9fcff]' }}">
                 <input type="radio" wire:model.live="pickedPracticeId" value="{{ $option['id'] }}" class="accent-[#0b9ed0]">
                 <span class="text-sm font-semibold text-[#173a59]">{{ $option['name'] }}</span>
             </label>
-            @endforeach
-            @error('pickedPracticeId') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+            @empty
+            <p class="px-1 py-3 text-sm text-[#5c778d]">No practices match "{{ $practiceSearch }}".</p>
+            @endforelse
         </div>
+        @if($this->practiceChoices['matched'] > count($this->practiceChoices['items']))
+        <p class="mb-3 text-xs text-[#5c778d]">Showing the first {{ count($this->practiceChoices['items']) }} of {{ number_format($this->practiceChoices['matched']) }}. Type to narrow the list.</p>
+        @endif
+        @error('pickedPracticeId') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
+        <div class="mb-2"></div>
 
         <div class="flex justify-end">
             <button type="submit"
@@ -399,8 +471,8 @@ new class extends Component
     @else
     <form wire:submit="loginViaSso" novalidate>
         <div class="mb-4">
-            <label class="block text-sm font-medium text-[#173a59] mb-1.5" for="sso-username">Username</label>
-            <input wire:model="ssoUsername" id="sso-username" type="text" autocomplete="username" autofocus
+            <label class="block text-sm font-medium text-[#173a59] mb-1.5" for="sso-username">{{ $ssoProvider === 'carecloud' ? 'Email' : 'Username' }}</label>
+            <input wire:model="ssoUsername" id="sso-username" type="{{ $ssoProvider === 'carecloud' ? 'email' : 'text' }}" autocomplete="{{ $ssoProvider === 'carecloud' ? 'email' : 'username' }}" autofocus
                 class="w-full rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] placeholder-[#5c778d]/60 focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
             @error('ssoUsername') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
         </div>

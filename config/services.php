@@ -48,8 +48,10 @@ return [
     'empower_sso_api' => [
         'providers' => [
             'talkehr' => env('EMPOWER_SSO_API_BASE_URL'),
-            'carecloud' => env('EMPOWER_SSO_CCH_API_BASE_URL'),
+            // CareCloud: the full login URL (not a base), plus the shared AES-128 key for the password.
+            'carecloud' => env('EMPOWER_SSO_CCH_LOGIN_URL'),
         ],
+        'cch_aes_key' => env('EMPOWER_SSO_CCH_AES_KEY'),
     ],
 
     'carecloud' => [
