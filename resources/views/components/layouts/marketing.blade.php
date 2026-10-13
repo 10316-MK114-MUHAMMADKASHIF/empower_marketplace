@@ -101,6 +101,8 @@ $sectionPrefix = $onHomePage ? '' : route('home');
 
     <livewire:contact-dialog />
 
+    <x-toast />
+
     @livewireScripts
 </body>
 

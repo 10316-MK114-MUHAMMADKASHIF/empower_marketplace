@@ -81,6 +81,7 @@ class EmpowerSsoApiClient
             practices: $data['practices'] ?? [],
             selectedPracticeId: isset($data['selected_practice_id']) ? (string) $data['selected_practice_id'] : null,
             practiceAdmins: $practice['admins'] ?? [],
+            specialization: isset($data['specialization']) && trim((string) $data['specialization']) !== '' ? trim((string) $data['specialization']) : null,
         );
     }
 }

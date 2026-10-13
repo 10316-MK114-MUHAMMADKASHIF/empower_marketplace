@@ -38,6 +38,25 @@ class Practice extends Model
         'Urology', 'Multi-specialty', 'Other',
     ];
 
+    /** A specialty from the partner, matched case-insensitively to our list where possible and
+     *  otherwise kept as typed (so nothing the partner sends is lost). */
+    public static function normalizeSpecialty(?string $specialty): ?string
+    {
+        $specialty = trim((string) $specialty);
+
+        if ($specialty === '') {
+            return null;
+        }
+
+        foreach (self::SPECIALTIES as $known) {
+            if (strcasecmp($known, $specialty) === 0) {
+                return $known;
+            }
+        }
+
+        return mb_substr($specialty, 0, 100);
+    }
+
     /**
      * @return array<string, string>
      */

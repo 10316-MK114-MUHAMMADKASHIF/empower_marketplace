@@ -40,6 +40,7 @@ class EmpowerSsoApiClientTest extends TestCase
                     'email' => 'jane@practice.com',
                     'first_name' => 'Jane',
                     'last_name' => 'Provider',
+                    'specialization' => 'Exercise Physiology',
                     'is_practice_admin' => true,
                     'practices' => [
                         ['id' => '1011163', 'name' => 'Riverside Family Medicine', 'user_name' => 'JANE'],
@@ -72,6 +73,7 @@ class EmpowerSsoApiClientTest extends TestCase
         $this->assertSame('62704', $result->practiceZip);
         $this->assertSame('5555551010', $result->practicePhone);
         $this->assertTrue($result->isPracticeAdmin);
+        $this->assertSame('Exercise Physiology', $result->specialization);
         $this->assertCount(2, $result->practices);
         $this->assertSame('1011163', $result->selectedPracticeId);
         $this->assertSame('olive@practice.com', $result->practiceAdmins[0]['email']);

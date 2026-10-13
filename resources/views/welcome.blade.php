@@ -1028,14 +1028,4 @@
             </div>
         </div>
     </section>
-
-    <div x-data="{ show: false, message: '' }"
-        x-on:toast.window="message = $event.detail.message; show = true; clearTimeout(hideTimer); hideTimer = setTimeout(() => show = false, 3000)"
-        x-init="hideTimer = null" x-show="show" x-transition x-cloak class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100]">
-        <div
-            class="flex items-center gap-2 rounded-xl bg-[#1c3457] text-white pl-4 pr-5 py-3 shadow-[0_18px_50px_rgba(10,32,55,0.25)]">
-            <span class="text-[#74bfe4] font-bold">&#10003;</span>
-            <span class="text-sm font-semibold" x-text="message"></span>
-        </div>
-    </div>
 </x-layouts.marketing>

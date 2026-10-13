@@ -9,6 +9,7 @@ use App\Models\Package;
 use App\Models\Practice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
@@ -123,6 +124,7 @@ class AuthTest extends TestCase
             'email' => 'jane@practice.com',
             'first_name' => 'Jane',
             'last_name' => 'Provider',
+            'specialization' => 'cardiology',
             'is_practice_admin' => true,
             'practices' => [['id' => '1011163', 'name' => 'Riverside Family Medicine', 'user_name' => 'JANE']],
             'selected_practice_id' => '1011163',
@@ -141,7 +143,7 @@ class AuthTest extends TestCase
             ->set('ssoPassword', 't@lkTest@1234')
             ->call('loginViaSso')
             ->assertHasNoErrors()
-            ->assertRedirect(route('home'));
+            ->assertRedirect(route('home').'#pricing');
 
         $user = User::where('email', 'jane@practice.com')->first();
         $this->assertNotNull($user);
@@ -500,6 +502,7 @@ class AuthTest extends TestCase
             'email' => 'jane@practice.com',
             'first_name' => 'Jane',
             'last_name' => 'Provider',
+            'specialization' => 'cardiology',
             'is_practice_admin' => true,
             'practices' => [['id' => '1011163', 'name' => 'Riverside Family Medicine', 'user_name' => 'JANE']],
             'selected_practice_id' => '1011163',
@@ -727,5 +730,169 @@ class AuthTest extends TestCase
 
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'cch.example.test'));
         $this->assertSame('talkehr', User::where('email', 'jane@practice.com')->first()->practice->source_system);
+    }
+
+    public function test_a_successful_talkehr_login_flashes_a_success_toast(): void
+    {
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+
+        $this->ssoLogin('talkehr');
+
+        $this->assertSame('Login successful - Please continue with purchasing the package', session('toast'));
+        $this->assertSame('success', session('toast_type'));
+    }
+
+    public function test_a_talkehr_login_carries_on_to_the_package_being_purchased(): void
+    {
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+        session(['intended_package' => 'professional', 'intended_billing_cycle' => 'monthly']);
+
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->set('ssoUsername', '1163testing')
+            ->set('ssoPassword', 't@lkTest@1234')
+            ->call('loginViaSso')
+            ->assertRedirect(route('portal', ['package' => 'professional', 'billing_cycle' => 'monthly']));
+    }
+
+    public function test_without_a_chosen_package_a_new_talkehr_client_lands_on_the_pricing_section(): void
+    {
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->set('ssoUsername', '1163testing')
+            ->set('ssoPassword', 't@lkTest@1234')
+            ->call('loginViaSso')
+            ->assertRedirect(route('home').'#pricing');
+    }
+
+    public function test_a_failed_talkehr_login_shows_an_error_toast_and_the_inline_error(): void
+    {
+        Http::fake([
+            config('services.empower_sso_api.providers.talkehr').'/api/Auth/Login' => Http::response(['success' => false, 'message' => 'Invalid username or password.'], 401),
+        ]);
+
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->set('ssoUsername', '1163testing')
+            ->set('ssoPassword', 'wrong')
+            ->call('loginViaSso')
+            ->assertHasErrors(['ssoPassword'])
+            ->assertDispatched('toast', message: 'Invalid username or password.', type: 'error');
+
+        $this->assertGuest();
+        $this->assertNull(session('toast'));
+    }
+
+    public function test_missing_talkehr_fields_show_an_error_toast(): void
+    {
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->call('loginViaSso')
+            ->assertHasErrors(['ssoUsername', 'ssoPassword'])
+            ->assertDispatched('toast', message: 'Please enter your username and password.', type: 'error');
+    }
+
+    public function test_an_unreachable_talkehr_service_shows_an_error_toast(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('timed out'));
+
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->set('ssoUsername', '1163testing')
+            ->set('ssoPassword', 't@lkTest@1234')
+            ->call('loginViaSso')
+            ->assertDispatched('toast', message: 'Could not reach the sign-in service. Please try again.', type: 'error');
+    }
+
+    public function test_a_normal_email_login_failure_shows_an_error_toast(): void
+    {
+        Livewire::test('auth.login-form')
+            ->set('email', 'nobody@practice.com')
+            ->set('password', 'wrong-password')
+            ->call('login')
+            ->assertDispatched('toast', message: 'These credentials do not match our records.', type: 'error');
+    }
+
+    public function test_the_toast_is_present_on_the_sign_in_page_so_flashes_can_show(): void
+    {
+        foreach (['login', 'home', 'register'] as $route) {
+            $html = $this->withoutVite()->get(route($route))->assertOk()->getContent();
+
+            $this->assertSame(1, substr_count($html, 'x-on:toast.window'), "{$route} should have exactly one toast, or every message would show twice.");
+        }
+    }
+
+    public function test_the_register_page_remembers_the_package_for_the_sign_in_detour(): void
+    {
+        Package::factory()->create(['slug' => 'advanced', 'annual_price' => 1699, 'is_active' => true]);
+
+        $this->withoutVite()->get(route('register', ['package' => 'advanced', 'billing_cycle' => 'monthly']))->assertOk();
+
+        $this->assertSame('advanced', session('intended_package'));
+        $this->assertSame('monthly', session('intended_billing_cycle'));
+    }
+
+    public function test_the_partner_specialization_fills_the_practice_specialty(): void
+    {
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+
+        $this->ssoLogin();
+
+        $this->assertSame('Cardiology', User::where('email', 'jane@practice.com')->first()->practice->specialty);
+    }
+
+    public function test_a_specialization_outside_our_list_is_kept_as_sent(): void
+    {
+        $this->fakeEmpowerSsoApi($this->ssoPayload(['specialization' => 'Exercise Physiology']));
+
+        $this->ssoLogin();
+
+        $this->assertSame('Exercise Physiology', User::where('email', 'jane@practice.com')->first()->practice->specialty);
+    }
+
+    public function test_an_existing_specialty_is_not_overwritten_but_a_blank_one_is_filled(): void
+    {
+        $withSpecialty = User::factory()->create(['email' => 'jane@practice.com', 'external_id' => '544109']);
+        Practice::factory()->create(['user_id' => $withSpecialty->id, 'specialty' => 'Pediatrics']);
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+
+        $this->ssoLogin();
+
+        $this->assertSame('Pediatrics', $withSpecialty->practice->fresh()->specialty);
+
+        $withSpecialty->practice->update(['specialty' => null]);
+        auth()->logout();
+
+        $this->ssoLogin();
+
+        $this->assertSame('Cardiology', $withSpecialty->practice->fresh()->specialty);
+    }
+
+    public function test_a_client_who_chose_a_package_gets_the_purchasing_toast_too(): void
+    {
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+        session(['intended_package' => 'advanced']);
+
+        $this->ssoLogin();
+
+        $this->assertSame('Login successful - Please continue with purchasing the package', session('toast'));
+    }
+
+    public function test_a_returning_client_with_orders_gets_the_plain_toast_and_the_portal(): void
+    {
+        $user = User::factory()->create(['email' => 'jane@practice.com', 'external_id' => '544109']);
+        Order::factory()->create(['user_id' => $user->id]);
+        $this->fakeEmpowerSsoApi($this->ssoPayload());
+
+        Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->set('ssoUsername', '1163testing')
+            ->set('ssoPassword', 't@lkTest@1234')
+            ->call('loginViaSso')
+            ->assertRedirect(route('portal'));
+
+        $this->assertSame('Login successful', session('toast'));
     }
 }

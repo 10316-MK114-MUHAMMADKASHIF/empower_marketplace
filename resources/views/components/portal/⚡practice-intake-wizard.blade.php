@@ -2714,6 +2714,9 @@ new class extends Component
                 <select wire:model.live="specialty"
                     class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
                     <option value="">Select your specialty</option>
+                    @if($specialty !== '' && ! in_array($specialty, Practice::SPECIALTIES, true))
+                    <option value="{{ $specialty }}" selected>{{ $specialty }}</option>
+                    @endif
                     @foreach(Practice::SPECIALTIES as $s)
                     <option value="{{ $s }}" @selected($specialty===$s)>{{ $s }}</option>
                     @endforeach

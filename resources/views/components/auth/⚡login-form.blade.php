@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\EmpowerSsoApiClient;
 use App\Services\EmpowerSsoLoginResult;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -62,6 +63,36 @@ new class extends Component
         return app(EmpowerSsoApiClient::class)->enabledProviders();
     }
 
+    /** Shows an error both inline under the field and as a toast, so it can't be missed. */
+    private function failWith(string $field, string $message): void
+    {
+        $this->addError($field, $message);
+        $this->dispatch('toast', message: $message, type: 'error');
+    }
+
+    /** Where to send a freshly signed-in user, and whether they're now in the "buy a package" flow.
+     *  Admins go to their dashboard; a client mid-purchase carries on to that package's checkout; a
+     *  client who has nothing yet is sent to the pricing section to choose a package first.
+     *
+     *  @return array{0: string, 1: bool} [url, isPurchasing]
+     */
+    private function destinationFor(User $user, bool $newClientToPricing = false): array
+    {
+        if ($user->isAdmin()) {
+            return [route('admin.dashboard'), false];
+        }
+
+        if ($package = session('intended_package')) {
+            return [route('portal', array_filter(['package' => $package, 'billing_cycle' => session('intended_billing_cycle')])), true];
+        }
+
+        if ($user->orders()->doesntExist()) {
+            return [$newClientToPricing ? route('home').'#pricing' : route('home'), $newClientToPricing];
+        }
+
+        return [route('portal'), false];
+    }
+
     private function ssoProviderLabel(): string
     {
         return match ($this->ssoProvider) {
@@ -77,14 +108,14 @@ new class extends Component
 
         if (RateLimiter::tooManyAttempts($this->throttleKey(), self::MAX_LOGIN_ATTEMPTS)) {
             $seconds = RateLimiter::availableIn($this->throttleKey());
-            $this->addError('email', "Too many login attempts. Please try again in {$seconds} seconds.");
+            $this->failWith('email', "Too many login attempts. Please try again in {$seconds} seconds.");
 
             return;
         }
 
         if (! Auth::attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
             RateLimiter::hit($this->throttleKey(), self::LOGIN_DECAY_SECONDS);
-            $this->addError('email', 'These credentials do not match our records.');
+            $this->failWith('email', 'These credentials do not match our records.');
 
             return;
         }
@@ -93,7 +124,7 @@ new class extends Component
 
         if (! Auth::user()->is_active) {
             Auth::logout();
-            $this->addError('email', 'This account has been deactivated.');
+            $this->failWith('email', 'This account has been deactivated.');
 
             return;
         }
@@ -102,16 +133,7 @@ new class extends Component
 
         $user = Auth::user();
 
-        $destination = match (true) {
-            $user->isAdmin() => route('admin.dashboard'),
-            // A fresh client who has never chosen a package or completed a payment (orders
-            // are only ever created after a successful charge — see pay() in the portal
-            // component) has nothing to do in the portal yet, so send them to the home page.
-            $user->orders()->doesntExist() => route('home'),
-            default => route('portal'),
-        };
-
-        $this->redirect($destination, navigate: true);
+        $this->redirect($this->destinationFor($user)[0], navigate: true);
     }
 
     public function selectSsoProvider(string $provider): void
@@ -145,14 +167,20 @@ new class extends Component
      */
     public function loginViaSso(EmpowerSsoApiClient $client): void
     {
-        $this->validate([
-            'ssoUsername' => 'required|string',
-            'ssoPassword' => 'required|string',
-        ]);
+        try {
+            $this->validate([
+                'ssoUsername' => 'required|string',
+                'ssoPassword' => 'required|string',
+            ]);
+        } catch (ValidationException $e) {
+            $this->dispatch('toast', message: 'Please enter your username and password.', type: 'error');
+
+            throw $e;
+        }
 
         if (RateLimiter::tooManyAttempts($this->ssoThrottleKey(), self::MAX_LOGIN_ATTEMPTS)) {
             $seconds = RateLimiter::availableIn($this->ssoThrottleKey());
-            $this->addError('ssoPassword', "Too many login attempts. Please try again in {$seconds} seconds.");
+            $this->failWith('ssoPassword', "Too many login attempts. Please try again in {$seconds} seconds.");
 
             return;
         }
@@ -161,7 +189,7 @@ new class extends Component
 
         if (! $result->success) {
             RateLimiter::hit($this->ssoThrottleKey(), self::LOGIN_DECAY_SECONDS);
-            $this->addError('ssoPassword', $result->declineMessage ?? 'Invalid username or password.');
+            $this->failWith('ssoPassword', $result->declineMessage ?? 'Invalid username or password.');
 
             return;
         }
@@ -169,7 +197,7 @@ new class extends Component
         RateLimiter::clear($this->ssoThrottleKey());
 
         if (! $result->email) {
-            $this->addError('ssoPassword', "We couldn't retrieve your email from {$this->ssoProviderLabel()}. Please contact support.");
+            $this->failWith('ssoPassword', "We couldn't retrieve your email from {$this->ssoProviderLabel()}. Please contact support.");
 
             return;
         }
@@ -194,7 +222,7 @@ new class extends Component
         $ids = collect($pending['result']->practices ?? [])->pluck('id')->map(fn ($id) => (string) $id);
 
         if (! $pending || ! $ids->contains($this->pickedPracticeId)) {
-            $this->addError('pickedPracticeId', 'Please choose one of your practices.');
+            $this->failWith('pickedPracticeId', 'Please choose one of your practices.');
 
             return;
         }
@@ -237,6 +265,7 @@ new class extends Component
                 'source_system' => $sourceSystem,
                 'external_practice_id' => $chosenId,
                 'phone' => $detailsAvailable ? $result->practicePhone : null,
+                'specialty' => Practice::normalizeSpecialty($result->specialization),
                 'name' => ($detailsAvailable ? $result->practiceName : $chosenName) ?? '',
                 'address' => $detailsAvailable
                     ? (collect([$result->practiceAddress, $result->practiceCity, $result->practiceState, $result->practiceZip])->filter()->implode(', ') ?: null)
@@ -266,6 +295,10 @@ new class extends Component
                     'phone' => $practice->phone ?? $result->practicePhone,
                 ]));
             }
+
+            if ($practice && $practice->specialty === null && ($specialty = Practice::normalizeSpecialty($result->specialization))) {
+                $practice->update(['specialty' => $specialty]);
+            }
         }
 
         Auth::login($user);
@@ -277,7 +310,7 @@ new class extends Component
 
         if (! $user->is_active) {
             Auth::logout();
-            $this->addError('ssoPassword', 'This account has been deactivated.');
+            $this->failWith('ssoPassword', 'This account has been deactivated.');
 
             return;
         }
@@ -288,11 +321,11 @@ new class extends Component
             user: $user,
         );
 
-        $destination = match (true) {
-            $user->isAdmin() => route('admin.dashboard'),
-            $user->orders()->doesntExist() => route('home'),
-            default => route('portal'),
-        };
+        [$destination, $isPurchasing] = $this->destinationFor($user, newClientToPricing: true);
+
+        // Survives the redirect: the layout's toast reads this flash on the next page.
+        session()->flash('toast', $isPurchasing ? 'Login successful - Please continue with purchasing the package' : 'Login successful');
+        session()->flash('toast_type', 'success');
 
         $this->redirect($destination, navigate: true);
     }

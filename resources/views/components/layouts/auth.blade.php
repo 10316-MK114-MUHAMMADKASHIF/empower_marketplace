@@ -49,6 +49,8 @@
 
     <x-site-footer />
 
+    <x-toast />
+
     @livewireScripts
 </body>
 </html>

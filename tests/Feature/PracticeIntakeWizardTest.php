@@ -1358,4 +1358,18 @@ class PracticeIntakeWizardTest extends TestCase
             ->call('continueFromProfile')
             ->assertHasErrors(['specialty']);
     }
+
+    public function test_a_specialty_from_the_partner_that_is_not_in_our_list_stays_selected(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'specialty' => 'Exercise Physiology']);
+        $order = $this->makeEssentialOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal.practice-intake-wizard', ['orderIds' => [$order->id]])
+            ->call('continueFromIntro')
+            ->call('continueFromDocuments', true)
+            ->assertSet('specialty', 'Exercise Physiology')
+            ->assertSeeHtml('<option value="Exercise Physiology" selected>Exercise Physiology</option>');
+    }
 }

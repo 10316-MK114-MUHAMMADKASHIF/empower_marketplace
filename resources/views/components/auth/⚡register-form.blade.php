@@ -9,6 +9,17 @@ new class extends Component
 {
     public ?string $package = null;
 
+    /** Remembers the package being bought, so signing in instead of registering (including via
+     *  talkEHR) can carry on to that package's checkout. */
+    public function mount(): void
+    {
+        $package = $this->selectedPackage;
+
+        if ($package) {
+            session(['intended_package' => $package->slug, 'intended_billing_cycle' => $this->billingCycle->value]);
+        }
+    }
+
     /** Display-only: shows what's about to be purchased, same package the eventual checkout
      *  (Step 1) will pre-select — never used to charge anything from this component. */
     #[Computed]
