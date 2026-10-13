@@ -14,16 +14,18 @@
             change and become binding only under a separate written services agreement.
         </p>
         <div class="mt-5 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-[#d4e5f1] pt-4">
-            <span class="inline-flex items-center rounded-lg bg-[#f9fcff] px-2.5 py-1.5">
-                <img src="{{ asset('images/logo.webp') }}" alt="Empower" class="h-[28px] sm:h-[45px] w-auto"
-                    onerror="this.parentElement.innerHTML='<span class=\'font-bold text-[#0e3a61] text-sm\'>EMPOWER</span>'">
-            </span>
+            <img src="{{ asset('images/empower-carecloud-logo.png') }}" alt="Empower | CareCloud"
+                class="h-[34px] sm:h-[46px] w-auto">
             <p class="text-xs text-[#5c778d] text-center">&copy; 2026 CareCloud, Inc. &middot; Empower Healthcare &amp;
                 Compliance Inc. &middot; carecloud.com &middot; empowerhci.com</p>
-            @if($contactLink)
-            <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'general' } }))"
-                class="text-xs font-semibold text-[#1a7aad] hover:underline">Contact us</button>
-            @endif
+            <nav class="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs font-semibold text-[#1a7aad]" aria-label="Legal and contact">
+                <a href="https://carecloud.com/privacy-policy/" target="_blank" rel="noopener noreferrer" class="hover:underline">Privacy Policy</a>
+                <a href="https://carecloud.com/terms-of-use/" target="_blank" rel="noopener noreferrer" class="hover:underline">Terms of Use</a>
+                @if($contactLink)
+                <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'general' } }))"
+                    class="hover:underline">Contact us</button>
+                @endif
+            </nav>
         </div>
     </div>
 </footer>
