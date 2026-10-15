@@ -3387,8 +3387,7 @@ $progressPct = ($milestone / 4) * 100;
             @if(! $includesWorkflowQuestionnaire && collect($this->reviewDocumentCategories)->keys()->contains(fn ($key)
             => $this->reviewDocumentCategoryStatus($key) === 'declined'))
             <div class="rounded-xl bg-[#fdf3e0] px-3.5 py-2.5 mb-3 text-xs text-[#8a5a0f] leading-relaxed">
-                Missing a document? Essential updates what you have. <strong class="font-bold">Professional</strong>
-                creates missing documents for you.
+                The package you selected requires you to upload your current documents. If you do not have any documents to upload, please upgrade your package.
                 <a href="{{ route('home') }}#pricing" class="font-bold underline hover:no-underline">Compare
                     packages</a>
             </div>

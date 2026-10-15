@@ -33,6 +33,14 @@ class EmpowerSsoApiClient
             return new EmpowerSsoLoginResult(success: false, declineMessage: 'This sign-in option is not configured.');
         }
 
+        // A missing or malformed key is a deployment mistake, not a network problem: say so in the log
+        // and don't blame the sign-in service.
+        if ($provider === 'carecloud' && strlen((string) config('services.empower_sso_api.cch_aes_key')) !== 16) {
+            Log::error('CareCloud SSO is misconfigured: EMPOWER_SSO_CCH_AES_KEY must be set to the 16-character AES key (run php artisan config:clear if it was just added).');
+
+            return new EmpowerSsoLoginResult(success: false, declineMessage: 'This sign-in option is not configured.');
+        }
+
         try {
             $response = $provider === 'carecloud'
                 ? $this->carecloudRequest($endpoint, $username, $password)
@@ -41,7 +49,7 @@ class EmpowerSsoApiClient
                     'Password' => hash('sha512', $password),
                 ]);
         } catch (\Throwable $e) {
-            Log::error('SSO login request failed to send', ['provider' => $provider, 'error' => $e->getMessage()]);
+            Log::error('SSO login request failed to send', ['provider' => $provider, 'endpoint' => $endpoint, 'exception' => $e::class, 'error' => $e->getMessage()]);
 
             return new EmpowerSsoLoginResult(success: false, declineMessage: 'Could not reach the sign-in service. Please try again.');
         }

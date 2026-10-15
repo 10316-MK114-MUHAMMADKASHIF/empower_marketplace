@@ -117,4 +117,35 @@ class EmpowerSsoApiClientTest extends TestCase
         $this->assertFalse($result->success);
         Http::assertNothingSent();
     }
+
+    public function test_a_missing_carecloud_aes_key_is_reported_as_not_configured_without_calling_out(): void
+    {
+        Http::fake();
+        config([
+            'services.empower_sso_api.providers.carecloud' => 'https://cch.example.test/empower-marketplace/login',
+            'services.empower_sso_api.cch_aes_key' => null,
+        ]);
+
+        $result = app(EmpowerSsoApiClient::class)->login('jane@practice.com', 'secret', 'carecloud');
+
+        $this->assertFalse($result->success);
+        $this->assertSame('This sign-in option is not configured.', $result->declineMessage);
+        Http::assertNothingSent();
+    }
+
+    public function test_a_carecloud_network_failure_is_still_reported_as_unreachable(): void
+    {
+        config([
+            'services.empower_sso_api.providers.carecloud' => 'https://cch.example.test/empower-marketplace/login',
+            'services.empower_sso_api.cch_aes_key' => '6810369413101191',
+        ]);
+        Http::fake(function () {
+            throw new ConnectionException('cURL error 28: Connection timed out');
+        });
+
+        $result = app(EmpowerSsoApiClient::class)->login('jane@practice.com', 'secret', 'carecloud');
+
+        $this->assertFalse($result->success);
+        $this->assertSame('Could not reach the sign-in service. Please try again.', $result->declineMessage);
+    }
 }

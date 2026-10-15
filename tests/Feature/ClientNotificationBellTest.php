@@ -141,4 +141,15 @@ class ClientNotificationBellTest extends TestCase
 
         $this->assertSame('Your training access is ready', $client->notifications()->first()->data['title']);
     }
+
+    public function test_the_bell_does_not_error_when_the_session_has_ended(): void
+    {
+        Livewire::test('notification-bell')
+            ->assertSet('unreadCount', 0)
+            ->assertSee('No notifications yet.')
+            ->call('markAllAsRead')
+            ->call('openNotification', 'does-not-exist')
+            ->assertHasNoErrors()
+            ->assertNoRedirect();
+    }
 }

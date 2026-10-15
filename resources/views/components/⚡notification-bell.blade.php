@@ -5,16 +5,18 @@ use Livewire\Component;
 
 new class extends Component
 {
+    // Every method tolerates a signed-out user: this component polls in the background, and a page
+    // left open after the session ended (or a request that lost its session) must not 500 here.
     #[Computed]
     public function notifications()
     {
-        return auth()->user()->notifications()->limit(10)->get();
+        return auth()->user()?->notifications()->limit(10)->get() ?? collect();
     }
 
     #[Computed]
     public function unreadCount(): int
     {
-        return auth()->user()->unreadNotifications()->count();
+        return auth()->user()?->unreadNotifications()->count() ?? 0;
     }
 
     /** Marks the notification read and sends the admin to whatever it's about (a submission,
@@ -23,7 +25,7 @@ new class extends Component
      *  the SPA navigation. */
     public function openNotification(string $id): void
     {
-        $notification = auth()->user()->notifications()->whereKey($id)->first();
+        $notification = auth()->user()?->notifications()->whereKey($id)->first();
         $url = $notification?->data['url'] ?? null;
 
         $notification?->markAsRead();
@@ -37,7 +39,7 @@ new class extends Component
 
     public function markAllAsRead(): void
     {
-        auth()->user()->unreadNotifications->each->markAsRead();
+        auth()->user()?->unreadNotifications->each->markAsRead();
 
         unset($this->notifications, $this->unreadCount);
     }
