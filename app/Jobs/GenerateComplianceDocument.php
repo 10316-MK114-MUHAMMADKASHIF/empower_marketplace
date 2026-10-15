@@ -663,6 +663,12 @@ PROMPT;
             }
         }
 
+        // The board resolution's fill-in blanks: the real answer when there is one, otherwise the
+        // template's own blank line / prompt, so a copy filled in by hand still works.
+        $answered = fn (string $key) => ($values[$key] ?? '') !== '' && $values[$key] !== '[No response provided]';
+        $values['compliance_officer_name_line'] = $answered('compliance_officer_name') ? $values['compliance_officer_name'] : '________________________';
+        $values['compliance_committee_members_line'] = $answered('compliance_committee_members') ? $values['compliance_committee_members'] : '(List Name of Compliance Committee Members)';
+
         $processor->setValues($values);
         $this->setPracticeLogo($processor, $practice);
         $processor->saveAs($absoluteOutput);

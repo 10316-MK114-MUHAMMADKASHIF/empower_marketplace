@@ -1212,7 +1212,7 @@ new class extends Component
         $this->resetErrorBag('inlineEditResponse');
 
         if ($this->inlineEditHasDocumentedProcess && trim($this->inlineEditResponse) === '') {
-            $this->addError('inlineEditResponse', 'Write your practice response, or choose "We don\'t have a documented answer."');
+            $this->addError('inlineEditResponse', 'Write your practice response, or choose "We don\'t have a process."');
 
             return;
         }
@@ -3505,11 +3505,11 @@ $progressPct = ($milestone / 4) * 100;
                             <div class="space-y-1.5">
                                 <label class="flex items-center gap-2 text-xs text-[#173045] cursor-pointer">
                                     <input type="radio" wire:model.live="inlineEditHasDocumentedProcess" value="1" class="accent-[#12304f]">
-                                    We have a documented process
+                                    We have a process
                                 </label>
                                 <label class="flex items-center gap-2 text-xs text-[#173045] cursor-pointer">
                                     <input type="radio" wire:model.live="inlineEditHasDocumentedProcess" value="0" class="accent-[#12304f]">
-                                    We don't have a documented answer
+                                    We don't have a process
                                 </label>
                             </div>
                             @if($inlineEditHasDocumentedProcess)

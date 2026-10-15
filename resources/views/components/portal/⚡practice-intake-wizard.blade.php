@@ -2104,7 +2104,7 @@ new class extends Component
         }
 
         if ($this->currentHasDocumentedProcess === true && trim((string) $response) === '') {
-            $this->addError('currentResponse', 'Please describe your practice\'s process, or choose "We don\'t have a documented answer" instead.');
+            $this->addError('currentResponse', 'Please describe your practice\'s process, or choose "We don\'t have a process" instead.');
 
             return;
         }
@@ -3545,7 +3545,7 @@ new class extends Component
                 @endif
             </p>
             <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-2 leading-tight">{!! $this->glossify($gateSection->label) !!}</h2>
-            <p class="text-[15.5px] text-[#5d6e7f] leading-relaxed mb-4">{!! $this->glossify("Does your practice have documented procedures for any of these {$gateTopicCount} ".Str::plural('topic', $gateTopicCount).'?') !!}</p>
+            <p class="text-[15.5px] text-[#5d6e7f] leading-relaxed mb-4">{!! $this->glossify("Does your practice have procedures for any of these {$gateTopicCount} ".Str::plural('topic', $gateTopicCount).'?') !!}</p>
 
             @if($gateMode !== 'some')
             <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 list-disc list-inside text-[13.5px] text-[#173045] space-y-1 mb-4 bg-[#f6f9fc] border border-[#e6edf4] rounded-xl px-4 py-3 marker:text-[#0b9ed0]">
@@ -3673,14 +3673,14 @@ new class extends Component
             <label class="flex items-start gap-2.5 rounded-xl border {{ $currentHasDocumentedProcess === true ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
                 <input type="radio" wire:key="has-documented-process-yes-{{ $currentQuestionId }}" name="has_documented_process_{{ $currentQuestionId }}" wire:click="chooseDocumentedProcess" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion" @checked($currentHasDocumentedProcess === true) class="mt-0.5 accent-[#12304f]">
                 <span>
-                    <span class="block text-sm font-bold text-[#173045]">We have a documented process</span>
+                    <span class="block text-sm font-bold text-[#173045]">We have a process</span>
                     <span class="block text-xs text-[#5d6e7f] mt-0.5">Describe it in your own words. Your response is used exactly as you write it.</span>
                 </span>
             </label>
             <label class="flex items-start gap-2.5 rounded-xl border {{ $currentHasDocumentedProcess === false ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
                 <input type="radio" wire:key="has-documented-process-no-{{ $currentQuestionId }}" name="has_documented_process_{{ $currentQuestionId }}" wire:click="chooseNoDocumentedProcess" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion" @checked($currentHasDocumentedProcess === false) class="mt-0.5 accent-[#12304f]">
                 <span>
-                    <span class="block text-sm font-bold text-[#173045]">We don't have a documented answer</span>
+                    <span class="block text-sm font-bold text-[#173045]">We don't have a process</span>
                     <span class="block text-xs text-[#5d6e7f] mt-0.5">The policy's best-practice language becomes your default, and we move you to the next question.</span>
                 </span>
             </label>
@@ -3772,8 +3772,8 @@ new class extends Component
         <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
             <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
             <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify($question->why_we_ask ?: 'This answer feeds directly into your compliance manuals.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">No documented answer?</h4>
-            <p class="text-xs text-[#173045] leading-snug mb-4">Choose "We don't have a documented answer." The policy's best-practice language becomes your default and you move to the next question. If you do respond, your response is used as written.</p>
+            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">No process?</h4>
+            <p class="text-xs text-[#173045] leading-snug mb-4">Choose "We don't have a process." The policy's best-practice language becomes your default and you move to the next question. If you do respond, your response is used as written.</p>
             <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Fills these policies</h4>
             @php($policyManualCount = $question->policies->pluck('manual')->unique()->count())
             @if($question->policies->count() > 1)

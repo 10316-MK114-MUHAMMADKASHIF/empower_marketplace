@@ -282,6 +282,106 @@ class GenerateComplianceDocumentTest extends TestCase
         Storage::disk('local')->deleteDirectory("private/compliance/{$order->id}");
     }
 
+    public function test_the_compliance_committee_identification_form_is_filled_in(): void
+    {
+        $this->mock(CompliancePdfGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')->once()->andReturn('%PDF-1.4 fake protected pdf');
+        });
+
+        $order = $this->makeOrder('complete');
+
+        IntakeUpload::factory()->create([
+            'intake_submission_id' => $order->intakeSubmission->id,
+            'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            'ai_extraction_status' => AiExtractionStatus::Completed,
+            'ai_extracted_data' => [
+                'compliance_officer_name' => 'Dr. Jane Rivera',
+                'compliance_officer_email' => 'jane.rivera@example.com',
+                'compliance_committee_members' => 'Dr. Rivera (Chair); T. Lee (Billing)',
+            ],
+        ]);
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::ComplianceEthicsManual);
+
+        $doc = GeneratedDocument::where('order_id', $order->id)->where('document_type', DocumentType::ComplianceEthicsManual)->firstOrFail();
+
+        $zip = new \ZipArchive;
+        $zip->open(Storage::disk('local')->path($doc->docx_storage_path));
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+
+        // The form (not the table of contents entry) is the last occurrence of the heading.
+        $formStart = strrpos($xml, 'Compliance Committee Identification');
+        $form = strip_tags(substr($xml, $formStart, strpos($xml, 'General Standards of Conduct/Compliance Code of Conduct', $formStart) - $formStart));
+
+        $this->assertStringContainsString(now()->format('F j, Y'), $form);
+        $this->assertStringContainsString('Dr. Jane Rivera', $form);
+        $this->assertStringContainsString('jane.rivera@example.com', $form);
+        $this->assertStringContainsString('Dr. Rivera (Chair); T. Lee (Billing)', $form);
+        $this->assertStringNotContainsString('${', $form);
+
+        Storage::disk('local')->deleteDirectory("private/compliance/{$order->id}");
+    }
+
+    private function complianceManualText(string $slug = 'complete', array $answers = []): string
+    {
+        $this->mock(CompliancePdfGenerator::class, function ($mock) {
+            $mock->shouldReceive('generate')->once()->andReturn('%PDF-1.4 fake protected pdf');
+        });
+
+        $order = $this->makeOrder($slug);
+
+        if ($answers !== []) {
+            IntakeUpload::factory()->create([
+                'intake_submission_id' => $order->intakeSubmission->id,
+                'upload_type' => IntakeUploadType::ComplianceEthicsQuestionnaire,
+                'ai_extraction_status' => AiExtractionStatus::Completed,
+                'ai_extracted_data' => $answers,
+            ]);
+        }
+
+        GenerateComplianceDocument::dispatchSync($order, DocumentType::ComplianceEthicsManual);
+
+        $doc = GeneratedDocument::where('order_id', $order->id)->where('document_type', DocumentType::ComplianceEthicsManual)->firstOrFail();
+        $zip = new \ZipArchive;
+        $zip->open(Storage::disk('local')->path($doc->docx_storage_path));
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+        Storage::disk('local')->deleteDirectory("private/compliance/{$order->id}");
+
+        return html_entity_decode(strip_tags(str_replace('</w:p>', "\n", $xml)));
+    }
+
+    public function test_the_board_resolution_names_the_compliance_officer_and_committee(): void
+    {
+        $text = $this->complianceManualText('complete', [
+            'compliance_officer_name' => 'Dr. Jane Rivera',
+            'compliance_committee_members' => 'Dr. Rivera (Chair); T. Lee (Billing)',
+        ]);
+
+        $this->assertStringContainsString('VOTED: That Dr. Jane Rivera is appointed the Compliance Officer.', $text);
+        $this->assertStringContainsString('VOTED: That Dr. Jane Rivera shall be responsible for overseeing', $text);
+        $this->assertStringContainsString('monitoring of the Program.  Dr. Jane Rivera is hereby authorized', $text);
+        $this->assertStringNotContainsString('(List Name of Compliance Committee Members)', $text);
+        $this->assertGreaterThanOrEqual(2, substr_count($text, 'Dr. Rivera (Chair); T. Lee (Billing)'));
+    }
+
+    public function test_the_board_resolution_keeps_its_blank_lines_when_the_intake_has_no_officer_or_committee(): void
+    {
+        $text = $this->complianceManualText();
+
+        $this->assertStringContainsString('VOTED: That ________________________ is appointed the Compliance Officer.', $text);
+        $this->assertStringContainsString('(List Name of Compliance Committee Members)', $text);
+    }
+
+    public function test_the_committee_charter_names_the_practice_without_the_template_placeholder_text(): void
+    {
+        $text = $this->complianceManualText();
+
+        $this->assertStringNotContainsString(' NAME)', $text);
+        $this->assertDoesNotMatchRegularExpression('/\(\S[^)]*NAME\)/', $text);
+    }
+
     public function test_hipaa_business_associate_manual_merges_real_answers_and_produces_a_protected_pdf(): void
     {
         $this->assertQuestionnaireManualMergesRealAnswers(
