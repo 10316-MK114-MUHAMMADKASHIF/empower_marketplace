@@ -115,4 +115,19 @@ class WelcomePageTest extends TestCase
         $response->assertSeeText('How many billable providers do you have?');
         $response->assertSeeText('We recommend');
     }
+
+    public function test_the_professional_card_has_no_reviews_updates_or_creates_heading(): void
+    {
+        $this->withoutVite()->get(route('home'))
+            ->assertOk()
+            ->assertDontSee('Empower Reviews, Updates, or Creates')
+            ->assertSeeInOrder(['Includes Essential, plus', 'Exclusions Screening', 'Compliance Hotline', 'Compliance & Ethics Program', 'HIPAA Privacy & Security', 'Trainings']);
+    }
+
+    public function test_essential_and_advanced_label_their_second_group_simply_you_provide(): void
+    {
+        $html = $this->withoutVite()->get(route('home'))->assertOk()->assertDontSee('You Provide (We Review', false)->getContent();
+
+        $this->assertSame(2, preg_match_all('/>\s*You Provide\s*</', $html));
+    }
 }

@@ -178,15 +178,15 @@
             $featureGroups = [
                 'essential' => [
                     'provides' => ['sublabel' => null, 'items' => ['Exclusions Screening', 'Compliance Hotline']],
-                    'second' => ['label' => 'You Provide (We Review & Update)', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security Policies', 'Trainings†']],
+                    'second' => ['label' => 'You Provide', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security Policies', 'Trainings†']],
                 ],
                 'professional' => [
-                    'provides' => ['sublabel' => 'Includes Essential, plus', 'items' => ['Exclusions Screening', 'Compliance Hotline']],
-                    'second' => ['label' => 'Empower Reviews, Updates, or Creates', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security', 'Trainings']],
+                    'provides' => ['sublabel' => 'Includes Essential, plus', 'items' => ['Exclusions Screening', 'Compliance Hotline', 'Compliance & Ethics Program', 'HIPAA Privacy & Security', 'Trainings']],
+                    'second' => null,
                 ],
                 'advanced' => [
                     'provides' => ['sublabel' => 'Includes Professional, plus', 'items' => ['Coding & Documentation Mini Audit‡ (10 encounters/provider)', 'Security Risk Assessment (SRA)', 'Guidance of Compliance Structure', 'Periodic Compliance Meeting']],
-                    'second' => ['label' => 'You Provide (We Review & Update)', 'items' => ['Your employee manual']],
+                    'second' => ['label' => 'You Provide', 'items' => ['Your employee manual']],
                 ],
                 'complete' => [
                     'provides' => ['sublabel' => 'Includes Advanced, plus', 'items' => ['Customized Compliance Program', 'Compliance Officer Needs: Co-Sourced, Fractional, or Outsourced']],
