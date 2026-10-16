@@ -40,6 +40,7 @@ use App\Notifications\PaymentReceivedNotification;
 use App\Notifications\ReviewerQuestionReplyNotification;
 use App\Services\CloverChargeService;
 use App\Services\EmpowerPaymentApiClient;
+use App\Services\FinanceOrderForms;
 use App\Services\IntakeReviewStarter;
 use App\Services\TrialBillingService;
 use Illuminate\Support\Arr;
@@ -1858,6 +1859,8 @@ new class extends Component
                 report($e);
             }
 
+            app(FinanceOrderForms::class)->sendNewOrder($order);
+
             $orderIds[] = $order->id;
         }
 
@@ -2047,6 +2050,8 @@ new class extends Component
         } catch (\Throwable $e) {
             report($e);
         }
+
+        app(FinanceOrderForms::class)->sendNewOrder($order);
 
         $discountCode->increment('used_count');
         $this->appliedDiscountCodeId = null;

@@ -85,7 +85,8 @@ new class extends Component
 
     <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <h2 class="text-lg font-semibold text-navy mb-1">Order #{{ $orderId }}</h2>
-        <p class="text-sm text-empower-muted mb-4">{{ $clientName }} ({{ $clientEmail }}) — {{ $packageName }}</p>
+        <p class="text-sm text-empower-muted mb-1">{{ $clientName }} ({{ $clientEmail }}) — {{ $packageName }}</p>
+        <a href="{{ route('admin.orders.order-form', $orderId) }}" target="_blank" rel="noopener" class="inline-block text-sm font-bold text-[#0b9ed0] hover:underline mb-4">View order form (PDF)</a>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

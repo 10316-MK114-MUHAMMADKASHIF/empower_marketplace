@@ -128,7 +128,7 @@ new class extends Component
                             @endforeach
                         </div>
                     </div>
-                    <button wire:click="edit({{ $question->id }})" class="text-xs font-bold text-[#0b9ed0] hover:underline flex-shrink-0">Edit</button>
+                    <button wire:click="edit({{ $question->id }})" title="Edit" aria-label="Edit" class="inline-flex items-center p-1 rounded hover:bg-page text-[#0b9ed0] flex-shrink-0"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg></button>
                 </div>
                 @endif
             </div>

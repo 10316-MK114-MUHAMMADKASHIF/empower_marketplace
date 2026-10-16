@@ -1253,7 +1253,7 @@ new class extends Component
                 <div class="flex items-center gap-3">
                     <a href="{{ route('admin.uploads.download', $upload) }}" class="text-xs font-bold text-[#0b9ed0] hover:underline">Download</a>
                     <button type="button" x-on:click="confirmAction = 'deleteUpload'; confirmUploadId = {{ $upload->id }}"
-                        class="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                        title="Delete" aria-label="Delete" class="inline-flex items-center p-1 rounded hover:bg-page text-red-600"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button>
                 </div>
             </div>
         @empty
@@ -1288,7 +1288,7 @@ new class extends Component
             <h3 class="text-sm font-semibold text-navy">Practice Team &amp; Compliance Contacts</h3>
             @if(! $editingTeam)
             <button type="button" wire:click="startEditingTeam" wire:loading.attr="disabled" wire:target="startEditingTeam"
-                class="text-xs font-bold text-accent hover:underline flex-shrink-0">Edit</button>
+                title="Edit" aria-label="Edit" class="inline-flex items-center p-1 rounded hover:bg-page text-accent flex-shrink-0"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg></button>
             @endif
         </div>
         <p class="text-xs text-empower-muted mb-4">Who's listed as the compliance officers, IT contact, hotline, and committee/board — this also drives the generated manuals' content.</p>
@@ -1472,7 +1472,7 @@ new class extends Component
                                 <p class="text-[11px] text-empower-muted mt-1">{{ $q['meta'] }}</p>
                                 @endif
                                 <button type="button" wire:click="startEditingAnswer({{ $q['id'] }})" wire:loading.attr="disabled" wire:target="startEditingAnswer({{ $q['id'] }})"
-                                    class="text-xs font-bold text-accent hover:underline mt-1.5">Edit</button>
+                                    title="Edit" aria-label="Edit" class="inline-flex items-center p-1 rounded hover:bg-page text-accent mt-1.5"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg></button>
                             </div>
                             <span class="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide {{ $q['badge']['class'] }}">
                                 {{ $q['badge']['label'] }}
@@ -1553,7 +1553,7 @@ new class extends Component
                                         class="text-xs font-bold text-[#0b9ed0] hover:underline">Approve</button>
                                 @endif
                                 <button type="button" x-on:click="confirmAction = 'deleteDocument'; confirmDocumentId = {{ $document->id }}"
-                                    class="text-xs font-bold text-red-600 hover:underline">Delete</button>
+                                    title="Delete" aria-label="Delete" class="inline-flex items-center p-1 rounded hover:bg-page text-red-600"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg></button>
                                 @if($document->extractionFailed && $document->sourceUploadId)
                                     <button type="button" x-on:click="confirmAction = 'regenerateExtraction'; confirmDocumentId = {{ $document->id }}"
                                         class="text-xs font-bold text-[#0b9ed0] hover:underline">Regenerate</button>

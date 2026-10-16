@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Mail\FinanceDailyReportMail;
+use App\Mail\OrderFormMail;
 use App\Models\ActivityLog;
 use App\Models\Lead;
 use App\Models\Order;
@@ -97,5 +98,22 @@ class AdminExportsTest extends TestCase
             ->assertDispatched('toast');
 
         Mail::assertQueued(FinanceDailyReportMail::class, fn (FinanceDailyReportMail $mail) => $mail->hasTo($admin->email));
+    }
+
+    public function test_admin_can_resend_an_order_form_to_finance(): void
+    {
+        Mail::fake();
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+        $order = Order::factory()->create([
+            'user_id' => User::factory()->create()->id,
+            'package_id' => Package::factory()->create()->id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('admin.order-list')
+            ->call('resendOrderForm', $order->id)
+            ->assertDispatched('toast', type: 'success');
+
+        Mail::assertQueued(OrderFormMail::class, fn (OrderFormMail $mail) => $mail->hasTo($admin->email));
     }
 }

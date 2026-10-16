@@ -17,6 +17,7 @@ use App\Mail\AdminPaymentReceivedMail;
 use App\Mail\ClientPaymentReceiptMail;
 use App\Mail\ClientTrialCancelledMail;
 use App\Mail\ClientTrialStartedMail;
+use App\Mail\OrderFormMail;
 use App\Mail\WelcomeCredentialsMail;
 use App\Models\CompliancePolicy;
 use App\Models\DiscountCode;
@@ -493,6 +494,9 @@ class PortalTest extends TestCase
         Mail::assertQueued(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($admin->email));
         Mail::assertQueued(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($otherAdmin->email));
         Mail::assertNotQueued(AdminPaymentReceivedMail::class, fn ($mail) => $mail->hasTo($user->email));
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        Mail::assertQueued(OrderFormMail::class, fn ($mail) => $mail->order->is($order) && $mail->hasTo($admin->email) && $mail->hasTo($otherAdmin->email) && ! $mail->hasTo($user->email));
     }
 
     public function test_paying_also_creates_an_in_app_notification_for_every_admin(): void
@@ -2982,5 +2986,61 @@ class PortalTest extends TestCase
             ->assertSet('step', 1)
             ->call('goToStep', 3)
             ->assertSet('step', 1); // step 3 not reachable without payment + profile
+    }
+
+    public function test_a_new_order_form_goes_to_finance_and_the_copy_addresses_straight_away_for_a_paid_order(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulCharge();
+        config([
+            'services.finance.report_email' => 'finance@empowerhci.com',
+            'services.finance.order_form_copy_emails' => 'financeops@carecloud.com,info@empowerhci.com',
+        ]);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true);
+
+        Mail::assertQueued(OrderFormMail::class, function (OrderFormMail $mail) {
+            $attachment = $mail->attachments()[0];
+
+            return $mail->hasTo('finance@empowerhci.com')
+                && $mail->hasCc('financeops@carecloud.com')
+                && $mail->hasCc('info@empowerhci.com')
+                && $attachment->as === 'order-form-'.$mail->order->id.'.pdf';
+        });
+    }
+
+    public function test_a_free_trial_order_form_is_sent_to_finance_straight_away_too(): void
+    {
+        Mail::fake();
+        $this->fakeSuccessfulTokenize();
+        config(['services.finance.report_email' => 'finance@empowerhci.com']);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->call('payFreeTrial', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasNoErrors();
+
+        Mail::assertQueued(OrderFormMail::class, fn (OrderFormMail $mail) => $mail->hasTo('finance@empowerhci.com'));
     }
 }

@@ -3,10 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Enums\OrderStatus;
-use App\Enums\UserRole;
 use App\Mail\FinanceDailyReportMail;
 use App\Models\Order;
-use App\Models\User;
+use App\Services\FinanceOrderForms;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -37,27 +36,16 @@ class SendFinanceDailyReport extends Command
             return self::SUCCESS;
         }
 
-        $recipients = $this->recipients();
+        $finance = app(FinanceOrderForms::class);
+        $recipients = $finance->recipients();
+        $copies = $finance->copies();
+        $orderFormOrderIds = $rows->where('Status', 'New')->pluck('Order ID')->all();
 
-        foreach ($recipients as $email) {
-            Mail::to($email)->queue(new FinanceDailyReportMail($date, $rows));
-        }
+        Mail::to($recipients->all())->cc($copies->all())->queue(new FinanceDailyReportMail($date, $rows, $orderFormOrderIds));
 
-        $this->components->info("Sent the {$date->toDateString()} Finance report ({$rows->count()} row(s)) to {$recipients->implode(', ')}.");
+        $this->components->info("Sent the {$date->toDateString()} Finance report ({$rows->count()} row(s), ".count($orderFormOrderIds)." order form(s)) to {$recipients->implode(', ')}".($copies->isNotEmpty() ? " (cc {$copies->implode(', ')})" : '').'.');
 
         return self::SUCCESS;
-    }
-
-    /** @return Collection<int, string> */
-    private function recipients(): Collection
-    {
-        $configured = config('services.finance.report_email');
-
-        if ($configured) {
-            return collect(explode(',', $configured))->map(fn ($email) => trim($email))->filter()->values();
-        }
-
-        return User::where('role', UserRole::Admin)->pluck('email');
     }
 
     /** @return Collection<int, array<string, mixed>> */

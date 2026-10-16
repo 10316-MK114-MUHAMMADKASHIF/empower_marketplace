@@ -63,6 +63,8 @@ return [
     // in this app — set this only if Finance should get it instead of/in addition to that list.
     'finance' => [
         'report_email' => env('FINANCE_REPORT_EMAIL'),
+        // Comma-separated addresses copied (Cc) on every Finance report, which carries every order form.
+        'order_form_copy_emails' => env('FINANCE_ORDER_FORM_COPY_EMAILS'),
     ],
 
     // Empower LMS (Moodle). Course ids are the shared training courses every LMS-enabled client gets;

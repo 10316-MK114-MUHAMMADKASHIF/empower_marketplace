@@ -3,6 +3,8 @@
 namespace App\Mail;
 
 use App\Exports\FinanceDailyExport;
+use App\Models\Order;
+use App\Services\OrderFormPdfGenerator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -23,8 +25,11 @@ class FinanceDailyReportMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    /** @param Collection<int, array<string, mixed>> $rows */
-    public function __construct(public Carbon $reportDate, public Collection $rows) {}
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  array<int, int>  $orderFormOrderIds  the new orders whose Order Form PDF rides along with the sheet
+     */
+    public function __construct(public Carbon $reportDate, public Collection $rows, public array $orderFormOrderIds = []) {}
 
     public function envelope(): Envelope
     {
@@ -40,6 +45,7 @@ class FinanceDailyReportMail extends Mailable implements ShouldQueue
             with: [
                 'reportDate' => $this->reportDate,
                 'rowCount' => $this->rows->count(),
+                'orderFormCount' => count($this->orderFormOrderIds),
             ],
         );
     }
@@ -49,11 +55,20 @@ class FinanceDailyReportMail extends Mailable implements ShouldQueue
      */
     public function attachments(): array
     {
-        return [
+        $attachments = [
             Attachment::fromData(
                 fn () => Excel::raw(new FinanceDailyExport($this->rows), ExcelFormat::CSV),
                 "subscriptions-{$this->reportDate->format('Y-m-d')}.csv",
             )->withMime('text/csv'),
         ];
+
+        foreach (Order::whereIn('id', $this->orderFormOrderIds)->orderBy('id')->get() as $order) {
+            $attachments[] = Attachment::fromData(
+                fn () => app(OrderFormPdfGenerator::class)->generate($order),
+                "order-form-{$order->id}.pdf",
+            )->withMime('application/pdf');
+        }
+
+        return $attachments;
     }
 }

@@ -3,6 +3,7 @@
 use App\Enums\OrderStatus;
 use App\Exports\OrdersExport;
 use App\Models\Order;
+use App\Services\FinanceOrderForms;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Artisan;
@@ -98,6 +99,20 @@ new class extends Component
         return Excel::download(new OrdersExport($rows), 'orders-'.now()->format('Y-m-d').'.xlsx');
     }
 
+    /** Re-sends one order's Order Form to Finance (and the copy list) without waiting for the daily report. */
+    public function resendOrderForm(Order $order, FinanceOrderForms $forms): void
+    {
+        if ($forms->recipients()->isEmpty()) {
+            $this->dispatch('toast', message: 'No Finance recipients are configured.', type: 'error');
+
+            return;
+        }
+
+        $forms->sendNewOrder($order);
+
+        $this->dispatch('toast', message: "Order form for order #{$order->id} sent to Finance.", type: 'success');
+    }
+
     /** On-demand trigger for the same `reports:finance-daily` command the schedule runs at 07:00
      *  (SendFinanceDailyReport) — lets an admin send yesterday's digest right now instead of
      *  waiting for the cron, without duplicating any of that command's logic. */
@@ -189,8 +204,11 @@ new class extends Component
                                 {{ $order->finance_processed_at ? 'Processed' : 'Mark processed' }}
                             </button>
                         </td>
-                        <td class="px-5 py-3.5 text-right">
-                            <a href="{{ route('admin.orders.edit', $order) }}" wire:navigate class="text-xs font-bold text-[#0b9ed0] hover:underline">Edit</a>
+                        <td class="px-5 py-3.5 text-right whitespace-nowrap space-x-3">
+                            <a href="{{ route('admin.orders.order-form', $order) }}" target="_blank" rel="noopener" class="text-xs font-bold text-[#0b9ed0] hover:underline">Order form</a>
+                            <button type="button" wire:click="resendOrderForm({{ $order->id }})" wire:loading.attr="disabled" wire:target="resendOrderForm({{ $order->id }})"
+                                class="text-xs font-bold text-[#117a51] hover:underline disabled:opacity-50">Resend to Finance</button>
+                            <a href="{{ route('admin.orders.edit', $order) }}" wire:navigate title="Edit" aria-label="Edit" class="inline-flex items-center p-1 rounded hover:bg-page text-navy"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg></a>
                         </td>
                     </tr>
                 @empty
