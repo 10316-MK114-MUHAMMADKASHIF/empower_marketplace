@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Mail\PreLaunchSignupMail;
 use App\Models\Package;
+use App\Models\Practice;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,5 +96,39 @@ class LaunchGateTest extends TestCase
             ->call('signUpForUpdates');
 
         $this->assertDatabaseHas('leads', ['email' => 'interested@practice.com', 'source' => 'subscriber']);
+    }
+
+    public function test_sso_clients_can_purchase_before_the_public_launch(): void
+    {
+        Setting::write('public_launch_at', now()->addMonth()->toDateTimeString());
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        foreach (['cch', 'talkehr'] as $source) {
+            $user = User::factory()->create();
+            Practice::factory()->create(['user_id' => $user->id, 'source_system' => $source]);
+
+            Livewire::actingAs($user)->test('portal')
+                ->set('selectedPackageId', $package->id)
+                ->assertDontSee('not quite open to the public yet');
+        }
+    }
+
+    public function test_public_signups_cannot_pay_or_start_a_trial_before_launch_even_by_calling_directly(): void
+    {
+        Setting::write('public_launch_at', now()->addMonth()->toDateTimeString());
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'source_system' => null]);
+
+        $component = Livewire::actingAs($user)->test('portal')->set('selectedPackageId', $package->id);
+
+        $component->call('validatePayment', 'A B', '4242424242424242', '12/30', '123')
+            ->assertDispatched('toast', type: 'error');
+        $component->call('pay', 'A B', '4242424242424242', '12/30', '123', true)
+            ->assertDispatched('toast', type: 'error');
+        $component->call('payFreeTrial', 'A B', '4242424242424242', '12/30', '123', true)
+            ->assertDispatched('toast', type: 'error');
+
+        $this->assertDatabaseCount('orders', 0);
     }
 }

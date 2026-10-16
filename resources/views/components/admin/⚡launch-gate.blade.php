@@ -64,9 +64,9 @@ new class extends Component
     </p>
     <p class="mt-1 text-sm text-empower-muted">
         @if($isClosed)
-            Until {{ $launchAt->format('g:i A') }} on that day, clients who haven't paid see "Sign up for updates" instead of the payment form.
+            Until {{ $launchAt->format('g:i A') }} on that day, only talkEHR and CareCloud SSO clients can purchase; everyone else sees "Sign up for updates" instead of the payment form.
         @else
-            Set a future date to hold back purchases; unpaid clients then see "Sign up for updates" instead of the payment form.
+            Set a future date to hold back purchases for the public; only talkEHR and CareCloud SSO clients can buy, everyone else sees "Sign up for updates" instead of the payment form.
         @endif
     </p>
 

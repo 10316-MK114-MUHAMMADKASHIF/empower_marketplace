@@ -865,17 +865,32 @@ new class extends Component
         return $rows;
     }
 
-    /** Gates Step 1's purchase form behind config('app.public_launch_at') — per the SSO
-     *  requirements doc §11, non-SSO users see "Sign up for updates" instead of the payment form
-     *  until the public launch date. Defaults to off (null) so this never activates unless
-     *  explicitly configured — there is no SSO-vs-organic distinction built yet, so this applies
-     *  to every not-yet-paid user uniformly until that carve-out exists. */
+    /** Before the public launch date only clients who arrived through talkEHR or CareCloud SSO can
+     *  purchase; everyone else sees "Sign up for updates" and no card details are collected. Off
+     *  (null date) unless explicitly configured. */
     #[Computed]
     public function publicLaunchGateActive(): bool
     {
         $launchAt = Setting::read('public_launch_at') ?? config('app.public_launch_at');
 
-        return filled($launchAt) && now()->lt($launchAt);
+        return filled($launchAt) && now()->lt($launchAt) && ! $this->isSsoClient();
+    }
+
+    private function isSsoClient(): bool
+    {
+        return in_array(auth()->user()?->practice?->source_system, ['cch', 'talkehr'], true);
+    }
+
+    /** Server-side twin of the hidden payment form, so a direct call can't skip the UI gate. */
+    private function refuseWhileGated(): bool
+    {
+        if (! $this->publicLaunchGateActive) {
+            return false;
+        }
+
+        $this->dispatch('toast', message: "Purchasing isn't open to the public yet.", type: 'error');
+
+        return true;
     }
 
     /** The partner's id for the practice this client is working in: the one picked after an SSO
@@ -1584,6 +1599,10 @@ new class extends Component
      */
     public function validatePayment(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): bool
     {
+        if ($this->refuseWhileGated()) {
+            return false;
+        }
+
         // The pay button's first stop, so a visitor with no package never reaches the terms popup.
         if (! $this->selectedPackage) {
             $this->addError('selectedPackageId', 'Please select a package.');
@@ -1626,6 +1645,10 @@ new class extends Component
 
     public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
     {
+        if ($this->refuseWhileGated()) {
+            return;
+        }
+
         $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
 
         $this->validateBillingAndCardFields($cardName, $cardNumber, $cardExpiry, $cardCvc);
@@ -1892,6 +1915,10 @@ new class extends Component
      */
     public function payFreeTrial(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
     {
+        if ($this->refuseWhileGated()) {
+            return;
+        }
+
         $cardNumber = preg_replace('/\D/', '', $cardNumber ?? '');
 
         $this->validateBillingAndCardFields($cardName, $cardNumber, $cardExpiry, $cardCvc);
