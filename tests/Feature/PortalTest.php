@@ -116,10 +116,53 @@ class PortalTest extends TestCase
 
     public function test_guest_can_view_portal_and_sees_account_creation_fields(): void
     {
-        $this->withoutVite()->get(route('portal'))
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        $this->withoutVite()->get(route('portal', ['package' => 'essential']))
             ->assertOk()
             ->assertSee('Account Information')
             ->assertSee('Payment Details');
+    }
+
+    public function test_without_a_chosen_package_step_1_asks_for_one_instead_of_defaulting_to_essential(): void
+    {
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        $this->withoutVite()->get(route('portal'))
+            ->assertOk()
+            ->assertSee('Choose a package to continue')
+            ->assertSee('View packages')
+            ->assertDontSee('Payment Details')
+            ->assertDontSee('Selected package: Essential');
+
+        Livewire::test('portal')->assertSet('selectedPackageId', null);
+    }
+
+    public function test_a_signed_in_client_with_no_orders_and_no_package_is_asked_to_choose_one(): void
+    {
+        Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test('portal')
+            ->assertSet('selectedPackageId', null)
+            ->assertSee('Choose a package to continue');
+    }
+
+    public function test_a_package_from_the_link_or_the_remembered_choice_still_selects_it(): void
+    {
+        $advanced = Package::factory()->create(['slug' => 'advanced', 'annual_price' => 1699, 'is_active' => true]);
+
+        Livewire::withQueryParams(['package' => 'advanced'])->test('portal')->assertSet('selectedPackageId', $advanced->id);
+
+        session(['intended_package' => 'advanced']);
+        Livewire::test('portal')->assertSet('selectedPackageId', $advanced->id);
+    }
+
+    public function test_paying_without_a_package_is_refused_with_an_error_toast(): void
+    {
+        Livewire::test('portal')
+            ->call('validatePayment', 'Jane', '4242424242424242', '12/30', '123')
+            ->assertDispatched('toast', message: 'Please choose a package first.', type: 'error');
     }
 
     public function test_authenticated_user_sees_portal(): void

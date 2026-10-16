@@ -182,14 +182,6 @@ new class extends Component
         return Package::where('is_active', true)->orderBy('sort_order')->get();
     }
 
-    private function defaultPackageId(): ?int
-    {
-        return Package::where('is_active', true)
-            ->where('slug', '!=', 'complete')
-            ->orderBy('sort_order')
-            ->value('id');
-    }
-
     #[Computed]
     public function selectedPackage(): ?Package
     {
@@ -1012,11 +1004,9 @@ new class extends Component
             $slug = request()->query('package') ?? session()->pull('intended_package');
             $resolvedId = $slug ? Package::where('slug', $slug)->where('is_active', true)->value('id') : null;
 
-            if ($resolvedId) {
-                $this->selectedPackageId = $resolvedId;
-            } else {
-                $this->selectedPackageId = $this->defaultPackageId();
-            }
+            // No package chosen yet (e.g. they just signed in): leave it empty so Step 1 asks them to
+            // pick one on the pricing page, instead of silently defaulting to the cheapest tier.
+            $this->selectedPackageId = $resolvedId;
 
             return;
         }
@@ -1066,11 +1056,7 @@ new class extends Component
                 $slug = request()->query('package') ?? session()->pull('intended_package');
                 $resolvedId = $slug ? Package::where('slug', $slug)->where('is_active', true)->value('id') : null;
 
-                if ($resolvedId) {
-                    $this->selectedPackageId = $resolvedId;
-                } else {
-                    $this->selectedPackageId = $this->defaultPackageId();
-                }
+                $this->selectedPackageId = $resolvedId;
             }
 
             return;
@@ -1597,6 +1583,14 @@ new class extends Component
      */
     public function validatePayment(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): bool
     {
+        // The pay button's first stop, so a visitor with no package never reaches the terms popup.
+        if (! $this->selectedPackage) {
+            $this->addError('selectedPackageId', 'Please select a package.');
+            $this->dispatch('toast', message: 'Please choose a package first.', type: 'error');
+
+            return false;
+        }
+
         try {
             $this->validateBillingAndCardFields($cardName, preg_replace('/\D/', '', $cardNumber ?? ''), $cardExpiry, $cardCvc);
         } catch (ValidationException $e) {
@@ -1650,6 +1644,7 @@ new class extends Component
 
         if ($packages->isEmpty()) {
             $this->addError('selectedPackageId', 'Please select at least one package.');
+            $this->dispatch('toast', message: 'Please choose a package first.', type: 'error');
 
             return;
         }
@@ -1664,6 +1659,7 @@ new class extends Component
 
         if ($packages->isEmpty()) {
             $this->addError('selectedPackageId', 'Please select at least one package.');
+            $this->dispatch('toast', message: 'Please choose a package first.', type: 'error');
 
             return;
         }
@@ -1909,6 +1905,7 @@ new class extends Component
 
         if (! $package) {
             $this->addError('selectedPackageId', 'Please select a package.');
+            $this->dispatch('toast', message: 'Please choose a package first.', type: 'error');
 
             return;
         }
@@ -2777,6 +2774,16 @@ $progressPct = ($milestone / 4) * 100;
                     </p>
                 </div>
             </div>
+        </div>
+        @elseif(! $this->selectedPackage && $milestone < 1)
+        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
+            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+            <h2 class="text-lg font-semibold text-navy mb-1">Choose a package to continue</h2>
+            <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">
+                Pick the package that fits your practice before paying. You can compare every package on our pricing page.
+            </p>
+            <a href="{{ route('home') }}#pricing"
+                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View packages &rarr;</a>
         </div>
         @else
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">

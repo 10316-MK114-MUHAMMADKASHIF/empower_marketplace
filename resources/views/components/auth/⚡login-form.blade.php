@@ -133,7 +133,14 @@ new class extends Component
 
         $user = Auth::user();
 
-        $this->redirect($this->destinationFor($user)[0], navigate: true);
+        [$destination, $isPurchasing] = $this->destinationFor($user, newClientToPricing: true);
+
+        if ($isPurchasing) {
+            session()->flash('toast', 'Login successful - Please continue with purchasing the package');
+            session()->flash('toast_type', 'success');
+        }
+
+        $this->redirect($destination, navigate: true);
     }
 
     public function selectSsoProvider(string $provider): void

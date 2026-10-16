@@ -34,7 +34,7 @@ class AuthTest extends TestCase
             ->assertSee('Welcome back');
     }
 
-    public function test_login_with_valid_credentials_and_no_orders_redirects_to_home(): void
+    public function test_login_with_valid_credentials_and_no_orders_goes_to_the_pricing_section_to_choose_a_package(): void
     {
         $user = User::factory()->create(['password' => 'secret123']);
 
@@ -42,7 +42,9 @@ class AuthTest extends TestCase
             ->set('email', $user->email)
             ->set('password', 'secret123')
             ->call('login')
-            ->assertRedirect(route('home'));
+            ->assertRedirect(route('home').'#pricing');
+
+        $this->assertSame('Login successful - Please continue with purchasing the package', session('toast'));
     }
 
     public function test_login_redirects_a_client_with_an_existing_order_to_portal(): void
@@ -359,7 +361,7 @@ class AuthTest extends TestCase
             ->set('email', $user->email)
             ->set('password', 'new-secret-123')
             ->call('login')
-            ->assertRedirect(route('home'));
+            ->assertRedirect(route('home').'#pricing');
     }
 
     public function test_reset_password_with_invalid_token_shows_error(): void
