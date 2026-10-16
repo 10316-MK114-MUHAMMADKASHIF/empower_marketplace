@@ -18,6 +18,6 @@ class SpecialistCallsExport implements FromCollection, WithHeadings
 
     public function headings(): array
     {
-        return ['Client', 'Email', 'Phone', 'Order', 'Requested Date', 'Requested Time (ET)', 'Topic', 'Notes', 'Status', 'Requested At'];
+        return ['Client', 'Email', 'Phone', 'Order', 'Topic', 'Notes', 'Status', 'Requested At'];
     }
 }

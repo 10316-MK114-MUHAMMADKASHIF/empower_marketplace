@@ -40,7 +40,7 @@ new class extends Component
         if ($call->user && in_array($newStatus, [SpecialistCallStatus::Scheduled, SpecialistCallStatus::Cancelled], true)) {
             $call->user->notify(new ClientNotification(
                 $newStatus === SpecialistCallStatus::Scheduled ? 'Your specialist call is confirmed' : 'Your specialist call was cancelled',
-                "{$call->requested_date?->format('D, M j')} at {$call->requested_time} Eastern.",
+                "{$call->topic} — we'll phone you on {$call->phone}.",
                 route('portal'),
             ));
 
@@ -64,8 +64,7 @@ new class extends Component
         return SpecialistCallRequest::query()
             ->with(['user', 'order'])
             ->when(SpecialistCallStatus::tryFrom($this->status), fn (Builder $q, SpecialistCallStatus $s) => $q->where('status', $s))
-            ->orderBy('requested_date')
-            ->orderBy('id');
+            ->orderByDesc('id');
     }
 
     #[Computed]
@@ -81,8 +80,6 @@ new class extends Component
             $call->user?->email,
             $call->phone,
             $call->order_id ? '#'.$call->order_id : '',
-            $call->requested_date?->toDateString(),
-            $call->requested_time,
             $call->topic,
             $call->notes,
             $call->status->label(),
@@ -119,7 +116,7 @@ new class extends Component
                 <thead>
                     <tr class="bg-page text-left text-xs font-extrabold uppercase tracking-wider text-empower-muted">
                         <th class="px-5 py-3">Client</th>
-                        <th class="px-5 py-3">Call time (ET)</th>
+                        <th class="px-5 py-3">Requested</th>
                         <th class="px-5 py-3">Phone</th>
                         <th class="px-5 py-3">Topic</th>
                         <th class="px-5 py-3">Status</th>
@@ -136,8 +133,8 @@ new class extends Component
                             <div class="mt-1 text-xs text-empower-muted max-w-xs">&ldquo;{{ $call->notes }}&rdquo;</div>
                             @endif
                         </td>
-                        <td class="px-5 py-3 whitespace-nowrap">{{ $call->requested_date?->format('D, M j, Y') }}<br>
-                            <span class="text-empower-muted">{{ $call->requested_time }}</span></td>
+                        <td class="px-5 py-3 whitespace-nowrap">{{ $call->created_at?->format('D, M j, Y') }}<br>
+                            <span class="text-empower-muted">{{ $call->created_at?->format('g:i A') }}</span></td>
                         <td class="px-5 py-3 whitespace-nowrap">{{ $call->phone }}</td>
                         <td class="px-5 py-3">{{ $call->topic }}</td>
                         <td class="px-5 py-3">

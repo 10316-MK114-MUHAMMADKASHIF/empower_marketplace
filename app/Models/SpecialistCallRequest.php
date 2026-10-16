@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'order_id', 'requested_date', 'requested_time', 'phone', 'topic', 'notes', 'status'])]
+#[Fillable(['user_id', 'order_id', 'phone', 'topic', 'notes', 'status'])]
 class SpecialistCallRequest extends Model
 {
     /**
@@ -16,7 +16,6 @@ class SpecialistCallRequest extends Model
     protected function casts(): array
     {
         return [
-            'requested_date' => 'date',
             'status' => SpecialistCallStatus::class,
         ];
     }

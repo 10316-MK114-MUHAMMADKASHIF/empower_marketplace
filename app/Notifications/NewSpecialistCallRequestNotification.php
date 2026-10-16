@@ -22,7 +22,7 @@ class NewSpecialistCallRequestNotification extends Notification
     {
         return [
             'title' => 'Call requested',
-            'message' => "{$this->callRequest->user->name} requested a call for {$this->callRequest->requested_date->format('M j')} at {$this->callRequest->requested_time}.",
+            'message' => "{$this->callRequest->user->name} requested a specialist call.",
             'url' => route('admin.users.edit', $this->callRequest->user),
             'icon' => 'call',
         ];

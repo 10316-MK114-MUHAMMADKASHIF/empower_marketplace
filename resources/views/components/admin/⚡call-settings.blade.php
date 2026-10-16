@@ -8,32 +8,22 @@ new class extends Component
 {
     public bool $enabled = true;
 
-    public string $timeSlots = '';
-
     public string $topics = '';
-
-    public int $daysAhead = SpecialistCallSettings::DEFAULT_DAYS_AHEAD;
 
     public function mount(): void
     {
         $this->enabled = SpecialistCallSettings::enabled();
-        $this->timeSlots = implode("\n", SpecialistCallSettings::timeSlots());
         $this->topics = implode("\n", SpecialistCallSettings::topics());
-        $this->daysAhead = SpecialistCallSettings::daysAhead();
     }
 
     public function save(): void
     {
         $this->validate([
-            'timeSlots' => 'required|string',
             'topics' => 'required|string',
-            'daysAhead' => 'required|integer|min:1|max:30',
         ]);
 
         Setting::write('calls_enabled', $this->enabled ? '1' : '0');
-        Setting::write('call_time_slots', json_encode($this->lines($this->timeSlots)));
         Setting::write('call_topics', json_encode($this->lines($this->topics)));
-        Setting::write('call_days_ahead', (string) $this->daysAhead);
 
         $this->dispatch('toast', message: 'Call booking settings saved.', type: 'success');
     }
@@ -57,7 +47,7 @@ new class extends Component
 
     <p class="mt-3 text-lg font-bold text-navy">{{ $enabled ? 'Clients can book calls' : 'Booking is switched off' }}</p>
     <p class="mt-1 text-sm text-empower-muted">
-        {{ count(\App\Services\SpecialistCallSettings::timeSlots()) }} time slots across the next {{ $daysAhead }} weekdays, Eastern time.
+        {{ \App\Models\SpecialistCallRequest::where('status', \App\Enums\SpecialistCallStatus::Pending)->count() }} pending call requests.
     </p>
 
     <div class="mt-auto pt-4">
@@ -77,22 +67,10 @@ new class extends Component
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-                <label class="block text-xs font-bold text-navy mb-1">Time slots (Eastern, one per line)</label>
-                <textarea wire:model="timeSlots" rows="6"
-                    class="w-full rounded-xl border border-empower-border px-3 py-2 text-sm"></textarea>
-                @error('timeSlots') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
                 <label class="block text-xs font-bold text-navy mb-1">Topics (one per line)</label>
                 <textarea wire:model="topics" rows="6"
                     class="w-full rounded-xl border border-empower-border px-3 py-2 text-sm"></textarea>
                 @error('topics') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-navy mb-1">Weekdays offered (from tomorrow)</label>
-                <input type="number" wire:model="daysAhead" min="1" max="30"
-                    class="w-full rounded-xl border border-empower-border px-3 py-2 text-sm">
-                @error('daysAhead') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
         </div>
 

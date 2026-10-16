@@ -2,16 +2,14 @@
 # Hi {{ $call->user?->name ?? 'there' }},
 
 @if($event === 'scheduled')
-Your call with an Empower compliance specialist is **confirmed**. We'll phone you at the time below.
+Your call with an Empower compliance specialist is **confirmed**. We'll phone you shortly on the number below.
 @elseif($event === 'cancelled')
-Your call with an Empower compliance specialist has been **cancelled**. If you'd still like to talk, you can book a new time from your portal at any point.
+Your call with an Empower compliance specialist has been **cancelled**. If you'd still like to talk, you can request a new call from your portal at any point.
 @else
-Thanks for requesting a call with an Empower compliance specialist. We'll confirm the time with you shortly.
+Thanks for requesting a call with an Empower compliance specialist. We'll phone you shortly to confirm a time.
 @endif
 
 <x-mail::panel>
-**Date:** {{ $call->requested_date?->format('l, F j, Y') }}<br>
-**Time:** {{ $call->requested_time }} Eastern<br>
 **Phone:** {{ $call->phone }}<br>
 **Topic:** {{ $call->topic }}
 </x-mail::panel>

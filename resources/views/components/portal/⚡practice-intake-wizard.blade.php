@@ -2259,12 +2259,6 @@ new class extends Component
 
     public bool $callBooked = false;
 
-    #[Validate('required|date')]
-    public ?string $callDate = null;
-
-    #[Validate('required|string')]
-    public ?string $callTime = null;
-
     #[Validate('required|regex:/^\+?[1-9]\d{7,14}$/')]
     public string $callPhone = '';
 
@@ -2283,31 +2277,6 @@ new class extends Component
         ];
     }
 
-    /** @return array<int, \Illuminate\Support\Carbon> the next N (admin-configured) weekdays, starting tomorrow. */
-    #[Computed]
-    public function availableCallDays(): array
-    {
-        $days = [];
-        $cursor = now()->addDay();
-        $daysAhead = SpecialistCallSettings::daysAhead();
-
-        while (count($days) < $daysAhead) {
-            if (! $cursor->isWeekend()) {
-                $days[] = $cursor->copy();
-            }
-
-            $cursor->addDay();
-        }
-
-        return $days;
-    }
-
-    /** @return array<int, string> */
-    public function availableCallTimes(): array
-    {
-        return SpecialistCallSettings::timeSlots();
-    }
-
     /** @return array<int, string> */
     public function availableCallTopics(): array
     {
@@ -2318,8 +2287,6 @@ new class extends Component
     {
         $this->callDialogOpen = true;
         $this->callBooked = false;
-        $this->callDate = $this->availableCallDays[0]->toDateString();
-        $this->callTime = SpecialistCallSettings::timeSlots()[0];
         $this->callPhone = '';
         $this->callTopic = SpecialistCallSettings::topics()[0];
         $this->callNotes = '';
@@ -2345,8 +2312,6 @@ new class extends Component
         $callRequest = SpecialistCallRequest::create([
             'user_id' => auth()->id(),
             'order_id' => $order?->id,
-            'requested_date' => $this->callDate,
-            'requested_time' => $this->callTime,
             'phone' => $this->callPhone,
             'topic' => $this->callTopic,
             'notes' => $this->callNotes ?: null,
@@ -3881,8 +3846,7 @@ new class extends Component
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <h4 class="text-base font-bold text-[#173045] mb-1">Call requested</h4>
-                <p class="text-sm text-[#5d6e7f]">We&rsquo;ll call {{ $callPhone }} on
-                    {{ Carbon::parse($callDate)->format('l, M j') }} at {{ $callTime }} Eastern.
+                <p class="text-sm text-[#5d6e7f]">We&rsquo;ll call {{ $callPhone }} shortly to confirm a time.
                 </p>
             </div>
             @elseif(! SpecialistCallSettings::enabled())
@@ -3892,24 +3856,6 @@ new class extends Component
             </div>
             @else
             <div class="px-6 pb-6 border-t border-[#eef2f6] pt-4">
-                <p class="text-xs font-bold text-[#31465b] mb-2">Pick a day</p>
-                <div class="flex flex-wrap gap-2 mb-4">
-                    @foreach($this->availableCallDays as $day)
-                    <button type="button" wire:click="$set('callDate', '{{ $day->toDateString() }}')"
-                        class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors {{ $callDate === $day->toDateString() ? 'border-[#12304f] bg-[#12304f] text-white' : 'border-[#dbe4ee] text-[#173045] hover:border-[#0b9ed0]' }}">
-                        {{ $day->format('D, M j') }}</button>
-                    @endforeach
-                </div>
-
-                <p class="text-xs font-bold text-[#31465b] mb-2">Pick a time (Eastern)</p>
-                <div class="flex flex-wrap gap-2 mb-4">
-                    @foreach($this->availableCallTimes() as $time)
-                    <button type="button" wire:click="$set('callTime', '{{ $time }}')"
-                        class="rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors {{ $callTime === $time ? 'border-[#12304f] bg-[#12304f] text-white' : 'border-[#dbe4ee] text-[#173045] hover:border-[#0b9ed0]' }}">
-                        {{ $time }}</button>
-                    @endforeach
-                </div>
-
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                     <div>
                         <label class="block text-xs font-bold text-[#31465b] mb-1.5">Phone number</label>

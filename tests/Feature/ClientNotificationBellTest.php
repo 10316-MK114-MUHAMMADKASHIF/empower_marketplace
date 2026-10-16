@@ -113,8 +113,6 @@ class ClientNotificationBellTest extends TestCase
         $client = User::factory()->create();
         $call = SpecialistCallRequest::create([
             'user_id' => $client->id,
-            'requested_date' => now()->addDay()->toDateString(),
-            'requested_time' => '9:00 AM',
             'phone' => '+15551234567',
             'topic' => 'Pricing or billing',
         ]);

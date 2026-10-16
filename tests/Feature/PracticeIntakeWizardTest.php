@@ -15,7 +15,6 @@ use App\Models\IntakeSubmission;
 use App\Models\Order;
 use App\Models\Package;
 use App\Models\Practice;
-use App\Models\SpecialistCallRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -1155,11 +1154,7 @@ class PracticeIntakeWizardTest extends TestCase
             ->call('openCallDialog')
             ->assertSet('callDialogOpen', true);
 
-        $day = $component->get('availableCallDays')[0]->toDateString();
-
-        $component->set('callDate', $day)
-            ->set('callTime', '10:30 AM')
-            ->set('callPhone', '+15551234567')
+        $component->set('callPhone', '+15551234567')
             ->set('callTopic', 'A question in the intake')
             ->set('callNotes', 'Not sure about the HIPAA security section.')
             ->call('bookSpecialistCall')
@@ -1169,12 +1164,10 @@ class PracticeIntakeWizardTest extends TestCase
         $this->assertDatabaseHas('specialist_call_requests', [
             'user_id' => $user->id,
             'order_id' => $order->id,
-            'requested_time' => '10:30 AM',
             'phone' => '+15551234567',
             'topic' => 'A question in the intake',
             'notes' => 'Not sure about the HIPAA security section.',
         ]);
-        $this->assertSame($day, SpecialistCallRequest::first()->requested_date->toDateString());
 
         Mail::assertSent(NewSpecialistCallRequestMail::class, fn ($mail) => $mail->hasTo($admin->email));
         $this->assertSame(1, $admin->fresh()->unreadNotifications()->count());

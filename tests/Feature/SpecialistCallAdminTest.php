@@ -32,8 +32,6 @@ class SpecialistCallAdminTest extends TestCase
     {
         return SpecialistCallRequest::create(array_merge([
             'user_id' => User::factory()->create()->id,
-            'requested_date' => now()->addDay()->toDateString(),
-            'requested_time' => '9:00 AM',
             'phone' => '+15551234567',
             'topic' => 'Pricing or billing',
         ], $attributes));
@@ -91,24 +89,19 @@ class SpecialistCallAdminTest extends TestCase
     public function test_settings_default_until_an_admin_saves_them(): void
     {
         $this->assertTrue(SpecialistCallSettings::enabled());
-        $this->assertSame(SpecialistCallSettings::DEFAULT_TIME_SLOTS, SpecialistCallSettings::timeSlots());
-        $this->assertSame(5, SpecialistCallSettings::daysAhead());
+        $this->assertSame(SpecialistCallSettings::DEFAULT_TOPICS, SpecialistCallSettings::topics());
     }
 
     public function test_admin_can_save_call_settings(): void
     {
         Livewire::actingAs($this->admin())
             ->test('admin.call-settings')
-            ->set('timeSlots', "8:00 AM\n\n2:00 PM\n")
             ->set('topics', "Onboarding\nBilling")
-            ->set('daysAhead', 3)
             ->set('enabled', false)
             ->call('save')
             ->assertHasNoErrors();
 
-        $this->assertSame(['8:00 AM', '2:00 PM'], SpecialistCallSettings::timeSlots());
         $this->assertSame(['Onboarding', 'Billing'], SpecialistCallSettings::topics());
-        $this->assertSame(3, SpecialistCallSettings::daysAhead());
         $this->assertFalse(SpecialistCallSettings::enabled());
     }
 
@@ -116,15 +109,13 @@ class SpecialistCallAdminTest extends TestCase
     {
         Livewire::actingAs($this->admin())
             ->test('admin.call-settings')
-            ->set('timeSlots', '')
-            ->set('daysAhead', 0)
+            ->set('topics', '')
             ->call('save')
-            ->assertHasErrors(['timeSlots', 'daysAhead']);
+            ->assertHasErrors(['topics']);
     }
 
-    public function test_wizard_uses_the_saved_slots_and_refuses_bookings_when_switched_off(): void
+    public function test_wizard_refuses_bookings_when_switched_off(): void
     {
-        Setting::write('call_time_slots', json_encode(['8:00 AM']));
         $user = User::factory()->create();
         Practice::factory()->create(['user_id' => $user->id]);
 
@@ -137,8 +128,6 @@ class SpecialistCallAdminTest extends TestCase
         ]);
 
         $component = Livewire::actingAs($user)->test('portal.practice-intake-wizard', ['orderIds' => [$order->id]]);
-
-        $this->assertSame(['8:00 AM'], $component->instance()->availableCallTimes());
 
         Setting::write('calls_enabled', '0');
 

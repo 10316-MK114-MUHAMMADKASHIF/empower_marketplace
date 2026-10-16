@@ -5,8 +5,6 @@
 from their Practice Intake wizard.
 
 <x-mail::panel>
-**When:** {{ $callRequest->requested_date->format('l, M j') }} at {{ $callRequest->requested_time }}
-Eastern<br>
 **Phone:** {{ $callRequest->phone }}<br>
 **Topic:** {{ $callRequest->topic }}<br>
 @if($callRequest->notes)
