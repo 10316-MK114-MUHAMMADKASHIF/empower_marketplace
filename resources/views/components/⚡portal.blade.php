@@ -3453,6 +3453,7 @@ $progressPct = ($milestone / 4) * 100;
                 x-on:livewire-upload-finish.window="uploading = false"
                 x-on:livewire-upload-error.window="uploading = false"
                 x-on:livewire-upload-progress.window="progress = $event.detail.progress">
+                <p class="text-sm font-semibold text-[#31465b] mb-2.5">If you have any other forms related to your compliance program and you want them included in your manual, please upload them here.</p>
                 <div class="flex flex-wrap items-start gap-2">
                     <div class="flex-1 min-w-[10rem]">
                         <input wire:model="step3DocumentFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx"
