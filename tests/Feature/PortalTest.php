@@ -238,6 +238,7 @@ class PortalTest extends TestCase
 
         Livewire::test('portal')
             ->set('selectedPackageId', $package->id)
+            ->set('billableProviders', 1)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'jane@practice.com')
             ->set('billingAddress1', '7 Clyde Road')
@@ -324,6 +325,7 @@ class PortalTest extends TestCase
 
         Livewire::test('portal')
             ->set('selectedPackageId', $package->id)
+            ->set('billableProviders', 1)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'jane@practice.com')
             ->set('billingAddress1', '7 Clyde Road')
@@ -622,6 +624,57 @@ class PortalTest extends TestCase
             ->assertHasErrors(['selectedPackageId', 'cardName', 'cardNumber', 'cardExpiry', 'cardCvc']);
     }
 
+    public function test_checkout_requires_billable_provider_count_before_processing_payment(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'billable_providers_count' => 0]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->assertSet('billableProviders', 0)
+            ->set('selectedPackageId', $package->id)
+            ->set('billingAddress1', '7 Clyde Road')
+            ->set('billingCity', 'Somerset')
+            ->set('billingState', 'NJ')
+            ->set('billingZip', '08873')
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasErrors(['billableProviders']);
+
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+    }
+
+    public function test_free_trial_requires_billable_provider_count_before_tokenizing(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'billable_providers_count' => 0]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+        DiscountCode::factory()->freeTrial(30)->create(['code' => 'TRIAL30']);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('discountCodeInput', 'TRIAL30')
+            ->call('applyDiscountCode')
+            ->call('payFreeTrial', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasErrors(['billableProviders']);
+
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+        Http::assertNothingSent();
+    }
+
+    public function test_new_practices_default_to_an_unanswered_provider_count(): void
+    {
+        $user = User::factory()->create();
+
+        $practice = Practice::create([
+            'user_id' => $user->id,
+            'name' => 'New Practice',
+        ]);
+
+        $this->assertSame(0, $practice->refresh()->billable_providers_count);
+    }
+
     /**
      * Regression test: card field errors previously vanished the moment any other Livewire
      * request fired (e.g. live-validating an unrelated field), because Livewire only persists
@@ -896,6 +949,7 @@ class PortalTest extends TestCase
 
         Livewire::test('portal')
             ->set('selectedPackageId', $package->id)
+            ->set('billableProviders', 1)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'jane@practice.com')
             ->set('billingAddress1', '7 Clyde Road')
@@ -1643,6 +1697,7 @@ class PortalTest extends TestCase
 
         Livewire::test('portal')
             ->set('selectedPackageId', $package->id)
+            ->set('billableProviders', 1)
             ->set('accountName', 'Jane Provider')
             ->set('accountEmail', 'jane@practice.com')
             ->set('billingAddress1', '7 Clyde Road')

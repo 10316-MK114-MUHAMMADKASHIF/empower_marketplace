@@ -226,6 +226,13 @@ class AuthTest extends TestCase
         $this->assertSame('essential', session('intended_package'));
     }
 
+    public function test_visiting_register_with_provider_count_stores_it_in_session(): void
+    {
+        $this->withoutVite()->get(route('register', ['billable_providers' => 4]))->assertOk();
+
+        $this->assertSame(4, session('intended_billable_providers'));
+    }
+
     public function test_register_page_shows_the_selected_package_and_its_price(): void
     {
         Package::factory()->create([
@@ -274,10 +281,15 @@ class AuthTest extends TestCase
         $response = $this->withoutVite()->get(route('register', [
             'package' => 'essential',
             'billing_cycle' => 'monthly',
+            'billable_providers' => 4,
         ]));
 
         $response->assertOk();
-        $response->assertSee(route('portal', ['package' => 'essential', 'billing_cycle' => 'monthly']));
+        $response->assertSee(route('portal', [
+            'package' => 'essential',
+            'billing_cycle' => 'monthly',
+            'billable_providers' => 4,
+        ]));
     }
 
     public function test_create_an_account_link_falls_back_to_the_session_intended_package(): void
@@ -906,14 +918,22 @@ class AuthTest extends TestCase
     public function test_a_talkehr_login_carries_on_to_the_package_being_purchased(): void
     {
         $this->fakeEmpowerSsoApi($this->ssoPayload());
-        session(['intended_package' => 'professional', 'intended_billing_cycle' => 'monthly']);
+        session([
+            'intended_package' => 'professional',
+            'intended_billing_cycle' => 'monthly',
+            'intended_billable_providers' => 4,
+        ]);
 
         Livewire::test('auth.login-form')
             ->call('selectSsoProvider', 'talkehr')
             ->set('ssoUsername', '1163testing')
             ->set('ssoPassword', 't@lkTest@1234')
             ->call('loginViaSso')
-            ->assertRedirect(route('portal', ['package' => 'professional', 'billing_cycle' => 'monthly']));
+            ->assertRedirect(route('portal', [
+                'package' => 'professional',
+                'billing_cycle' => 'monthly',
+                'billable_providers' => 4,
+            ]));
     }
 
     public function test_without_a_chosen_package_a_new_talkehr_client_lands_on_the_pricing_section(): void

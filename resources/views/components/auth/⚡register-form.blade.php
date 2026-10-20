@@ -46,6 +46,7 @@ new class extends Component
         return route('portal', array_filter([
             'package' => $this->selectedPackage?->slug,
             'billing_cycle' => $this->billingCycle->value,
+            'billable_providers' => session('intended_billable_providers'),
         ]));
     }
 };
@@ -57,7 +58,8 @@ new class extends Component
         <div>
             <p class="text-[10px] font-extrabold uppercase tracking-widest text-[#5c778d] mb-0.5">Selected package</p>
             <p class="text-sm font-bold text-[#173a59]">{{ $this->selectedPackage->name }}</p>
-            <p class="text-xs text-[#5c778d]">${{ number_format($this->selectedPackage->priceForCycle($this->billingCycle) ?? 0, 2) }}
+            <p class="text-xs text-[#5c778d]">${{
+                number_format($this->selectedPackage->priceForCycle($this->billingCycle) ?? 0, 2) }}
                 per provider / {{ $this->billingCycle->period() }}</p>
         </div>
         <a href="{{ route('home') }}#pricing" wire:navigate
@@ -71,6 +73,7 @@ new class extends Component
 
     <p class="mt-6 text-center text-sm text-[#5c778d]">
         Already have an account?
-        <a href="{{ route('login') }}" wire:navigate class="font-semibold text-[#0e3a61] hover:text-[#0b9ed0] transition-colors">Log in</a>
+        <a href="{{ route('login') }}" wire:navigate
+            class="font-semibold text-[#0e3a61] hover:text-[#0b9ed0] transition-colors">Log in</a>
     </p>
 </div>

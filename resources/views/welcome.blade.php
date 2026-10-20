@@ -31,7 +31,8 @@
                 <button type="button" @click="dismiss()" aria-label="Dismiss"
                     class="flex-shrink-0 text-[#4a5563] hover:text-[#0e1b30] transition-colors">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
@@ -173,26 +174,31 @@
     {{-- Pricing --}}
     <section id="pricing" class="py-14 lg:py-16 bg-white">
         @php
-            $formatPrice = fn (?float $price) => number_format($price ?? 0, ((int) ($price ?? 0)) == ($price ?? 0) ? 0 : 2);
+        $formatPrice = fn (?float $price) => number_format($price ?? 0, ((int) ($price ?? 0)) == ($price ?? 0) ? 0 : 2);
 
-            $featureGroups = [
-                'essential' => [
-                    'provides' => ['sublabel' => null, 'items' => ['Exclusions Screening', 'Compliance Hotline']],
-                    'second' => ['label' => 'You Provide', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security Policies', 'Trainings†']],
-                ],
-                'professional' => [
-                    'provides' => ['sublabel' => 'Includes Essential, plus', 'items' => ['Exclusions Screening', 'Compliance Hotline', 'Compliance & Ethics Program', 'HIPAA Privacy & Security', 'Trainings']],
-                    'second' => null,
-                ],
-                'advanced' => [
-                    'provides' => ['sublabel' => 'Includes Professional, plus', 'items' => ['Coding & Documentation Mini Audit‡ (10 encounters/provider)', 'Security Risk Assessment (SRA)', 'Guidance of Compliance Structure', 'Periodic Compliance Meeting']],
-                    'second' => ['label' => 'You Provide', 'items' => ['Your employee manual']],
-                ],
-                'complete' => [
-                    'provides' => ['sublabel' => 'Includes Advanced, plus', 'items' => ['Customized Compliance Program', 'Compliance Officer Needs: Co-Sourced, Fractional, or Outsourced']],
-                    'second' => null,
-                ],
-            ];
+        $featureGroups = [
+        'essential' => [
+        'provides' => ['sublabel' => null, 'items' => ['Exclusions Screening', 'Compliance Hotline']],
+        'second' => ['label' => 'You Provide', 'items' => ['Compliance & Ethics Program', 'HIPAA Privacy & Security
+        Policies', 'Trainings†']],
+        ],
+        'professional' => [
+        'provides' => ['sublabel' => 'Includes Essential, plus', 'items' => ['Exclusions Screening', 'Compliance
+        Hotline', 'Compliance & Ethics Program', 'HIPAA Privacy & Security', 'Trainings']],
+        'second' => null,
+        ],
+        'advanced' => [
+        'provides' => ['sublabel' => 'Includes Professional, plus', 'items' => ['Coding & Documentation Mini Audit‡ (10
+        encounters/provider)', 'Security Risk Assessment (SRA)', 'Guidance of Compliance Structure', 'Periodic
+        Compliance Meeting']],
+        'second' => ['label' => 'You Provide', 'items' => ['Your employee manual']],
+        ],
+        'complete' => [
+        'provides' => ['sublabel' => 'Includes Advanced, plus', 'items' => ['Customized Compliance Program', 'Compliance
+        Officer Needs: Co-Sourced, Fractional, or Outsourced']],
+        'second' => null,
+        ],
+        ];
         @endphp
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" x-data="{
                 cycle: 'annual',
@@ -200,7 +206,7 @@
                 quizStep: 1,
                 quizDocs: null,
                 quizSra: null,
-                quizProviders: 1,
+                quizProviders: 0,
                 {{-- toBase(): EloquentCollection::only() filters by primary key, not array key —
                      without this every slug lookup below would silently miss and return []. --}}
                 quizPackages: @js($packages->toBase()->only(['essential', 'professional', 'advanced'])->map(fn ($p) => [
@@ -238,13 +244,13 @@
                 },
                 quizPrice() {
                     const perProvider = this.cycle === 'monthly' ? this.quizResultPackage.monthly : this.quizResultPackage.annual;
-                    return (perProvider ?? 0) * Math.max(1, this.quizProviders);
+                    return (perProvider ?? 0) * this.quizProviders;
                 },
                 quizReset() {
                     this.quizStep = 1;
                     this.quizDocs = null;
                     this.quizSra = null;
-                    this.quizProviders = 1;
+                    this.quizProviders = 0;
                     this.quizPicked = null;
                 },
                 quizPicked: null,
@@ -274,7 +280,8 @@
             }">
             <div class="text-center mb-10">
                 <span class="text-xs font-bold tracking-widest uppercase text-[#3a9bd5]">Pricing</span>
-                <h2 class="mt-3 text-[28px] sm:text-[34px] font-extrabold text-[#0e1b30]">Choose Your Compliance Package</h2>
+                <h2 class="mt-3 text-[28px] sm:text-[34px] font-extrabold text-[#0e1b30]">Choose Your Compliance Package
+                </h2>
                 <p class="mt-4 text-[#4a5563] max-w-2xl mx-auto leading-relaxed">
                     Every package is billed per billable provider, per year (or monthly), and includes annual
                     renewal.
@@ -285,10 +292,12 @@
                 <div class="inline-flex self-start gap-1 rounded-full border border-[#dde3ea] bg-[#eef1f5] p-1">
                     <button type="button" @click="cycle = 'monthly'"
                         :class="cycle === 'monthly' ? 'bg-white text-[#1c3457] shadow-sm' : 'text-[#4a5563] hover:text-[#1c3457]'"
-                        class="rounded-full px-4 sm:px-[22px] py-2.5 text-sm font-bold transition-colors">Billed monthly</button>
+                        class="rounded-full px-4 sm:px-[22px] py-2.5 text-sm font-bold transition-colors">Billed
+                        monthly</button>
                     <button type="button" @click="cycle = 'annual'"
                         :class="cycle === 'annual' ? 'bg-white text-[#1c3457] shadow-sm' : 'text-[#4a5563] hover:text-[#1c3457]'"
-                        class="rounded-full px-4 sm:px-[22px] py-2.5 text-sm font-bold transition-colors">Billed annually
+                        class="rounded-full px-4 sm:px-[22px] py-2.5 text-sm font-bold transition-colors">Billed
+                        annually
                         <span class="ml-1.5 text-xs font-extrabold text-[#1f9d6b]">Save ~16%</span></button>
                 </div>
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -296,7 +305,8 @@
                     <button type="button" @click="quizOpen = true; quizStep = 1"
                         class="inline-block whitespace-nowrap rounded-full bg-[#3a9bd5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2b82b8] transition-colors">Take
                         the 3-question quiz</button>
-                    <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'package' } }))"
+                    <button type="button"
+                        onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'package' } }))"
                         class="inline-block whitespace-nowrap rounded-full border border-[#9ed3e9] bg-white px-4 py-2 text-sm font-semibold text-[#2b82b8] hover:bg-[#eaf5fb] transition-colors">Contact
                         us</button>
                 </div>
@@ -308,8 +318,7 @@
                 <div data-package-card="essential"
                     class="relative rounded-2xl border border-[#dde3ea] bg-[#f5f7fa] p-7 flex flex-col transition-shadow">
                     <div class="absolute top-4 right-4" x-data="{ open: false }">
-                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                            @click="open = !open"
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
                             class="flex h-6 w-6 items-center justify-center rounded-full text-[#4a5563] hover:text-[#2b82b8] hover:bg-white transition-colors"
                             aria-label="Package details">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -347,7 +356,8 @@
                         @endforeach
                     </ul>
                     @if($groups['second'])
-                    <p class="text-xs font-bold tracking-widest uppercase text-[#4a5563] mb-2">{{ $groups['second']['label'] }}</p>
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#4a5563] mb-2">{{
+                        $groups['second']['label'] }}</p>
                     <ul class="space-y-2.5 text-sm text-[#0e1b30] mb-8 grow">
                         @foreach($groups['second']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#3a9bd5]"
@@ -367,8 +377,7 @@
                 <div data-package-card="professional"
                     class="relative rounded-2xl border border-[#dde3ea] bg-[#f5f7fa] p-7 flex flex-col transition-shadow">
                     <div class="absolute top-4 right-4" x-data="{ open: false }">
-                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                            @click="open = !open"
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
                             class="flex h-6 w-6 items-center justify-center rounded-full text-[#4a5563] hover:text-[#2b82b8] hover:bg-white transition-colors"
                             aria-label="Package details">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -406,7 +415,8 @@
                         @endforeach
                     </ul>
                     @if($groups['second'])
-                    <p class="text-xs font-bold tracking-widest uppercase text-[#4a5563] mb-2">{{ $groups['second']['label'] }}</p>
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#4a5563] mb-2">{{
+                        $groups['second']['label'] }}</p>
                     <ul class="space-y-2.5 text-sm text-[#0e1b30] mb-8 grow">
                         @foreach($groups['second']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#3a9bd5]"
@@ -430,8 +440,7 @@
                             class="rounded-full bg-[#3a9bd5] px-4 py-1 text-xs font-bold text-white shadow">Popular</span>
                     </div>
                     <div class="absolute top-4 right-4" x-data="{ open: false }">
-                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                            @click="open = !open"
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
                             class="flex h-6 w-6 items-center justify-center rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors"
                             aria-label="Package details">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -469,7 +478,8 @@
                         @endforeach
                     </ul>
                     @if($groups['second'])
-                    <p class="text-xs font-bold tracking-widest uppercase text-[#74bfe4] mb-2">{{ $groups['second']['label'] }}</p>
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#74bfe4] mb-2">{{
+                        $groups['second']['label'] }}</p>
                     <ul class="space-y-2.5 text-sm text-white/85 mb-8 grow">
                         @foreach($groups['second']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#74bfe4]"
@@ -488,8 +498,7 @@
                 {{-- Complete --}}
                 <div class="relative rounded-2xl border border-[#dde3ea] bg-[#f5f7fa] p-7 flex flex-col">
                     <div class="absolute top-4 right-4" x-data="{ open: false }">
-                        <button type="button" @mouseenter="open = true" @mouseleave="open = false"
-                            @click="open = !open"
+                        <button type="button" @mouseenter="open = true" @mouseleave="open = false" @click="open = !open"
                             class="flex h-6 w-6 items-center justify-center rounded-full text-[#4a5563] hover:text-[#2b82b8] hover:bg-white transition-colors"
                             aria-label="Package details">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -520,7 +529,8 @@
                         @endforeach
                     </ul>
                     @if($groups['second'])
-                    <p class="text-xs font-bold tracking-widest uppercase text-[#4a5563] mb-2">{{ $groups['second']['label'] }}</p>
+                    <p class="text-xs font-bold tracking-widest uppercase text-[#4a5563] mb-2">{{
+                        $groups['second']['label'] }}</p>
                     <ul class="space-y-2.5 text-sm text-[#0e1b30] mb-8 grow">
                         @foreach($groups['second']['items'] as $f)
                         <li class="flex items-start gap-2"><svg class="h-4 w-4 mt-0.5 shrink-0 text-[#3a9bd5]"
@@ -531,7 +541,8 @@
                         @endforeach
                     </ul>
                     @endif
-                    <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'quote' } }))"
+                    <button type="button"
+                        onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'quote' } }))"
                         class="block w-full rounded-full bg-[#1c3457] py-3 text-center text-sm font-semibold text-white hover:bg-[#162a46] transition-colors">Request
                         a Quote</button>
                 </div>
@@ -581,7 +592,8 @@
                         </div>
                     </div>
                     <div class="lg:text-right shrink-0">
-                        <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'legal' } }))"
+                        <button type="button"
+                            onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'legal' } }))"
                             class="inline-block rounded-full bg-[#1c3457] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#162a46] transition-colors">Contact
                             us about this add-on</button>
                     </div>
@@ -615,7 +627,7 @@
                     <div class="border-t border-[#eef1f5]"></div>
 
                     {{-- Segmented progress bar: matches the client prototype's 3-state dots —
-                         done (#0b9ed0), current (#7cc8e8), not-yet-reached (#e3eef6). --}}
+                    done (#0b9ed0), current (#7cc8e8), not-yet-reached (#e3eef6). --}}
                     <div class="flex gap-1.5 px-7 pt-5">
                         <template x-for="segment in [1, 2, 3]" :key="segment">
                             <div class="h-[5px] flex-1 rounded-full"
@@ -634,27 +646,35 @@
                                     <button type="button" @click="quizPick('quizDocs', 'current', 2)"
                                         :class="quizPicked === 'current' ? 'border-[#12304f] bg-[#f2f6fa] scale-[0.99]' : 'border-[#e2e8f0] hover:border-[#3a9bd5] hover:bg-[#f5fafd]'"
                                         class="w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all">
-                                        <span class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                                        <span
+                                            class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
                                             :class="quizPicked === 'current' ? 'border-[#12304f]' : 'border-[#cbd5e1]'">
-                                            <span x-show="quizPicked === 'current'" class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
+                                            <span x-show="quizPicked === 'current'"
+                                                class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
                                         </span>
-                                        <span class="text-sm font-semibold text-[#173045]">Yes, and they're reasonably up to date</span>
+                                        <span class="text-sm font-semibold text-[#173045]">Yes, and they're reasonably
+                                            up to date</span>
                                     </button>
                                     <button type="button" @click="quizPick('quizDocs', 'outdated', 2)"
                                         :class="quizPicked === 'outdated' ? 'border-[#12304f] bg-[#f2f6fa] scale-[0.99]' : 'border-[#e2e8f0] hover:border-[#3a9bd5] hover:bg-[#f5fafd]'"
                                         class="w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all">
-                                        <span class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                                        <span
+                                            class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
                                             :class="quizPicked === 'outdated' ? 'border-[#12304f]' : 'border-[#cbd5e1]'">
-                                            <span x-show="quizPicked === 'outdated'" class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
+                                            <span x-show="quizPicked === 'outdated'"
+                                                class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
                                         </span>
-                                        <span class="text-sm font-semibold text-[#173045]">Yes, but they're outdated or incomplete</span>
+                                        <span class="text-sm font-semibold text-[#173045]">Yes, but they're outdated or
+                                            incomplete</span>
                                     </button>
                                     <button type="button" @click="quizPick('quizDocs', 'none', 2)"
                                         :class="quizPicked === 'none' ? 'border-[#12304f] bg-[#f2f6fa] scale-[0.99]' : 'border-[#e2e8f0] hover:border-[#3a9bd5] hover:bg-[#f5fafd]'"
                                         class="w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all">
-                                        <span class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                                        <span
+                                            class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
                                             :class="quizPicked === 'none' ? 'border-[#12304f]' : 'border-[#cbd5e1]'">
-                                            <span x-show="quizPicked === 'none'" class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
+                                            <span x-show="quizPicked === 'none'"
+                                                class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
                                         </span>
                                         <span class="text-sm font-semibold text-[#173045]">No, or we're not sure</span>
                                     </button>
@@ -677,27 +697,35 @@
                                     <button type="button" @click="quizPick('quizSra', 'yes', 3)"
                                         :class="quizPicked === 'yes' ? 'border-[#12304f] bg-[#f2f6fa] scale-[0.99]' : 'border-[#e2e8f0] hover:border-[#3a9bd5] hover:bg-[#f5fafd]'"
                                         class="w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all">
-                                        <span class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                                        <span
+                                            class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
                                             :class="quizPicked === 'yes' ? 'border-[#12304f]' : 'border-[#cbd5e1]'">
-                                            <span x-show="quizPicked === 'yes'" class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
+                                            <span x-show="quizPicked === 'yes'"
+                                                class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
                                         </span>
-                                        <span class="text-sm font-semibold text-[#173045]">Yes, we need one or both</span>
+                                        <span class="text-sm font-semibold text-[#173045]">Yes, we need one or
+                                            both</span>
                                     </button>
                                     <button type="button" @click="quizPick('quizSra', 'no', 3)"
                                         :class="quizPicked === 'no' ? 'border-[#12304f] bg-[#f2f6fa] scale-[0.99]' : 'border-[#e2e8f0] hover:border-[#3a9bd5] hover:bg-[#f5fafd]'"
                                         class="w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all">
-                                        <span class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                                        <span
+                                            class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
                                             :class="quizPicked === 'no' ? 'border-[#12304f]' : 'border-[#cbd5e1]'">
-                                            <span x-show="quizPicked === 'no'" class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
+                                            <span x-show="quizPicked === 'no'"
+                                                class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
                                         </span>
-                                        <span class="text-sm font-semibold text-[#173045]">No, we're already covered</span>
+                                        <span class="text-sm font-semibold text-[#173045]">No, we're already
+                                            covered</span>
                                     </button>
                                     <button type="button" @click="quizPick('quizSra', 'unsure', 3)"
                                         :class="quizPicked === 'unsure' ? 'border-[#12304f] bg-[#f2f6fa] scale-[0.99]' : 'border-[#e2e8f0] hover:border-[#3a9bd5] hover:bg-[#f5fafd]'"
                                         class="w-full flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all">
-                                        <span class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                                        <span
+                                            class="h-5 w-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
                                             :class="quizPicked === 'unsure' ? 'border-[#12304f]' : 'border-[#cbd5e1]'">
-                                            <span x-show="quizPicked === 'unsure'" class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
+                                            <span x-show="quizPicked === 'unsure'"
+                                                class="h-2.5 w-2.5 rounded-full bg-[#12304f]"></span>
                                         </span>
                                         <span class="text-sm font-semibold text-[#173045]">Not sure</span>
                                     </button>
@@ -710,14 +738,15 @@
                             <div>
                                 <h4 class="text-lg font-extrabold text-[#0e1b30] mb-2">How many billable providers do
                                     you have?</h4>
-                                <p class="text-sm text-[#5f6b7a] mb-4">Physicians and non-physician practitioners
-                                    billing under your group NPI. We use this to estimate your price.</p>
+                                <p class="text-sm text-[#5f6b7a] mb-4">Enter at least one physician or non-physician
+                                    practitioner billing under your group NPI to calculate your price.</p>
                                 {{-- Sized to match the prototype's .qz-num (larger than the
-                                     base .stepper-num used elsewhere): 48×52 buttons, 84×52 input. --}}
-                                <div class="inline-flex items-stretch rounded-[10px] border border-[#dde3ea] bg-[#f5f7fa] overflow-hidden">
-                                    <button type="button" @click="quizProviders = Math.max(1, quizProviders - 1)"
+                                base .stepper-num used elsewhere): 48×52 buttons, 84×52 input. --}}
+                                <div
+                                    class="inline-flex items-stretch rounded-[10px] border border-[#dde3ea] bg-[#f5f7fa] overflow-hidden">
+                                    <button type="button" @click="quizProviders = Math.max(0, quizProviders - 1)"
                                         class="w-12 h-13 flex items-center justify-center text-[22px] text-[#1c3457] font-bold hover:bg-[#eef1f5] transition-colors">&minus;</button>
-                                    <input x-model.number="quizProviders" type="number" min="1" max="9999"
+                                    <input x-model.number="quizProviders" type="number" min="0" max="9999" step="1"
                                         class="w-21 h-13 text-center bg-white border-x border-[#dde3ea] text-xl font-extrabold text-[#173045] focus:outline-none">
                                     <button type="button" @click="quizProviders = Math.min(9999, quizProviders + 1)"
                                         class="w-12 h-13 flex items-center justify-center text-[22px] text-[#1c3457] font-bold hover:bg-[#eef1f5] transition-colors">&plus;</button>
@@ -730,15 +759,17 @@
                             <div class="text-center">
                                 <p class="text-xs font-bold tracking-widest uppercase text-[#3a9bd5] mb-2">We
                                     recommend</p>
-                                <h3 class="text-2xl font-extrabold text-[#0e1b30] mb-1"
-                                    x-text="quizResultPackage.name"></h3>
+                                <h3 class="text-2xl font-extrabold text-[#0e1b30] mb-1" x-text="quizResultPackage.name">
+                                </h3>
                                 <p class="text-sm text-[#5f6b7a] mb-4">
                                     $<span x-text="quizPrice().toLocaleString()"></span><span
                                         x-text="cycle === 'monthly' ? '/month' : '/year'"></span>
-                                    &middot; $<span x-text="(cycle === 'monthly' ? quizResultPackage.monthly : quizResultPackage.annual).toLocaleString()"></span>
+                                    &middot; $<span
+                                        x-text="(cycle === 'monthly' ? quizResultPackage.monthly : quizResultPackage.annual).toLocaleString()"></span>
                                     per provider &times; <span x-text="quizProviders"></span>
                                 </p>
-                                <p class="text-sm text-[#5f6b7a] leading-relaxed max-w-sm mx-auto" x-text="quizReason"></p>
+                                <p class="text-sm text-[#5f6b7a] leading-relaxed max-w-sm mx-auto" x-text="quizReason">
+                                </p>
                                 <ul class="max-w-sm mx-auto mt-2 text-left space-y-1">
                                     <template x-for="tip in quizExtraTips" :key="tip">
                                         <li class="flex items-start gap-1.5 text-xs text-[#5f6b7a] leading-relaxed">
@@ -753,14 +784,15 @@
                                         packages</button>
                                     <span class="text-[#c3ccd4] mx-1.5">&middot;</span>
                                     <button type="button" @click="quizReset()"
-                                        class="text-[#3a9bd5] hover:text-[#2b82b8] transition-colors">Start over</button>
+                                        class="text-[#3a9bd5] hover:text-[#2b82b8] transition-colors">Start
+                                        over</button>
                                 </p>
                             </div>
                         </template>
                     </div>
 
                     {{-- Footer: Q1/Q2 show a back link + hint; Q3 shows Back and the continue
-                         action as a pair of buttons instead, since it needs an explicit submit. --}}
+                    action as a pair of buttons instead, since it needs an explicit submit. --}}
                     <template x-if="quizStep === 1 || quizStep === 2">
                         <div class="flex items-center justify-between border-t border-[#eef1f5] bg-[#f8fafc] px-7 py-3">
                             <button type="button" x-show="quizStep > 1" @click="quizStep = quizStep - 1"
@@ -776,6 +808,8 @@
                                 class="rounded-full border border-[#dde3ea] bg-white px-4 py-2 text-sm font-semibold text-[#1c3457] hover:bg-[#f5f7fa] transition-colors">&larr;
                                 Back</button>
                             <button type="button" @click="quizStep = 4"
+                                :disabled="!Number.isInteger(quizProviders) || quizProviders < 1 || quizProviders > 9999"
+                                :class="!Number.isInteger(quizProviders) || quizProviders < 1 || quizProviders > 9999 ? 'opacity-50 cursor-not-allowed' : ''"
                                 class="rounded-full bg-[#3a9bd5] px-5 py-2 text-sm font-semibold text-white hover:bg-[#2b82b8] transition-colors">See
                                 my recommendation &rarr;</button>
                         </div>
@@ -785,7 +819,7 @@
                             <button type="button" @click="quizStep = 3"
                                 class="rounded-full border border-[#dde3ea] bg-white px-4 py-2 text-sm font-semibold text-[#1c3457] hover:bg-[#f5f7fa] transition-colors">&larr;
                                 Back</button>
-                            <a :href="`{{ auth()->check() ? route('portal') : route('register') }}?package=${quizRecommendation}&billing_cycle=${cycle}`"
+                            <a :href="`{{ auth()->check() ? route('portal') : route('register') }}?package=${quizRecommendation}&billing_cycle=${cycle}&billable_providers=${quizProviders}`"
                                 class="rounded-full bg-[#3a9bd5] px-5 py-2 text-sm font-semibold text-white hover:bg-[#2b82b8] transition-colors">Choose
                                 <span x-text="quizResultPackage.name.split(' ')[0]"></span> &rarr;</a>
                         </div>
@@ -811,7 +845,8 @@
                         <a href="#pricing"
                             class="inline-block rounded-full bg-[#3a9bd5] px-6 py-3 text-sm font-semibold text-white hover:bg-[#2b82b8] transition-colors shadow-lg">Explore
                             Packages</a>
-                        <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'general' } }))"
+                        <button type="button"
+                            onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'general' } }))"
                             class="inline-block rounded-full border border-[#9ed3e9] bg-white px-6 py-3 text-sm font-semibold text-[#2b82b8] hover:bg-[#eaf5fb] transition-colors">Talk
                             to the team</button>
                     </div>
@@ -848,51 +883,55 @@
     {{-- Compare Packages --}}
     <section id="compare" class="py-14 lg:py-16 bg-[#f5f7fa]">
         @php
-            $comparisonTiers = ['Essential', 'Professional', 'Advanced', 'Complete'];
-            $comparisonGroups = [
-                [
-                    'label' => 'Program & Policies',
-                    'rows' => [
-                        ['feature' => 'Review & update of your existing Compliance & Ethics Program', 'tiers' => [true, true, true, true]],
-                        ['feature' => 'Review & update of your existing HIPAA Privacy & Security Policies', 'tiers' => [true, true, true, true]],
-                        ['feature' => 'Creation of missing program documents & policies', 'tiers' => [false, true, true, true]],
-                        ['feature' => 'Customized Compliance Program', 'tiers' => [false, false, false, true]],
-                    ],
-                ],
-                [
-                    'label' => 'Training',
-                    'rows' => [
-                        ['feature' => 'Review & update of your existing trainings', 'tiers' => [true, true, true, true]],
-                        ['feature' => 'Access to Empower LMS', 'tiers' => [false, true, true, true]],
-                        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
-                    ],
-                ],
-                [
-                    'label' => 'Monitoring',
-                    'rows' => [
-                        ['feature' => 'Exclusions Screening', 'tiers' => [true, true, true, true]],
-                        ['feature' => 'Compliance Hotline', 'tiers' => [true, true, true, true]],
-                        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
-                    ],
-                ],
-                [
-                    'label' => 'Audit & Risk',
-                    'rows' => [
-                        ['feature' => 'Coding & Documentation Mini Audit (10 encounters/provider)', 'tiers' => [false, false, true, true]],
-                        ['feature' => 'Security Risk Assessment (SRA)', 'tiers' => [false, false, true, true]],
-                        ['feature' => 'Employee manual review & update', 'tiers' => [false, false, true, true]],
-                        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
-                    ],
-                ],
-                [
-                    'label' => 'Oversight',
-                    'rows' => [
-                        ['feature' => 'Guidance of Compliance Structure', 'tiers' => [false, false, true, true]],
-                        ['feature' => 'Periodic Compliance Meeting', 'tiers' => [false, false, true, true]],
-                        ['feature' => 'Compliance Officer support: co-sourced, fractional, or outsourced', 'tiers' => [false, false, false, true]],
-                    ],
-                ],
-            ];
+        $comparisonTiers = ['Essential', 'Professional', 'Advanced', 'Complete'];
+        $comparisonGroups = [
+        [
+        'label' => 'Program & Policies',
+        'rows' => [
+        ['feature' => 'Review & update of your existing Compliance & Ethics Program', 'tiers' => [true, true, true,
+        true]],
+        ['feature' => 'Review & update of your existing HIPAA Privacy & Security Policies', 'tiers' => [true, true,
+        true, true]],
+        ['feature' => 'Creation of missing program documents & policies', 'tiers' => [false, true, true, true]],
+        ['feature' => 'Customized Compliance Program', 'tiers' => [false, false, false, true]],
+        ],
+        ],
+        [
+        'label' => 'Training',
+        'rows' => [
+        ['feature' => 'Review & update of your existing trainings', 'tiers' => [true, true, true, true]],
+        ['feature' => 'Access to Empower LMS', 'tiers' => [false, true, true, true]],
+        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
+        ],
+        ],
+        [
+        'label' => 'Monitoring',
+        'rows' => [
+        ['feature' => 'Exclusions Screening', 'tiers' => [true, true, true, true]],
+        ['feature' => 'Compliance Hotline', 'tiers' => [true, true, true, true]],
+        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
+        ],
+        ],
+        [
+        'label' => 'Audit & Risk',
+        'rows' => [
+        ['feature' => 'Coding & Documentation Mini Audit (10 encounters/provider)', 'tiers' => [false, false, true,
+        true]],
+        ['feature' => 'Security Risk Assessment (SRA)', 'tiers' => [false, false, true, true]],
+        ['feature' => 'Employee manual review & update', 'tiers' => [false, false, true, true]],
+        ['feature' => 'Custom options', 'tiers' => [false, false, false, true]],
+        ],
+        ],
+        [
+        'label' => 'Oversight',
+        'rows' => [
+        ['feature' => 'Guidance of Compliance Structure', 'tiers' => [false, false, true, true]],
+        ['feature' => 'Periodic Compliance Meeting', 'tiers' => [false, false, true, true]],
+        ['feature' => 'Compliance Officer support: co-sourced, fractional, or outsourced', 'tiers' => [false, false,
+        false, true]],
+        ],
+        ],
+        ];
         @endphp
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-10">
@@ -1018,7 +1057,8 @@
                     right tier.
                 </p>
                 <div class="mt-8 flex flex-wrap justify-center gap-3">
-                    <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'general' } }))"
+                    <button type="button"
+                        onclick="window.dispatchEvent(new CustomEvent('open-contact', { detail: { topic: 'general' } }))"
                         class="inline-block rounded-full bg-[#3a9bd5] px-8 py-3.5 text-sm font-semibold text-white hover:bg-[#2b82b8] transition-colors shadow-lg">Contact
                         Us</button>
                     <a href="#pricing"

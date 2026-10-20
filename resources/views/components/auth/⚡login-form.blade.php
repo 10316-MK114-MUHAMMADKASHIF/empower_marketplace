@@ -83,7 +83,11 @@ new class extends Component
         }
 
         if ($package = session('intended_package')) {
-            return [route('portal', array_filter(['package' => $package, 'billing_cycle' => session('intended_billing_cycle')])), true];
+            return [route('portal', array_filter([
+                'package' => $package,
+                'billing_cycle' => session('intended_billing_cycle'),
+                'billable_providers' => session('intended_billable_providers'),
+            ])), true];
         }
 
         if ($user->orders()->doesntExist()) {
@@ -443,15 +447,18 @@ new class extends Component
         <p class="text-sm text-[#5c778d] mb-4">Your account is linked to more than one practice.</p>
 
         @if($this->practiceChoices['total'] > 8)
-        <input wire:model.live.debounce.300ms="practiceSearch" type="search" placeholder="Search your {{ number_format($this->practiceChoices['total']) }} practices…"
+        <input wire:model.live.debounce.300ms="practiceSearch" type="search"
+            placeholder="Search your {{ number_format($this->practiceChoices['total']) }} practices…"
             aria-label="Search practices"
             class="w-full mb-3 rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] placeholder-[#5c778d]/60 focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
         @endif
 
         <div class="space-y-2 mb-2 max-h-72 overflow-y-auto pr-1">
             @forelse($this->practiceChoices['items'] as $option)
-            <label wire:key="practice-option-{{ $option['id'] }}" class="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors {{ $pickedPracticeId === $option['id'] ? 'border-[#0b9ed0] bg-[#f4fbfe]' : 'border-[#d4e5f1] bg-white hover:bg-[#f9fcff]' }}">
-                <input type="radio" wire:model.live="pickedPracticeId" value="{{ $option['id'] }}" class="accent-[#0b9ed0]">
+            <label wire:key="practice-option-{{ $option['id'] }}"
+                class="flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors {{ $pickedPracticeId === $option['id'] ? 'border-[#0b9ed0] bg-[#f4fbfe]' : 'border-[#d4e5f1] bg-white hover:bg-[#f9fcff]' }}">
+                <input type="radio" wire:model.live="pickedPracticeId" value="{{ $option['id'] }}"
+                    class="accent-[#0b9ed0]">
                 <span class="text-sm font-semibold text-[#173a59]">{{ $option['name'] }}</span>
             </label>
             @empty
@@ -459,7 +466,8 @@ new class extends Component
             @endforelse
         </div>
         @if($this->practiceChoices['matched'] > count($this->practiceChoices['items']))
-        <p class="mb-3 text-xs text-[#5c778d]">Showing the first {{ count($this->practiceChoices['items']) }} of {{ number_format($this->practiceChoices['matched']) }}. Type to narrow the list.</p>
+        <p class="mb-3 text-xs text-[#5c778d]">Showing the first {{ count($this->practiceChoices['items']) }} of {{
+            number_format($this->practiceChoices['matched']) }}. Type to narrow the list.</p>
         @endif
         @error('pickedPracticeId') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
         <div class="mb-2"></div>
@@ -467,7 +475,8 @@ new class extends Component
         <div class="flex justify-end">
             <button type="submit"
                 class="inline-flex items-center gap-1 rounded bg-[#2299dd] px-5 py-2 text-sm font-bold text-white hover:bg-[#087fa9] transition-colors"
-                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed" wire:target="choosePractice">
+                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                wire:target="choosePractice">
                 <span wire:loading.remove wire:target="choosePractice">Continue &rarr;</span>
                 <span wire:loading.inline-flex wire:target="choosePractice" class="inline-flex items-center gap-1.5">
                     <x-spinner class="h-3.5 w-3.5" /> Signing in…
@@ -478,8 +487,11 @@ new class extends Component
     @else
     <form wire:submit="loginViaSso" novalidate>
         <div class="mb-4">
-            <label class="block text-sm font-medium text-[#173a59] mb-1.5" for="sso-username">{{ $ssoProvider === 'carecloud' ? 'Email' : 'Username' }}</label>
-            <input wire:model="ssoUsername" id="sso-username" type="{{ $ssoProvider === 'carecloud' ? 'email' : 'text' }}" autocomplete="{{ $ssoProvider === 'carecloud' ? 'email' : 'username' }}" autofocus
+            <label class="block text-sm font-medium text-[#173a59] mb-1.5" for="sso-username">{{ $ssoProvider ===
+                'carecloud' ? 'Email' : 'Username' }}</label>
+            <input wire:model="ssoUsername" id="sso-username"
+                type="{{ $ssoProvider === 'carecloud' ? 'email' : 'text' }}"
+                autocomplete="{{ $ssoProvider === 'carecloud' ? 'email' : 'username' }}" autofocus
                 class="w-full rounded-xl border border-[#d4e5f1] bg-white px-4 py-2.5 text-sm text-[#173a59] placeholder-[#5c778d]/60 focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
             @error('ssoUsername') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
         </div>

@@ -59,6 +59,11 @@ Route::get('/register', function (Request $request) {
         session(['intended_billing_cycle' => $request->query('billing_cycle')]);
     }
 
+    $providers = filter_var($request->query('billable_providers'), FILTER_VALIDATE_INT);
+    if ($providers !== false && $providers >= 0 && $providers <= 9999) {
+        session(['intended_billable_providers' => $providers]);
+    }
+
     return view('auth.register');
 })->name('register');
 Route::get('/forgot-password', fn () => view('auth.forgot-password'))->name('password.request');

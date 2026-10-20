@@ -113,6 +113,8 @@ class WelcomePageTest extends TestCase
         $response->assertSeeText('Do you have written compliance and HIPAA policies today?');
         $response->assertSeeText('Do you also need a Security Risk Assessment or a coding audit this year?');
         $response->assertSeeText('How many billable providers do you have?');
+        $response->assertSee('quizProviders: 0');
+        $response->assertSee('billable_providers=${quizProviders}');
         $response->assertSeeText('We recommend');
     }
 

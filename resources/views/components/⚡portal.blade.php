@@ -142,7 +142,7 @@ new class extends Component
 
     public string $specialty = '';
 
-    public int $billableProviders = 1;
+    public int $billableProviders = 0;
 
     public bool $editingProfile = false;
 
@@ -208,7 +208,7 @@ new class extends Component
             return 0.0;
         }
 
-        $price = ($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0) * max(1, $this->billableProviders);
+        $price = ($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0) * $this->billableProviders;
 
         return round($price * $this->appliedDiscountCode->percentage / 100, 2);
     }
@@ -216,7 +216,7 @@ new class extends Component
     #[Computed]
     public function discountedTotal(): float
     {
-        $price = ($this->selectedPackage?->priceForCycle($this->currentBillingCycle()) ?? 0.0) * max(1, $this->billableProviders);
+        $price = ($this->selectedPackage?->priceForCycle($this->currentBillingCycle()) ?? 0.0) * $this->billableProviders;
 
         return max(0, $price - $this->discountAmount);
     }
@@ -228,7 +228,7 @@ new class extends Component
 
     public function decrementProviders(): void
     {
-        $this->billableProviders = max(1, $this->billableProviders - 1);
+        $this->billableProviders = max(0, $this->billableProviders - 1);
     }
 
     #[Computed]
@@ -417,7 +417,7 @@ new class extends Component
     {
         $practice = $this->practice;
         $reached = $this->primarySubmission?->wizard_reached_screens ?? [];
-        $providers = $practice?->billable_providers_count ?? 1;
+        $providers = $practice?->billable_providers_count ?? 0;
 
         return [
             [
@@ -1002,6 +1002,14 @@ new class extends Component
     {
         $user = auth()->user();
 
+        $queryProviders = request()->query('billable_providers');
+        $requestedProviders = is_scalar($queryProviders)
+            ? filter_var($queryProviders, FILTER_VALIDATE_INT)
+            : false;
+        if ($requestedProviders !== false && $requestedProviders >= 0 && $requestedProviders <= 9999) {
+            $this->billableProviders = $requestedProviders;
+        }
+
         if ($user?->isAdmin()) {
             $this->redirect(route('admin.dashboard'), navigate: true);
 
@@ -1041,7 +1049,7 @@ new class extends Component
         $this->practiceName = $practice->name ?? '';
         $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($checkoutBillingAddress);
         $this->specialty = $practice->specialty ?? '';
-        $this->billableProviders = $practice->billable_providers_count ?? 1;
+        $this->billableProviders = $practice->billable_providers_count ?: $this->billableProviders;
 
         $requestedSlug = request()->query('package');
 
@@ -1435,6 +1443,7 @@ new class extends Component
     {
         $rules = [
             'selectedPackageId' => 'required|exists:packages,id',
+            'billableProviders' => 'required|integer|min:1|max:9999',
             'billingAddress1' => 'required|string|max:255',
             'billingCity' => 'required|string|max:100',
             'billingState' => 'required|string|max:50',
@@ -1523,8 +1532,8 @@ new class extends Component
 
     public function updated(string $property): void
     {
-        $paymentFields = ['selectedPackageId', 'accountName', 'accountEmail', 'billingAddress1', 'billingCity', 'billingState', 'billingZip'];
-        $profileFields = ['practiceName', 'practiceAddress', 'specialty', 'billableProviders', 'logoFile'];
+        $paymentFields = ['selectedPackageId', 'accountName', 'accountEmail', 'billableProviders', 'billingAddress1', 'billingCity', 'billingState', 'billingZip'];
+        $profileFields = ['practiceName', 'practiceAddress', 'specialty', 'logoFile'];
 
         // Switching to a package with no monthly price while Monthly is selected would otherwise
         // leave the toggle pointed at an option that's about to disappear.
@@ -1704,7 +1713,7 @@ new class extends Component
         }
 
         $cycle = $this->effectiveBillingCycle($packages);
-        $providers = max(1, $this->billableProviders);
+        $providers = $this->billableProviders;
         $originalAmount = (float) $packages->sum(fn (Package $p) => ($p->priceForCycle($cycle) ?? 0.0) * $providers);
         $discountAmount = $discountCode ? round($originalAmount * $discountCode->percentage / 100, 2) : 0.0;
         $chargeAmount = max(0, $originalAmount - $discountAmount);
@@ -1898,7 +1907,7 @@ new class extends Component
         $this->practiceName = $practice->name ?? '';
         $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($billingAddress);
         $this->specialty = $practice->specialty ?? '';
-        $this->billableProviders = $practice->billable_providers_count ?? 1;
+        $this->billableProviders = $practice->billable_providers_count ?? 0;
 
         unset(
             $this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders,
@@ -2011,7 +2020,7 @@ new class extends Component
         // Same as pay(): the provider count is confirmed at checkout and drives the price the
         // trial converts to later, via TrialBillingService::convertTrialToPaid()'s frozen
         // original_price.
-        $providers = max(1, $this->billableProviders);
+        $providers = $this->billableProviders;
         auth()->user()->practice?->update(['billable_providers_count' => $providers]);
 
         $billingAddress = [
@@ -2091,7 +2100,7 @@ new class extends Component
         $this->practiceName = $practice->name ?? '';
         $this->practiceAddress = $practice->address ?? $this->formatBillingAddressLine($billingAddress);
         $this->specialty = $practice->specialty ?? '';
-        $this->billableProviders = $practice->billable_providers_count ?? 1;
+        $this->billableProviders = $practice->billable_providers_count ?? 0;
 
         unset(
             $this->batchOrders, $this->completedMilestone, $this->practice, $this->selectedPackage, $this->userOrders,
@@ -2566,13 +2575,13 @@ $progressPct = ($milestone / 4) * 100;
     : $this->currentBillingCycle();
     $heroTotal = $milestone >= 1
     ? $this->batchOrders->sum('original_price')
-    : $heroPackages->sum(fn ($p) => $p->priceForCycle($heroCycle) ?? 0.0) * max(1, $this->billableProviders);
+    : $heroPackages->sum(fn ($p) => $p->priceForCycle($heroCycle) ?? 0.0) * $this->billableProviders;
     $heroProviders = $milestone >= 1 ? auth()->user()?->practice?->billable_providers_count : $this->billableProviders;
     @endphp
     {{-- On desktop widths (xl, ≥1280px) this becomes the right-hand column of a shared grid with
-        the main content — same container, same margins, just a second track — and sticks in place
-        as that (taller) main column scrolls. Below xl there isn't room for a second column, so it
-        stays exactly as it's always been: a static banner at the top of the page. --}}
+    the main content — same container, same margins, just a second track — and sticks in place
+    as that (taller) main column scrolls. Below xl there isn't room for a second column, so it
+    stays exactly as it's always been: a static banner at the top of the page. --}}
     <div class="rounded-[1.25rem] p-4 sm:p-4 xl:col-start-2 xl:row-start-1 xl:sticky xl:top-24"
         style="background: radial-gradient(circle at top right, rgba(118,200,192,0.2), transparent 32%), linear-gradient(145deg, #12304f 0%, #1c416a 100%);">
         <div class="flex flex-col lg:flex-row xl:flex-col lg:items-center xl:items-stretch gap-5">
@@ -2598,9 +2607,13 @@ $progressPct = ($milestone / 4) * 100;
             @if($heroPackages->isNotEmpty())
             <div class="bg-white/92 rounded-[1.25rem] p-4 min-w-48 xl:min-w-0 xl:w-full">
                 <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
+                @if($heroProviders > 0)
                 <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal, $heroTotal ==
                     floor($heroTotal) ? 0 : 2) }}</div>
                 <div class="text-empower-muted text-xs">/ {{ $heroCycle->period() }}</div>
+                @else
+                <div class="text-sm font-semibold text-navy mb-1">Enter provider count to calculate price</div>
+                @endif
                 <div class="text-empower-muted text-xs mt-1">
                     {{ $heroPackages->pluck('name')->implode(' + ') }}
                 </div>
@@ -2618,204 +2631,215 @@ $progressPct = ($milestone / 4) * 100;
     {{-- ── Main column (everything but the hero) — its own track in the xl grid above ── --}}
     <div class="xl:col-start-1 xl:row-start-1 min-w-0 space-y-4">
 
-    {{-- ── Stepper ── --}}
-    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-        <div class="flex justify-between items-center mb-4">
-            <p class="text-xs text-[#5d6e7f]">Complete each step to receive your compliance documents.</p>
-            <span
-                class="inline-flex items-center px-3 py-1 rounded-full bg-[#12304f]/[0.08] text-[#12304f] text-[0.72rem] font-extrabold tracking-wide uppercase">
-                Step {{ $step }} of 5
-            </span>
-        </div>
+        {{-- ── Stepper ── --}}
+        <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+            <div class="flex justify-between items-center mb-4">
+                <p class="text-xs text-[#5d6e7f]">Complete each step to receive your compliance documents.</p>
+                <span
+                    class="inline-flex items-center px-3 py-1 rounded-full bg-[#12304f]/[0.08] text-[#12304f] text-[0.72rem] font-extrabold tracking-wide uppercase">
+                    Step {{ $step }} of 5
+                </span>
+            </div>
 
-        <div class="flex items-start gap-1.5 overflow-x-auto pb-1 -mb-1">
-            @foreach ($steps as $n => $title)
-            @php
-            $isDone = $n <= $milestone; $isActive=$n===$step; $reachable=$this->canReach($n);
-                @endphp
-                <div class="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[4.5rem] {{ $reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}"
-                    @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" wire:target="goToStep({{ $n }})"
-                    wire:loading.class="opacity-50" wire:target="goToStep({{ $n }})" @endif>
-                    <div
-                        class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
-                        {{ $isActive ? 'bg-[#12304f] text-white' : ($isDone ? 'bg-[#0b9ed0] text-white' : 'bg-[#edf2f7] text-[#5d6e7f]') }}">
-                        @if($reachable && !$isActive)
-                        <span wire:loading.remove wire:target="goToStep({{ $n }})">@if($isDone && !$isActive) ✓ @else {{
-                            $n }} @endif</span>
-                        <span wire:loading wire:target="goToStep({{ $n }})">
-                            <x-spinner class="h-3.5 w-3.5" />
-                        </span>
-                        @else
-                        @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
-                        @endif
-                    </div>
-                    <div class="text-[0.78rem] text-center leading-tight max-w-[6rem]
-                        {{ $isActive ? 'font-bold text-[#12304f]' : 'text-[#5d6e7f]' }}">
-                        {{ $title }}
-                    </div>
-                </div>
-                @if(!$loop->last)
-                <div class="flex-1 h-0.5 mt-[1.125rem] min-w-4 {{ $n < $milestone ? 'bg-[#0b9ed0]' : 'bg-[#dfe7ef]' }}">
-                </div>
-                @endif
-                @endforeach
-        </div>
-
-        <div class="mt-4 h-1.5 bg-[#dbe4ee] rounded-full overflow-hidden">
-            <div class="h-full bg-[#12304f] rounded-full transition-all duration-500"
-                style="width: {{ $progressPct }}%"></div>
-        </div>
-    </div>
-
-    {{-- ── Step 1: Payment ── --}}
-    @if($step === 1)
-    <div wire:key="portal-step-1">
-    <div class="space-y-3">
-        @if($this->publicLaunchGateActive && $milestone < 1)
-        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-            <h2 class="text-lg font-semibold text-navy mb-1">We're not quite open to the public yet</h2>
-            <p class="text-sm text-empower-muted mb-4">
-                @if($this->selectedPackage)
-                {{ $this->selectedPackage->name }} isn't available for purchase yet.
-                @else
-                Purchasing isn't available yet.
-                @endif
-                Leave your email and we'll let you know the moment it is.
-            </p>
-            @if($signedUpForUpdates)
-            <p class="text-sm font-semibold text-[#117a51]">&#10003; Thanks — we'll email you as soon as this package is available.</p>
-            @else
-            <form wire:submit="signUpForUpdates" class="flex flex-col sm:flex-row gap-2.5 max-w-md">
-                <input wire:model="updatesEmail" type="email" required placeholder="you@practice.com"
-                    class="flex-1 rounded-xl border {{ $errors->has('updatesEmail') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                <button type="submit" wire:loading.attr="disabled" wire:target="signUpForUpdates"
-                    class="inline-flex items-center justify-center gap-1.5 rounded bg-accent px-5 py-2.5 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50">
-                    <span wire:loading.remove wire:target="signUpForUpdates">Sign up for updates</span>
-                    <span wire:loading.inline-flex wire:target="signUpForUpdates" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </form>
-            @error('updatesEmail') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-            @endif
-        </div>
-        @else
-        @if($milestone >= 1)
-        @php
-        $firstBatchOrder = $this->batchOrders->first();
-        $isTrialBatch = $firstBatchOrder?->payment_status === PaymentStatus::Trialing;
-        $totalPaidAmount = (float) $this->batchOrders->sum('amount_paid');
-        $cardEnding = $firstBatchOrder?->card_last_four;
-        $paidProviders = auth()->user()?->practice?->billable_providers_count;
-        @endphp
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
-            <div
-                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-                <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
-                <p class="text-sm text-empower-muted">
-                    Complete payment first to unlock your practice intake form. Your documents are generated
-                    automatically
-                    once intake is submitted and reviewed.
-                </p>
-
-                @foreach($this->batchOrders as $order)
+            <div class="flex items-start gap-1.5 overflow-x-auto pb-1 -mb-1">
+                @foreach ($steps as $n => $title)
                 @php
-                $orderIsTrial = $order->payment_status === PaymentStatus::Trialing;
-                $orderPrice = (float) $order->original_price;
-                $orderPaid = (float) $order->amount_paid;
-                @endphp
-                <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
-                    <div>
-                        <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
-                        <p class="text-xs text-empower-muted">${{ number_format($orderPrice, $orderPrice ==
-                            floor($orderPrice) ? 0 : 2) }} /
-                            {{ $order->billing_cycle?->period() }}</p>
+                $isDone = $n <= $milestone; $isActive=$n===$step; $reachable=$this->canReach($n);
+                    @endphp
+                    <div class="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[4.5rem] {{ $reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}"
+                        @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" wire:target="goToStep({{ $n }})"
+                        wire:loading.class="opacity-50" wire:target="goToStep({{ $n }})" @endif>
+                        <div
+                            class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
+                        {{ $isActive ? 'bg-[#12304f] text-white' : ($isDone ? 'bg-[#0b9ed0] text-white' : 'bg-[#edf2f7] text-[#5d6e7f]') }}">
+                            @if($reachable && !$isActive)
+                            <span wire:loading.remove wire:target="goToStep({{ $n }})">@if($isDone && !$isActive) ✓
+                                @else {{
+                                $n }} @endif</span>
+                            <span wire:loading wire:target="goToStep({{ $n }})">
+                                <x-spinner class="h-3.5 w-3.5" />
+                            </span>
+                            @else
+                            @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
+                            @endif
+                        </div>
+                        <div class="text-[0.78rem] text-center leading-tight max-w-[6rem]
+                        {{ $isActive ? 'font-bold text-[#12304f]' : 'text-[#5d6e7f]' }}">
+                            {{ $title }}
+                        </div>
                     </div>
-                    <div class="flex flex-col items-end gap-1">
-                        <span
-                            class="inline-flex items-center px-2.5 py-1 rounded-full bg-[#d7f3ea] text-[#117a51] text-[0.68rem] font-extrabold tracking-wide uppercase">
-                            {{ $orderIsTrial ? 'Trial' : 'Paid' }}
-                        </span>
-                        <a href="{{ route('orders.receipt', $order) }}" target="_blank"
-                            class="text-xs font-semibold text-[#1a7aad] hover:underline">View Receipt</a>
+                    @if(!$loop->last)
+                    <div
+                        class="flex-1 h-0.5 mt-[1.125rem] min-w-4 {{ $n < $milestone ? 'bg-[#0b9ed0]' : 'bg-[#dfe7ef]' }}">
                     </div>
-                </div>
-
-                <div class="py-2.5 border-b border-[#eef2f6] mb-2">
-                    @if($order->discount_code)
-                    <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $order->discount_code
-                            }})</span>
-                        <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format((float)
-                            $order->discount_amount, 2) }}</span>
-                    </div>
-                    @else
-                    <p class="text-sm text-empower-muted">No discount applied</p>
                     @endif
-                </div>
-
-                <div
-                    class="flex items-center justify-between pt-2 {{ !$loop->last ? 'border-b border-[#eef2f6] mb-2 pb-2.5' : '' }}">
-                    <span class="text-sm font-semibold text-[#173045]">{{ $orderIsTrial ? 'Due Today' : 'Paid'
-                        }}</span>
-                    <span class="text-lg font-extrabold text-navy">${{ number_format($orderPaid, $orderPaid ==
-                        floor($orderPaid) ? 0 : 2) }}</span>
-                </div>
-                @endforeach
-
-                @if($newAccountEmail)
-                <div class="mt-1 pt-3 border-t border-[#eef2f6]">
-                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.1</p>
-                    <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
-                    <p class="text-xs text-empower-muted">Account created for {{ auth()->user()->name }}
-                        ({{ $newAccountEmail }}). A login password would be emailed there.</p>
-                </div>
-                @endif
-
-                <div class="flex items-center justify-between gap-3 pt-3 mt-3 border-t border-[#eef2f6]">
-                    <div>
-                        <p class="text-sm font-semibold text-[#31465b]">How many billable providers do you have?</p>
-                        <p class="text-xs text-empower-muted mt-0.5 max-w-sm">Physicians and non-physician
-                            practitioners billing under your group NPI.</p>
-                    </div>
-                    <p class="text-sm font-semibold text-navy flex-shrink-0">{{ $paidProviders }} provider{{
-                        $paidProviders === 1 ? '' : 's' }}</p>
-                </div>
+                    @endforeach
             </div>
 
-            <div
-                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.2</p>
-                <h3 class="text-lg font-semibold text-navy mb-3">Payment Details</h3>
-                <div
-                    @if($justPaid) x-data x-init="$el.animate([{ backgroundColor: '#d7f3e3' }, { backgroundColor: '#eef8f3' }], { duration: 1200, easing: 'ease-out' })" @endif
-                    class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5">
-                    <span class="text-[#117a51]">&#10003;</span>
-                    <p class="text-sm font-semibold text-[#0f7a4f]">
-                        @if($isTrialBatch)
-                        Your free trial has started{{ $firstBatchOrder?->paid_at ? ' on
-                        '.$firstBatchOrder->paid_at->format('M j, Y') : '' }}{{ $cardEnding ? " (card ending
-                        {$cardEnding})" : '' }}.
-                        @else
-                        Payment of ${{ number_format($totalPaidAmount, $totalPaidAmount == floor($totalPaidAmount) ? 0
-                        : 2)
-                        }} received{{ $firstBatchOrder?->paid_at ? ' on '.$firstBatchOrder->paid_at->format('M j, Y') :
-                        ''
-                        }}{{ $cardEnding ? " (card ending {$cardEnding})" : '' }}.
-                        @endif
-                    </p>
-                </div>
+            <div class="mt-4 h-1.5 bg-[#dbe4ee] rounded-full overflow-hidden">
+                <div class="h-full bg-[#12304f] rounded-full transition-all duration-500"
+                    style="width: {{ $progressPct }}%"></div>
             </div>
         </div>
-        @elseif(! $this->selectedPackage && $milestone < 1)
-        <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
-            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-            <h2 class="text-lg font-semibold text-navy mb-1">Choose a package to continue</h2>
-            <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">
-                Pick the package that fits your practice before paying. You can compare every package on our pricing page.
-            </p>
-            <a href="{{ route('home') }}#pricing"
-                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View packages &rarr;</a>
+
+        {{-- ── Step 1: Payment ── --}}
+        @if($step === 1)
+        <div wire:key="portal-step-1">
+            <div class="space-y-3">
+                @if($this->publicLaunchGateActive && $milestone < 1) <div
+                    class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+                    <h2 class="text-lg font-semibold text-navy mb-1">We're not quite open to the public yet</h2>
+                    <p class="text-sm text-empower-muted mb-4">
+                        @if($this->selectedPackage)
+                        {{ $this->selectedPackage->name }} isn't available for purchase yet.
+                        @else
+                        Purchasing isn't available yet.
+                        @endif
+                        Leave your email and we'll let you know the moment it is.
+                    </p>
+                    @if($signedUpForUpdates)
+                    <p class="text-sm font-semibold text-[#117a51]">&#10003; Thanks — we'll email you as soon as this
+                        package is available.</p>
+                    @else
+                    <form wire:submit="signUpForUpdates" class="flex flex-col sm:flex-row gap-2.5 max-w-md">
+                        <input wire:model="updatesEmail" type="email" required placeholder="you@practice.com"
+                            class="flex-1 rounded-xl border {{ $errors->has('updatesEmail') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        <button type="submit" wire:loading.attr="disabled" wire:target="signUpForUpdates"
+                            class="inline-flex items-center justify-center gap-1.5 rounded bg-accent px-5 py-2.5 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50">
+                            <span wire:loading.remove wire:target="signUpForUpdates">Sign up for updates</span>
+                            <span wire:loading.inline-flex wire:target="signUpForUpdates"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </form>
+                    @error('updatesEmail') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                    @endif
+            </div>
+            @else
+            @if($milestone >= 1)
+            @php
+            $firstBatchOrder = $this->batchOrders->first();
+            $isTrialBatch = $firstBatchOrder?->payment_status === PaymentStatus::Trialing;
+            $totalPaidAmount = (float) $this->batchOrders->sum('amount_paid');
+            $cardEnding = $firstBatchOrder?->card_last_four;
+            $paidProviders = auth()->user()?->practice?->billable_providers_count;
+            @endphp
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+                <div
+                    class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+                    <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
+                    <p class="text-sm text-empower-muted">
+                        Complete payment first to unlock your practice intake form. Your documents are generated
+                        automatically
+                        once intake is submitted and reviewed.
+                    </p>
+
+                    @foreach($this->batchOrders as $order)
+                    @php
+                    $orderIsTrial = $order->payment_status === PaymentStatus::Trialing;
+                    $orderPrice = (float) $order->original_price;
+                    $orderPaid = (float) $order->amount_paid;
+                    @endphp
+                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
+                        <div>
+                            <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
+                            <p class="text-xs text-empower-muted">${{ number_format($orderPrice, $orderPrice ==
+                                floor($orderPrice) ? 0 : 2) }} /
+                                {{ $order->billing_cycle?->period() }}</p>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span
+                                class="inline-flex items-center px-2.5 py-1 rounded-full bg-[#d7f3ea] text-[#117a51] text-[0.68rem] font-extrabold tracking-wide uppercase">
+                                {{ $orderIsTrial ? 'Trial' : 'Paid' }}
+                            </span>
+                            <a href="{{ route('orders.receipt', $order) }}" target="_blank"
+                                class="text-xs font-semibold text-[#1a7aad] hover:underline">View Receipt</a>
+                        </div>
+                    </div>
+
+                    <div class="py-2.5 border-b border-[#eef2f6] mb-2">
+                        @if($order->discount_code)
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $order->discount_code
+                                }})</span>
+                            <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format((float)
+                                $order->discount_amount, 2) }}</span>
+                        </div>
+                        @else
+                        <p class="text-sm text-empower-muted">No discount applied</p>
+                        @endif
+                    </div>
+
+                    <div
+                        class="flex items-center justify-between pt-2 {{ !$loop->last ? 'border-b border-[#eef2f6] mb-2 pb-2.5' : '' }}">
+                        <span class="text-sm font-semibold text-[#173045]">{{ $orderIsTrial ? 'Due Today' : 'Paid'
+                            }}</span>
+                        <span class="text-lg font-extrabold text-navy">${{ number_format($orderPaid, $orderPaid ==
+                            floor($orderPaid) ? 0 : 2) }}</span>
+                    </div>
+                    @endforeach
+
+                    @if($newAccountEmail)
+                    <div class="mt-1 pt-3 border-t border-[#eef2f6]">
+                        <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.1</p>
+                        <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
+                        <p class="text-xs text-empower-muted">Account created for {{ auth()->user()->name }}
+                            ({{ $newAccountEmail }}). A login password would be emailed there.</p>
+                    </div>
+                    @endif
+
+                    <div class="flex items-center justify-between gap-3 pt-3 mt-3 border-t border-[#eef2f6]">
+                        <div>
+                            <p class="text-sm font-semibold text-[#31465b]">How many billable providers do you have?</p>
+                            <p class="text-xs text-empower-muted mt-0.5 max-w-sm">Physicians and non-physician
+                                practitioners billing under your group NPI.</p>
+                        </div>
+                        <p class="text-sm font-semibold text-navy flex-shrink-0">{{ $paidProviders }} provider{{
+                            $paidProviders === 1 ? '' : 's' }}</p>
+                    </div>
+                </div>
+
+                <div
+                    class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.2</p>
+                    <h3 class="text-lg font-semibold text-navy mb-3">Payment Details</h3>
+                    <div @if($justPaid) x-data
+                        x-init="$el.animate([{ backgroundColor: '#d7f3e3' }, { backgroundColor: '#eef8f3' }], { duration: 1200, easing: 'ease-out' })"
+                        @endif
+                        class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5">
+                        <span class="text-[#117a51]">&#10003;</span>
+                        <p class="text-sm font-semibold text-[#0f7a4f]">
+                            @if($isTrialBatch)
+                            Your free trial has started{{ $firstBatchOrder?->paid_at ? ' on
+                            '.$firstBatchOrder->paid_at->format('M j, Y') : '' }}{{ $cardEnding ? " (card ending
+                            {$cardEnding})" : '' }}.
+                            @else
+                            Payment of ${{ number_format($totalPaidAmount, $totalPaidAmount == floor($totalPaidAmount) ?
+                            0
+                            : 2)
+                            }} received{{ $firstBatchOrder?->paid_at ? ' on '.$firstBatchOrder->paid_at->format('M j,
+                            Y') :
+                            ''
+                            }}{{ $cardEnding ? " (card ending {$cardEnding})" : '' }}.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+            </div>
+            @elseif(! $this->selectedPackage && $milestone < 1) <div
+                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+                <h2 class="text-lg font-semibold text-navy mb-1">Choose a package to continue</h2>
+                <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">
+                    Pick the package that fits your practice before paying. You can compare every package on our pricing
+                    page.
+                </p>
+                <a href="{{ route('home') }}#pricing"
+                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View
+                    packages &rarr;</a>
         </div>
         @else
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
@@ -2885,19 +2909,30 @@ $progressPct = ($milestone / 4) * 100;
                     @endif
                 </div>
 
-                @php $perProviderDisplay = ($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0) * max(1, $this->billableProviders); @endphp
+                @php $perProviderDisplay = ($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0)
+                * $this->billableProviders; @endphp
                 @if($this->isFreeTrialCheckout)
                 <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                     <span class="text-sm font-semibold text-[#173045]">Due Today</span>
                     <span class="text-lg font-extrabold text-navy">$0.00</span>
                 </div>
-                <p class="text-xs text-empower-muted mt-1">Then ${{ number_format($perProviderDisplay, 2) }}/{{
-                    $this->currentBillingCycle()->period() }} once your free trial ends, unless you cancel first.</p>
+                <p class="text-xs text-empower-muted mt-1">Then
+                    @if($this->billableProviders > 0)
+                    ${{ number_format($perProviderDisplay, 2) }}/{{ $this->currentBillingCycle()->period() }}
+                    @else
+                    enter your provider count to calculate pricing
+                    @endif
+                    once your free trial ends, unless you cancel first.</p>
                 @else
                 <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
                     <span class="text-sm font-semibold text-[#173045]">Total</span>
-                    <span class="text-lg font-extrabold text-navy">${{ number_format($this->discountedTotal, 2)
-                        }}</span>
+                    <span class="text-lg font-extrabold text-navy">
+                        @if($this->billableProviders > 0)
+                        ${{ number_format($this->discountedTotal, 2) }}
+                        @else
+                        Enter provider count
+                        @endif
+                    </span>
                 </div>
                 @if($this->billableProviders > 1)
                 <p class="text-xs text-empower-muted mt-1 text-right">{{ $this->billableProviders }} &times; ${{
@@ -2945,13 +2980,13 @@ $progressPct = ($milestone / 4) * 100;
                         <label class="block text-sm font-semibold text-[#31465b]">How many billable providers do you
                             have? <span class="text-red-500">*</span></label>
                         <p class="text-xs text-empower-muted mt-0.5 max-w-sm">Physicians and non-physician
-                            practitioners billing under your group NPI.</p>
+                            practitioners billing under your group NPI. Required to calculate your price.</p>
                         @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0">
                         <button type="button" wire:click="decrementProviders" aria-label="Fewer providers"
                             class="h-9 w-9 rounded-lg border border-empower-border text-navy font-bold hover:bg-page transition-colors">&minus;</button>
-                        <input wire:model.live="billableProviders" type="number" min="1" max="9999"
+                        <input wire:model.live="billableProviders" type="number" min="0" max="9999"
                             aria-label="Billable providers"
                             class="w-16 text-center rounded-lg border border-empower-border bg-[#f8fbfd] px-2 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                         <button type="button" wire:click="incrementProviders" aria-label="More providers"
@@ -3040,8 +3075,8 @@ $progressPct = ($milestone / 4) * 100;
                         <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span
                                 class="text-red-500">*</span></label>
                         <input type="text" placeholder="7 Clyde Road" required maxlength="255" autocomplete="off"
-                            role="combobox" aria-autocomplete="list" aria-expanded="open" data-ac-field="billingAddress1"
-                            x-model="query" x-on:input="onAddressInput()"
+                            role="combobox" aria-autocomplete="list" aria-expanded="open"
+                            data-ac-field="billingAddress1" x-model="query" x-on:input="onAddressInput()"
                             x-on:keydown.down.prevent="move(1)" x-on:keydown.up.prevent="move(-1)"
                             x-on:keydown.enter.prevent="chooseHighlighted()" x-on:keydown.escape="close()"
                             x-on:blur="setTimeout(() => close(), 150)"
@@ -3078,7 +3113,8 @@ $progressPct = ($milestone / 4) * 100;
                             <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span
                                     class="text-red-500">*</span></label>
                             <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric"
-                                required maxlength="10" data-ac-field="billingZip" x-on:input="onZipInput($event.target.value)"
+                                required maxlength="10" data-ac-field="billingZip"
+                                x-on:input="onZipInput($event.target.value)"
                                 class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
                             @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         </div>
@@ -3092,12 +3128,13 @@ $progressPct = ($milestone / 4) * 100;
                         wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
                         wire:target="validatePayment">
                         <span wire:loading.remove wire:target="validatePayment">
-                            @if($this->isFreeTrialCheckout)
-                            Start Free Trial &rarr;
-                            @else
-                            Pay ${{ number_format($this->discountedTotal, 2) }}
-                            &rarr;
-                            @endif
+                            @if($this->billableProviders < 1) Enter provider count &rarr; @elseif($this->
+                                isFreeTrialCheckout)
+                                Start Free Trial &rarr;
+                                @else
+                                Pay ${{ number_format($this->discountedTotal, 2) }}
+                                &rarr;
+                                @endif
                         </span>
                         <span wire:loading.inline-flex wire:target="validatePayment"
                             class="inline-flex items-center gap-1.5">
@@ -3130,12 +3167,10 @@ $progressPct = ($milestone / 4) * 100;
                                 Cancel
                             </button>
                             @if($this->isFreeTrialCheckout)
-                            <button type="button" wire:key="terms-confirm-payfreetrial"
-                                x-on:click="
+                            <button type="button" wire:key="terms-confirm-payfreetrial" x-on:click="
                                     if (!navigator.onLine) { $dispatch('toast', { message: 'You\'re offline. Reconnect to the internet, then try again.', type: 'error' }); return; }
                                     $wire.payFreeTrial($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)
-                                "
-                                :disabled="!termsAccepted"
+                                " :disabled="!termsAccepted"
                                 :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
                                 class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
                                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
@@ -3148,12 +3183,10 @@ $progressPct = ($milestone / 4) * 100;
                                 </span>
                             </button>
                             @else
-                            <button type="button" wire:key="terms-confirm-pay"
-                                x-on:click="
+                            <button type="button" wire:key="terms-confirm-pay" x-on:click="
                                     if (!navigator.onLine) { $dispatch('toast', { message: 'You\'re offline. Reconnect to the internet, then try again.', type: 'error' }); return; }
                                     $wire.pay($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)
-                                "
-                                :disabled="!termsAccepted"
+                                " :disabled="!termsAccepted"
                                 :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
                                 class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
                                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
@@ -3184,12 +3217,12 @@ $progressPct = ($milestone / 4) * 100;
         </div>
         @endif
     </div>
-    </div>
-    @endif
+</div>
+@endif
 
-    {{-- ── Step 2: Practice Intake ── --}}
-    @if($step === 2)
-    <div wire:key="portal-step-2">
+{{-- ── Step 2: Practice Intake ── --}}
+@if($step === 2)
+<div wire:key="portal-step-2">
     @if($editingProfile)
     <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
         <div
@@ -3309,12 +3342,12 @@ $progressPct = ($milestone / 4) * 100;
     @endif
 
     <livewire:portal.osha-location-modal :practiceId="$this->practice?->id ?? 0" />
-    </div>
-    @endif
+</div>
+@endif
 
-    {{-- ── Step 3: Upload & Confirm ── --}}
-    @if($step === 3)
-    <div wire:key="portal-step-3">
+{{-- ── Step 3: Upload & Confirm ── --}}
+@if($step === 3)
+<div wire:key="portal-step-3">
     @php
     $primarySub = $this->primarySubmission;
     $primaryOrder = $this->batchOrders->firstWhere('id', min($this->orderIds ?: [0]));
@@ -3426,7 +3459,8 @@ $progressPct = ($milestone / 4) * 100;
             @if(! $includesWorkflowQuestionnaire && collect($this->reviewDocumentCategories)->keys()->contains(fn ($key)
             => $this->reviewDocumentCategoryStatus($key) === 'declined'))
             <div class="rounded-xl bg-[#fdf3e0] px-3.5 py-2.5 mb-3 text-xs text-[#8a5a0f] leading-relaxed">
-                The package you selected requires you to upload your current documents. If you do not have any documents to upload, please upgrade your package.
+                The package you selected requires you to upload your current documents. If you do not have any documents
+                to upload, please upgrade your package.
                 <a href="{{ route('home') }}#pricing" class="font-bold underline hover:no-underline">Compare
                     packages</a>
             </div>
@@ -3448,12 +3482,14 @@ $progressPct = ($milestone / 4) * 100;
             @endif
 
             @if(! $isSubmitted)
-            <div class="rounded-xl border border-dashed border-[#dbe4ee] bg-[#f8fbfd] p-4" x-data="{ uploading: false, progress: 0 }"
+            <div class="rounded-xl border border-dashed border-[#dbe4ee] bg-[#f8fbfd] p-4"
+                x-data="{ uploading: false, progress: 0 }"
                 x-on:livewire-upload-start.window="uploading = true; progress = 0"
                 x-on:livewire-upload-finish.window="uploading = false"
                 x-on:livewire-upload-error.window="uploading = false"
                 x-on:livewire-upload-progress.window="progress = $event.detail.progress">
-                <p class="text-sm font-semibold text-[#31465b] mb-2.5">If you have any other forms related to your compliance program and you want them included in your manual, please upload them here.</p>
+                <p class="text-sm font-semibold text-[#31465b] mb-2.5">If you have any other forms related to your
+                    compliance program and you want them included in your manual, please upload them here.</p>
                 <div class="flex flex-wrap items-start gap-2">
                     <div class="flex-1 min-w-[10rem]">
                         <input wire:model="step3DocumentFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx"
@@ -3462,9 +3498,11 @@ $progressPct = ($milestone / 4) * 100;
                         @error('step3DocumentFile') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                         <div x-show="uploading" x-cloak class="mt-2">
                             <div class="h-1.5 rounded-full bg-[#e8eef4] overflow-hidden">
-                                <div class="h-full rounded-full bg-[#0b9ed0] transition-all duration-75" :style="`width: ${progress}%`"></div>
+                                <div class="h-full rounded-full bg-[#0b9ed0] transition-all duration-75"
+                                    :style="`width: ${progress}%`"></div>
                             </div>
-                            <p class="text-[11px] text-[#5c778d] mt-1">Uploading&hellip; <span x-text="progress"></span>%</p>
+                            <p class="text-[11px] text-[#5c778d] mt-1">Uploading&hellip; <span
+                                    x-text="progress"></span>%</p>
                         </div>
                     </div>
                     <select wire:model="step3DocumentCategory"
@@ -3501,7 +3539,9 @@ $progressPct = ($milestone / 4) * 100;
                 @endif
             </div>
             @if($this->batchOrders->contains(fn ($o) => $o->package?->includesWorkflowQuestionnaire()))
-            <p class="text-xs text-[#8592a1] mb-3">Your responses are used exactly as entered. Empower does not edit practice responses. Questions marked &ldquo;Policy default&rdquo; use the manual's best-practice language.</p>
+            <p class="text-xs text-[#8592a1] mb-3">Your responses are used exactly as entered. Empower does not edit
+                practice responses. Questions marked &ldquo;Policy default&rdquo; use the manual's best-practice
+                language.</p>
             @endif
             <div class="divide-y divide-[#eef2f6] border border-[#eef2f6] rounded-xl">
                 @foreach($this->answerSummaryRows as $row)
@@ -3534,21 +3574,23 @@ $progressPct = ($milestone / 4) * 100;
                         $badge = $detail['badge'] ?? ($detail['done'] ? ['label' => 'Done', 'class' => 'bg-[#d7f3ea]
                         text-[#117a51]'] : ['label' => 'Pending', 'class' => 'bg-[#eef1f5] text-[#5d6e7f]']);
                         $detailQuestionId = str_starts_with($detail['screen'] ?? '', 'question:')
-                            ? (int) substr($detail['screen'], strlen('question:'))
-                            : null;
+                        ? (int) substr($detail['screen'], strlen('question:'))
+                        : null;
                         @endphp
                         @if($detailQuestionId !== null && $this->inlineEditQuestionId === $detailQuestionId)
                         {{-- Inline editor — workflow-question answers only, matching the
-                             prototype's own inlineEditor(), which is also question-only. --}}
+                        prototype's own inlineEditor(), which is also question-only. --}}
                         <div class="rounded-xl border border-[#9ed3e9] bg-[#f2f9fd] p-3 space-y-2.5">
                             <p class="text-xs font-semibold text-[#173045]">{{ $detail['label'] }}</p>
                             <div class="space-y-1.5">
                                 <label class="flex items-center gap-2 text-xs text-[#173045] cursor-pointer">
-                                    <input type="radio" wire:model.live="inlineEditHasDocumentedProcess" value="1" class="accent-[#12304f]">
+                                    <input type="radio" wire:model.live="inlineEditHasDocumentedProcess" value="1"
+                                        class="accent-[#12304f]">
                                     We have a process
                                 </label>
                                 <label class="flex items-center gap-2 text-xs text-[#173045] cursor-pointer">
-                                    <input type="radio" wire:model.live="inlineEditHasDocumentedProcess" value="0" class="accent-[#12304f]">
+                                    <input type="radio" wire:model.live="inlineEditHasDocumentedProcess" value="0"
+                                        class="accent-[#12304f]">
                                     We don't have a process
                                 </label>
                             </div>
@@ -3558,12 +3600,17 @@ $progressPct = ($milestone / 4) * 100;
                             @error('inlineEditResponse') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
                             @endif
                             <div class="flex items-center gap-3">
-                                <button type="button" wire:click="saveInlineEdit" wire:target="saveInlineEdit" wire:loading.attr="disabled"
+                                <button type="button" wire:click="saveInlineEdit" wire:target="saveInlineEdit"
+                                    wire:loading.attr="disabled"
                                     class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
                                     <span wire:loading.remove wire:target="saveInlineEdit">Save</span>
-                                    <span wire:loading.inline-flex wire:target="saveInlineEdit" class="inline-flex items-center gap-1.5"><x-spinner class="h-3 w-3" /> Saving&hellip;</span>
+                                    <span wire:loading.inline-flex wire:target="saveInlineEdit"
+                                        class="inline-flex items-center gap-1.5">
+                                        <x-spinner class="h-3 w-3" /> Saving&hellip;
+                                    </span>
                                 </button>
-                                <button type="button" wire:click="cancelInlineEdit" class="text-xs font-semibold text-[#5d6e7f] hover:underline">Cancel</button>
+                                <button type="button" wire:click="cancelInlineEdit"
+                                    class="text-xs font-semibold text-[#5d6e7f] hover:underline">Cancel</button>
                             </div>
                         </div>
                         @else
@@ -3676,12 +3723,12 @@ $progressPct = ($milestone / 4) * 100;
             </div>
         </div>
     </div>
-    </div>
-    @endif
+</div>
+@endif
 
-    {{-- ── Step 4: Review ── --}}
-    @if($step === 4)
-    <div wire:key="portal-step-4">
+{{-- ── Step 4: Review ── --}}
+@if($step === 4)
+<div wire:key="portal-step-4">
     @php
     $reviewStages = [
     ['Submitted', 'We received your intake and documents.'],
@@ -3699,8 +3746,9 @@ $progressPct = ($milestone / 4) * 100;
 
         @if($justSubmitted)
         {{-- One-shot cosmetic loading sequence right after finalizeIntake() — purely client-side
-             timing, no real backend stage happens between "Submitted" and "In review" below. --}}
-        <div class="rounded-2xl border border-[#e6edf4] bg-[#f6f9fc] px-4 py-4 mb-5" x-data="{ pct: 0, message: 'Sending your responses…' }" x-init="
+        timing, no real backend stage happens between "Submitted" and "In review" below. --}}
+        <div class="rounded-2xl border border-[#e6edf4] bg-[#f6f9fc] px-4 py-4 mb-5"
+            x-data="{ pct: 0, message: 'Sending your responses…' }" x-init="
                 setTimeout(() => { pct = 25; message = 'Uploading your documents…'; }, 500);
                 setTimeout(() => { pct = 55; message = 'Reading documents and answers…'; }, 1100);
                 setTimeout(() => { pct = 85; message = 'Queuing for review…'; }, 1700);
@@ -3742,145 +3790,170 @@ $progressPct = ($milestone / 4) * 100;
             $cls = $i === 0 ? 'cur' : 'upcoming';
             $note = null;
             } elseif ($isRejected) {
-            $cls = $i < 3 ? 'done' : 'upcoming';
-            $note = $i < 2 ? $subAt->format('M j, g:i A') : null;
-            if ($i === 3) {
-            $cls = 'rejected';
-            $title = 'Changes requested';
-            $desc = $submission->reviewer_notes ?: 'Please review and resubmit.';
-            }
-            } else {
-            $cls = match (true) {
-            $isApproved => 'done',
-            $i < 2 => 'done',
-            $i === 2 => 'cur',
-            $i === 3 && $pendingQuestion => 'attn',
-            $i === 3 && $questionAnswered => 'done',
-            default => 'upcoming',
-            };
-            $note = null;
-            if ($i < 2 && $cls === 'done') {
-            $note = $subAt->format('M j, g:i A');
-            }
-            if ($i === 2 && $cls === 'cur') {
-            $note = 'Started '.($submission->under_review_started_at ?? $subAt)->format('M j, g:i A');
-            }
-            if ($i === 3 && $cls === 'done' && $questionAnswered) {
-            $note = $reviewerQuestions->last()->replied_at?->format('M j, g:i A');
-            }
-            if ($i === 4 && $isApproved) {
-            $note = $submission->reviewed_at?->format('M j, g:i A');
-            }
-            if ($i === 3) {
-            if ($pendingQuestion) {
-            $desc = 'Your reviewer asked a question. Reply to it above so we can finish.';
-            } elseif ($questionAnswered) {
-            $desc = 'You answered the reviewer’s question.';
-            } elseif ($isApproved) {
-            $desc = 'No questions were needed.';
-            }
-            }
-            if ($i === 4 && ! $isApproved) {
-            $desc = "{$desc} Expected by {$dueBy->format('D, M j')}.";
-            }
-            }
-            $stageRows[] = ['title' => $title, 'desc' => $desc, 'cls' => $cls, 'note' => $note];
-            }
-            @endphp
-            <div>
-                <p class="text-sm font-semibold text-[#12304f] mb-3">{{ $order->package?->name }}</p>
+            $cls = $i < 3 ? 'done' : 'upcoming' ; $note=$i < 2 ? $subAt->format('M j, g:i A') : null;
+                if ($i === 3) {
+                $cls = 'rejected';
+                $title = 'Changes requested';
+                $desc = $submission->reviewer_notes ?: 'Please review and resubmit.';
+                }
+                } else {
+                $cls = match (true) {
+                $isApproved => 'done',
+                $i < 2=> 'done',
+                    $i === 2 => 'cur',
+                    $i === 3 && $pendingQuestion => 'attn',
+                    $i === 3 && $questionAnswered => 'done',
+                    default => 'upcoming',
+                    };
+                    $note = null;
+                    if ($i < 2 && $cls==='done' ) { $note=$subAt->format('M j, g:i A');
+                        }
+                        if ($i === 2 && $cls === 'cur') {
+                        $note = 'Started '.($submission->under_review_started_at ?? $subAt)->format('M j, g:i A');
+                        }
+                        if ($i === 3 && $cls === 'done' && $questionAnswered) {
+                        $note = $reviewerQuestions->last()->replied_at?->format('M j, g:i A');
+                        }
+                        if ($i === 4 && $isApproved) {
+                        $note = $submission->reviewed_at?->format('M j, g:i A');
+                        }
+                        if ($i === 3) {
+                        if ($pendingQuestion) {
+                        $desc = 'Your reviewer asked a question. Reply to it above so we can finish.';
+                        } elseif ($questionAnswered) {
+                        $desc = 'You answered the reviewer’s question.';
+                        } elseif ($isApproved) {
+                        $desc = 'No questions were needed.';
+                        }
+                        }
+                        if ($i === 4 && ! $isApproved) {
+                        $desc = "{$desc} Expected by {$dueBy->format('D, M j')}.";
+                        }
+                        }
+                        $stageRows[] = ['title' => $title, 'desc' => $desc, 'cls' => $cls, 'note' => $note];
+                        }
+                        @endphp
+                        <div>
+                            <p class="text-sm font-semibold text-[#12304f] mb-3">{{ $order->package?->name }}</p>
 
-                @if(! $justSubmitted)
-                @if($isRejected)
-                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 mb-4">
-                    <p class="text-sm font-semibold text-red-700 mb-1">Changes requested</p>
-                    <p class="text-sm text-red-700 mb-3">{{ $submission->reviewer_notes ?: 'Please review and resubmit.' }}</p>
-                    <button wire:click="reuploadForOrder({{ $order->id }})" wire:target="reuploadForOrder({{ $order->id }})"
-                        wire:loading.attr="disabled"
-                        class="inline-flex items-center gap-1 rounded bg-[#9f1239] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#881337] transition-colors">
-                        <span wire:loading.remove wire:target="reuploadForOrder({{ $order->id }})">Update &amp; Resubmit &rarr;</span>
-                        <span wire:loading.inline-flex wire:target="reuploadForOrder({{ $order->id }})" class="inline-flex items-center gap-1.5">
-                            <x-spinner class="h-3.5 w-3.5" /> Loading…
-                        </span>
-                    </button>
-                </div>
-                @else
-                {{-- "celebrate" block --}}
-                <div class="text-center px-2 pt-1 pb-1 mb-1">
-                    <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#1f9d6b] bg-[#e6f6ef]">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 13l4 4 10-10" stroke="#1f9d6b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                    </div>
-                    <h3 class="text-[19px] font-extrabold text-[#0e1b30] mb-1.5">
-                        {{ $isApproved ? 'Approved — your documents are ready' : 'Submitted — pending review' }}
-                    </h3>
-                    <p class="text-sm text-[#5d6e7f] leading-relaxed max-w-md mx-auto">
-                        @if($isApproved)
-                        Great news, {{ $reviewerFirstName }}. Your submission was approved and your documents have been generated.
-                        @else
-                        Thanks, {{ $reviewerFirstName }}. Your intake is now pending review. We'll reach out if we have any questions or need clarification.
-                        @endif
-                    </p>
-                    <p class="inline-flex items-center gap-1.5 mt-3 rounded-full bg-[#e6f6ef] px-3 py-1.5 text-xs text-[#135f41]">
-                        @if($isApproved)
-                        &#10003; We've emailed a confirmation to <strong>{{ auth()->user()?->email }}</strong>.
-                        @else
-                        You'll receive an email confirmation at <strong>{{ auth()->user()?->email }}</strong> once it's approved.
-                        @endif
-                    </p>
-                </div>
+                            @if(! $justSubmitted)
+                            @if($isRejected)
+                            <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 mb-4">
+                                <p class="text-sm font-semibold text-red-700 mb-1">Changes requested</p>
+                                <p class="text-sm text-red-700 mb-3">{{ $submission->reviewer_notes ?: 'Please review
+                                    and resubmit.' }}</p>
+                                <button wire:click="reuploadForOrder({{ $order->id }})"
+                                    wire:target="reuploadForOrder({{ $order->id }})" wire:loading.attr="disabled"
+                                    class="inline-flex items-center gap-1 rounded bg-[#9f1239] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#881337] transition-colors">
+                                    <span wire:loading.remove wire:target="reuploadForOrder({{ $order->id }})">Update
+                                        &amp; Resubmit &rarr;</span>
+                                    <span wire:loading.inline-flex wire:target="reuploadForOrder({{ $order->id }})"
+                                        class="inline-flex items-center gap-1.5">
+                                        <x-spinner class="h-3.5 w-3.5" /> Loading…
+                                    </span>
+                                </button>
+                            </div>
+                            @else
+                            {{-- "celebrate" block --}}
+                            <div class="text-center px-2 pt-1 pb-1 mb-1">
+                                <div
+                                    class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#1f9d6b] bg-[#e6f6ef]">
+                                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                                        <path d="M5 13l4 4 10-10" stroke="#1f9d6b" stroke-width="2.5"
+                                            stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
+                                <h3 class="text-[19px] font-extrabold text-[#0e1b30] mb-1.5">
+                                    {{ $isApproved ? 'Approved — your documents are ready' : 'Submitted — pending
+                                    review' }}
+                                </h3>
+                                <p class="text-sm text-[#5d6e7f] leading-relaxed max-w-md mx-auto">
+                                    @if($isApproved)
+                                    Great news, {{ $reviewerFirstName }}. Your submission was approved and your
+                                    documents have been generated.
+                                    @else
+                                    Thanks, {{ $reviewerFirstName }}. Your intake is now pending review. We'll reach out
+                                    if we have any questions or need clarification.
+                                    @endif
+                                </p>
+                                <p
+                                    class="inline-flex items-center gap-1.5 mt-3 rounded-full bg-[#e6f6ef] px-3 py-1.5 text-xs text-[#135f41]">
+                                    @if($isApproved)
+                                    &#10003; We've emailed a confirmation to <strong>{{ auth()->user()?->email
+                                        }}</strong>.
+                                    @else
+                                    You'll receive an email confirmation at <strong>{{ auth()->user()?->email
+                                        }}</strong> once it's approved.
+                                    @endif
+                                </p>
+                            </div>
 
-                @if(! $isApproved)
-                <div class="flex items-start gap-2 rounded-xl bg-[#eef7fc] text-[#1d4e6b] text-[13.5px] leading-relaxed px-3 py-2.5 mt-3 mb-1">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="flex-shrink-0 mt-0.5 text-[#0b9ed0]">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" />
-                        <path d="M12 11v5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                    </svg>
-                    <span>Reviews typically take <strong>3–5 business days</strong>. We expect to finish by <strong>{{ $dueBy->format('D, M j') }}</strong>.</span>
-                </div>
-                @endif
+                            @if(! $isApproved)
+                            <div
+                                class="flex items-start gap-2 rounded-xl bg-[#eef7fc] text-[#1d4e6b] text-[13.5px] leading-relaxed px-3 py-2.5 mt-3 mb-1">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    class="flex-shrink-0 mt-0.5 text-[#0b9ed0]">
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" />
+                                    <path d="M12 11v5M12 8v.01" stroke="currentColor" stroke-width="1.6"
+                                        stroke-linecap="round" />
+                                </svg>
+                                <span>Reviews typically take <strong>3–5 business days</strong>. We expect to finish by
+                                    <strong>{{ $dueBy->format('D, M j') }}</strong>.</span>
+                            </div>
+                            @endif
 
-                @if($hasQuestion && ! $isApproved)
-                @foreach($reviewerQuestions as $reviewerQuestion)
-                @php $answered = $reviewerQuestion->isAnswered(); @endphp
-                <div wire:key="reviewer-question-{{ $reviewerQuestion->id }}" class="mt-3.5 rounded-2xl border px-3.5 py-3.5 {{ $answered ? 'border-[#cfe9dc] bg-[#f5fbf8]' : 'border-[#f3d29a] bg-[#fffaf1]' }}">
-                    <p class="text-[11px] font-bold uppercase tracking-wide mb-1.5 {{ $answered ? 'text-[#1f9d6b]' : 'text-[#9a5b00]' }}">
-                        Question from your Empower reviewer &middot; {{ $reviewerQuestion->created_at->format('M j, g:i A') }}
-                    </p>
-                    <p class="text-sm text-[#173045] mb-2.5">{{ $reviewerQuestion->question }}</p>
-                    @if($answered)
-                    <p class="text-sm text-[#173045]"><strong>Your reply:</strong> {{ $reviewerQuestion->reply }}</p>
-                    <p class="text-xs text-[#5d6e7f] mt-1">Thanks. Your reviewer will continue from here.</p>
-                    @else
-                    <textarea wire:model="reviewerReplyText.{{ $reviewerQuestion->id }}" rows="3"
-                        placeholder="Type your reply…"
-                        class="w-full rounded-xl border border-[#f3d29a] bg-white px-3.5 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition resize-none"></textarea>
-                    @error("reviewerReplyText.{$reviewerQuestion->id}") <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    <div class="mt-2">
-                        <button type="button" wire:click="replyToReviewerQuestion({{ $reviewerQuestion->id }})"
-                            wire:target="replyToReviewerQuestion({{ $reviewerQuestion->id }})" wire:loading.attr="disabled"
-                            class="inline-flex items-center gap-1.5 rounded-lg bg-[#0b9ed0] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#0a8cba] transition-colors">
-                            <span wire:loading.remove wire:target="replyToReviewerQuestion({{ $reviewerQuestion->id }})">Send reply</span>
-                            <span wire:loading.inline-flex wire:target="replyToReviewerQuestion({{ $reviewerQuestion->id }})" class="inline-flex items-center gap-1.5">
-                                <x-spinner class="h-3.5 w-3.5" /> Sending&hellip;
-                            </span>
-                        </button>
-                    </div>
-                    @endif
-                </div>
-                @endforeach
-                @endif
-                @endif
-                @endif
+                            @if($hasQuestion && ! $isApproved)
+                            @foreach($reviewerQuestions as $reviewerQuestion)
+                            @php $answered = $reviewerQuestion->isAnswered(); @endphp
+                            <div wire:key="reviewer-question-{{ $reviewerQuestion->id }}"
+                                class="mt-3.5 rounded-2xl border px-3.5 py-3.5 {{ $answered ? 'border-[#cfe9dc] bg-[#f5fbf8]' : 'border-[#f3d29a] bg-[#fffaf1]' }}">
+                                <p
+                                    class="text-[11px] font-bold uppercase tracking-wide mb-1.5 {{ $answered ? 'text-[#1f9d6b]' : 'text-[#9a5b00]' }}">
+                                    Question from your Empower reviewer &middot; {{
+                                    $reviewerQuestion->created_at->format('M j, g:i A') }}
+                                </p>
+                                <p class="text-sm text-[#173045] mb-2.5">{{ $reviewerQuestion->question }}</p>
+                                @if($answered)
+                                <p class="text-sm text-[#173045]"><strong>Your reply:</strong> {{
+                                    $reviewerQuestion->reply }}</p>
+                                <p class="text-xs text-[#5d6e7f] mt-1">Thanks. Your reviewer will continue from here.
+                                </p>
+                                @else
+                                <textarea wire:model="reviewerReplyText.{{ $reviewerQuestion->id }}" rows="3"
+                                    placeholder="Type your reply…"
+                                    class="w-full rounded-xl border border-[#f3d29a] bg-white px-3.5 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition resize-none"></textarea>
+                                @error("reviewerReplyText.{$reviewerQuestion->id}") <p
+                                    class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                                <div class="mt-2">
+                                    <button type="button"
+                                        wire:click="replyToReviewerQuestion({{ $reviewerQuestion->id }})"
+                                        wire:target="replyToReviewerQuestion({{ $reviewerQuestion->id }})"
+                                        wire:loading.attr="disabled"
+                                        class="inline-flex items-center gap-1.5 rounded-lg bg-[#0b9ed0] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#0a8cba] transition-colors">
+                                        <span wire:loading.remove
+                                            wire:target="replyToReviewerQuestion({{ $reviewerQuestion->id }})">Send
+                                            reply</span>
+                                        <span wire:loading.inline-flex
+                                            wire:target="replyToReviewerQuestion({{ $reviewerQuestion->id }})"
+                                            class="inline-flex items-center gap-1.5">
+                                            <x-spinner class="h-3.5 w-3.5" /> Sending&hellip;
+                                        </span>
+                                    </button>
+                                </div>
+                                @endif
+                            </div>
+                            @endforeach
+                            @endif
+                            @endif
+                            @endif
 
-                {{-- Timeline --}}
-                <ol class="mt-4.5">
-                    @foreach($stageRows as $i => $row)
-                    @php $isLast = $i === count($stageRows) - 1; @endphp
-                    <li class="flex gap-3.5 {{ $isLast ? '' : 'pb-4.5' }}">
-                        <div class="flex flex-col items-center flex-shrink-0">
-                            <div class="relative w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0
+                            {{-- Timeline --}}
+                            <ol class="mt-4.5">
+                                @foreach($stageRows as $i => $row)
+                                @php $isLast = $i === count($stageRows) - 1; @endphp
+                                <li class="flex gap-3.5 {{ $isLast ? '' : 'pb-4.5' }}">
+                                    <div class="flex flex-col items-center flex-shrink-0">
+                                        <div class="relative w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0
                                 {{ match($row['cls']) {
                                     'done' => 'bg-[#0b9ed0] border-[#0b9ed0]',
                                     'cur' => 'border-[#0b9ed0] bg-white',
@@ -3888,52 +3961,61 @@ $progressPct = ($milestone / 4) * 100;
                                     'rejected' => 'border-red-500 bg-white',
                                     default => 'border-[#d7dee6] bg-white',
                                 } }}">
-                                @if($row['cls'] === 'done')
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                    <path d="M5 13l4 4 10-10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                                @elseif($row['cls'] === 'rejected')
-                                <span class="text-red-600 text-sm leading-none">&times;</span>
-                                @elseif($row['cls'] === 'cur' || $row['cls'] === 'attn')
-                                <span class="absolute w-2.5 h-2.5 rounded-full animate-ping {{ $row['cls'] === 'attn' ? 'bg-[#e0930f]' : 'bg-[#0b9ed0]' }}"></span>
-                                <span class="relative w-2.5 h-2.5 rounded-full {{ $row['cls'] === 'attn' ? 'bg-[#e0930f]' : 'bg-[#0b9ed0]' }}"></span>
-                                @endif
-                            </div>
-                            @if(! $isLast)
-                            <div class="w-0.5 flex-1 my-0.5 {{ $row['cls'] === 'done' ? 'bg-[#0b9ed0]' : 'bg-[#edf2f7]' }}" style="min-height: 1.25rem"></div>
-                            @endif
-                        </div>
-                        <div class="pb-0.5">
-                            <p class="text-sm font-extrabold
+                                            @if($row['cls'] === 'done')
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                                <path d="M5 13l4 4 10-10" stroke="white" stroke-width="2.5"
+                                                    stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                            @elseif($row['cls'] === 'rejected')
+                                            <span class="text-red-600 text-sm leading-none">&times;</span>
+                                            @elseif($row['cls'] === 'cur' || $row['cls'] === 'attn')
+                                            <span
+                                                class="absolute w-2.5 h-2.5 rounded-full animate-ping {{ $row['cls'] === 'attn' ? 'bg-[#e0930f]' : 'bg-[#0b9ed0]' }}"></span>
+                                            <span
+                                                class="relative w-2.5 h-2.5 rounded-full {{ $row['cls'] === 'attn' ? 'bg-[#e0930f]' : 'bg-[#0b9ed0]' }}"></span>
+                                            @endif
+                                        </div>
+                                        @if(! $isLast)
+                                        <div class="w-0.5 flex-1 my-0.5 {{ $row['cls'] === 'done' ? 'bg-[#0b9ed0]' : 'bg-[#edf2f7]' }}"
+                                            style="min-height: 1.25rem"></div>
+                                        @endif
+                                    </div>
+                                    <div class="pb-0.5">
+                                        <p
+                                            class="text-sm font-extrabold
                                 {{ $row['cls'] === 'rejected' ? 'text-red-700' : ($row['cls'] === 'attn' ? 'text-[#9a5b00]' : ($row['cls'] === 'upcoming' ? 'text-[#aab4bf]' : 'text-[#173045]')) }}">
-                                {{ $row['title'] }}
-                                @if($row['note'])
-                                <span class="ml-1.5 text-xs font-semibold text-[#8592a1]">{{ $row['note'] }}</span>
-                                @endif
-                            </p>
-                            <p class="text-xs mt-0.5 {{ $row['cls'] === 'rejected' || $row['cls'] === 'attn' ? 'text-[#9a5b00]' : 'text-[#5d6e7f]' }}">
-                                {{ $row['desc'] }}
-                            </p>
+                                            {{ $row['title'] }}
+                                            @if($row['note'])
+                                            <span class="ml-1.5 text-xs font-semibold text-[#8592a1]">{{ $row['note']
+                                                }}</span>
+                                            @endif
+                                        </p>
+                                        <p
+                                            class="text-xs mt-0.5 {{ $row['cls'] === 'rejected' || $row['cls'] === 'attn' ? 'text-[#9a5b00]' : 'text-[#5d6e7f]' }}">
+                                            {{ $row['desc'] }}
+                                        </p>
+                                    </div>
+                                </li>
+                                @endforeach
+                            </ol>
                         </div>
-                    </li>
-                    @endforeach
-                </ol>
-            </div>
-            @empty
-            <p class="text-sm text-[#5d6e7f] italic">No submission found.</p>
-            @endforelse
+                        @empty
+                        <p class="text-sm text-[#5d6e7f] italic">No submission found.</p>
+                        @endforelse
         </div>
     </div>
 
     <div class="flex justify-between items-center mt-5">
-        <button wire:click="goToStep(3)" wire:target="goToStep(3)" wire:loading.attr="disabled" @disabled($justSubmitted)
+        <button wire:click="goToStep(3)" wire:target="goToStep(3)" wire:loading.attr="disabled"
+            @disabled($justSubmitted)
             class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             <span wire:loading.remove wire:target="goToStep(3)">&larr; Back</span>
             <span wire:loading wire:target="goToStep(3)">
                 <x-spinner class="h-3.5 w-3.5" />
             </span>
         </button>
-        <button wire:click="goToStep(5)" wire:target="goToStep(5)" wire:loading.attr="disabled" @disabled($milestone < 4)
+        <button wire:click="goToStep(5)" wire:target="goToStep(5)" wire:loading.attr="disabled" @disabled($milestone <
+            4)
             class="inline-flex items-center gap-1 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#12304f]">
             <span wire:loading.remove wire:target="goToStep(5)">Go to Dashboard &rarr;</span>
             <span wire:loading.inline-flex wire:target="goToStep(5)" class="inline-flex items-center gap-1.5">
@@ -3943,27 +4025,27 @@ $progressPct = ($milestone / 4) * 100;
     </div>
 
     {{-- Dashboard skeleton — masks the brief gap while Step 5's documents/activity/billing load,
-         matching the prototype's .sk shimmer treatment. Only ever visible during the goToStep(5)
-         request itself (Livewire re-renders the whole component atomically, so this can't be a
-         true progressive-load skeleton — it's a loading mask over the transition, not over partial
-         real content). --}}
+    matching the prototype's .sk shimmer treatment. Only ever visible during the goToStep(5)
+    request itself (Livewire re-renders the whole component atomically, so this can't be a
+    true progressive-load skeleton — it's a loading mask over the transition, not over partial
+    real content). --}}
     <div wire:loading.block wire:target="goToStep(5)" class="space-y-4 mt-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            @for($i = 0; $i < 4; $i++)
-            <div class="bg-white border border-empower-border rounded-[1.25rem] p-5 space-y-3">
+            @for($i = 0; $i < 4; $i++) <div
+                class="bg-white border border-empower-border rounded-[1.25rem] p-5 space-y-3">
                 <div class="h-3 w-20 rounded bg-[#eef2f6] animate-pulse"></div>
                 <div class="h-7 w-16 rounded bg-[#eef2f6] animate-pulse"></div>
-            </div>
-            @endfor
         </div>
-        <div class="bg-white border border-empower-border rounded-[1.25rem] p-5 space-y-3">
-            @for($i = 0; $i < 3; $i++)
-            <div class="h-10 rounded-lg bg-[#eef2f6] animate-pulse"></div>
-            @endfor
-        </div>
+        @endfor
     </div>
+    <div class="bg-white border border-empower-border rounded-[1.25rem] p-5 space-y-3">
+        @for($i = 0; $i < 3; $i++) <div class="h-10 rounded-lg bg-[#eef2f6] animate-pulse">
     </div>
-    @endif
+    @endfor
+</div>
+</div>
+</div>
+@endif
 
 {{-- ── Step 5: Dashboard ── --}}
 @if($step === 5)
@@ -4163,7 +4245,8 @@ $progressPct = ($milestone / 4) * 100;
         $nextStepsContactName = $this->practice?->compliance_officer_name ?: auth()->user()->name;
         $nextStepsContactEmail = $this->practice?->compliance_officer_email ?: auth()->user()->email;
         $nextStepsShareBy = now()->addDays(14);
-        $nextStepsShareEmail = "Subject: Our updated compliance and HIPAA policies\n\nHi team,\n\n{$nextStepsPracticeName}
+        $nextStepsShareEmail = "Subject: Our updated compliance and HIPAA policies\n\nHi
+        team,\n\n{$nextStepsPracticeName}
         has updated its compliance program with Empower. Please read the attached documents:\n"
         .$nextStepsDocLabels->map(fn($d) => "- {$d}")->implode("\n")
         ."\n\nBy {$nextStepsShareBy->format('D, M j')}, please sign and return the acknowledgment form to confirm
@@ -4262,8 +4345,7 @@ $progressPct = ($milestone / 4) * 100;
                         class="flex-shrink-0 rounded border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-bold text-[#173045] hover:bg-[#f4f7fb] transition-colors">Download
                         sign-off form</button>
                     @elseif($step['key'] === 'train')
-                    <button type="button"
-                        @if($nextStepsIsPro)
+                    <button type="button" @if($nextStepsIsPro)
                         x-on:click="$dispatch('toast', { message: 'In the live portal this opens the Empower training platform.', type: 'success' }); $wire.markNextStepDone('train')"
                         @else
                         x-on:click="window.empowerDownloadText(@js(\Illuminate\Support\Str::slug($nextStepsPracticeName.' training checklist').'.txt'), @js($nextStepsTrainingText)); $wire.markNextStepDone('train')"
@@ -4328,7 +4410,8 @@ $progressPct = ($milestone / 4) * 100;
                         $location = $row['location'];
                         $doc = $row['document'];
                         $sourceUpload = $row['sourceUpload'] ?? null;
-                        $title = ($sourceUpload && isset(self::POLISHED_UPLOAD_DOCUMENT_TITLES[$sourceUpload->document_category]))
+                        $title = ($sourceUpload &&
+                        isset(self::POLISHED_UPLOAD_DOCUMENT_TITLES[$sourceUpload->document_category]))
                         ? self::POLISHED_UPLOAD_DOCUMENT_TITLES[$sourceUpload->document_category]
                         : $type->label().($location ? ' — '.$location->name : '').($sourceUpload ? ' —
                         '.$sourceUpload->original_filename : '');
@@ -4567,5 +4650,5 @@ $progressPct = ($milestone / 4) * 100;
 </div>
 @endif
 
-    </div>
+</div>
 </div>
