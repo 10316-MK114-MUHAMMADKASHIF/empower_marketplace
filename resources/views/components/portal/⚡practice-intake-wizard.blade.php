@@ -657,6 +657,12 @@ new class extends Component
     }
 
     #[Computed]
+    public function allServicesSelected(): bool
+    {
+        return count(array_intersect(array_keys(self::SERVICES), $this->selectedServices)) === count(self::SERVICES);
+    }
+
+    #[Computed]
     public function servicesScreenDone(): bool
     {
         return in_array('services', $this->reachedScreens, true);
@@ -1901,6 +1907,19 @@ new class extends Component
         $this->resetErrorBag('services');
     }
 
+    public function toggleAllServices(): void
+    {
+        $services = array_keys(self::SERVICES);
+        $selectedServices = $this->selectedServices;
+        $allSelected = count(array_intersect($services, $selectedServices)) === count($services);
+
+        $this->currentSubmission->update([
+            'wizard_selected_services' => $allSelected ? null : $services,
+        ]);
+        unset($this->currentSubmission, $this->selectedServices, $this->allServicesSelected);
+        $this->resetErrorBag('services');
+    }
+
     public function continueFromServices(): void
     {
         if ($this->currentSubmission->wizard_selected_services === null) {
@@ -2361,42 +2380,40 @@ new class extends Component
 
 <div class="space-y-5">
     @php
-        $chapterHeaderData = [
-            'chapters' => $this->chapters,
-            'currentKey' => $this->currentNavKey(),
-            'reachedScreens' => $this->reachedScreens,
-            'doneItems' => $this->chapterProgress['doneItems'],
-            'totalItems' => $this->chapterProgress['totalItems'],
-            'minutesLeft' => $this->chapterProgress['minutesLeft'],
-            'skippedCount' => count($this->skippedQuestionIds) + count($this->skippedSectionIds),
-            'lastSavedAt' => $this->currentSubmission->updated_at,
-        ];
+    $chapterHeaderData = [
+    'chapters' => $this->chapters,
+    'currentKey' => $this->currentNavKey(),
+    'reachedScreens' => $this->reachedScreens,
+    'doneItems' => $this->chapterProgress['doneItems'],
+    'totalItems' => $this->chapterProgress['totalItems'],
+    'minutesLeft' => $this->chapterProgress['minutesLeft'],
+    'skippedCount' => count($this->skippedQuestionIds) + count($this->skippedSectionIds),
+    'lastSavedAt' => $this->currentSubmission->updated_at,
+    ];
     @endphp
 
     {{-- ── Intro: a tier-aware checklist + an animated load on a first-ever visit, or a static
-         recap when revisited via the "What you'll need" dropdown item ($returnToScreen set means
-         the latter). Either way, it waits for an explicit "Continue to the intake" click — it
-         never auto-advances on its own. ── --}}
+    recap when revisited via the "What you'll need" dropdown item ($returnToScreen set means
+    the latter). Either way, it waits for an explicit "Continue to the intake" click — it
+    never auto-advances on its own. ── --}}
     @if($screen === 'intro')
     @php
-        $isRevisit = $returnToScreen !== null;
-        $introDuration = $this->introAnimationDurationMs;
+    $isRevisit = $returnToScreen !== null;
+    $introDuration = $this->introAnimationDurationMs;
     @endphp
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
-        <div class="flex flex-col items-center text-center px-6 py-12 lg:py-16 max-w-xl mx-auto"
-            @unless($isRevisit)
-            x-data="{ progress: 0, ready: false }"
-            x-init="
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+        <div class="flex flex-col items-center text-center px-6 py-12 lg:py-16 max-w-xl mx-auto" @unless($isRevisit)
+            x-data="{ progress: 0, ready: false }" x-init="
                 setTimeout(() => progress = 100, 50);
                 setTimeout(() => ready = true, {{ $introDuration }});
-            "
-            @endunless
-            >
+            " @endunless>
             <h2 class="text-2xl font-extrabold text-[#0e1b30] mb-5">Before you start, here&rsquo;s what you&rsquo;ll
                 need</h2>
 
             @if($isRevisit)
-            <p class="text-sm text-[#5d6e7f] mb-5 max-w-md">Your intake is ready. It takes {{ $this->introTimeEstimate }}, and your
+            <p class="text-sm text-[#5d6e7f] mb-5 max-w-md">Your intake is ready. It takes {{ $this->introTimeEstimate
+                }}, and your
                 answers save as you go. Missing something? You can skip any question and come back to it.</p>
             <div class="w-full max-w-sm h-1.5 rounded-full bg-[#eef2f6] overflow-hidden mb-8">
                 <div class="h-full bg-[#0b9ed0] rounded-full"
@@ -2408,7 +2425,8 @@ new class extends Component
                 <x-spinner class="h-4 w-4" />
                 <span>Getting your intake ready&hellip;</span>
             </div>
-            <p class="text-sm text-[#5d6e7f] mb-3 max-w-md" x-show="ready" x-cloak>Your intake is ready. It takes {{ $this->introTimeEstimate }}, and your
+            <p class="text-sm text-[#5d6e7f] mb-3 max-w-md" x-show="ready" x-cloak>Your intake is ready. It takes {{
+                $this->introTimeEstimate }}, and your
                 answers save as you go. Missing something? You can skip any question and come back to it.</p>
             <div class="w-full max-w-sm h-1.5 rounded-full bg-[#eef2f6] overflow-hidden mb-8">
                 <div class="h-full bg-[#0b9ed0] rounded-full transition-all ease-linear"
@@ -2419,11 +2437,14 @@ new class extends Component
             <div class="w-full space-y-3 text-left">
                 @foreach($this->introItems as $item)
                 <div class="reveal-in flex items-start gap-3 rounded-xl border border-[#dbe4ee] px-4 py-3.5"
-                    style="animation-delay: {{ $loop->index * 150 }}ms"
-                    @unless($isRevisit) x-show="ready" x-cloak @endunless>
+                    style="animation-delay: {{ $loop->index * 150 }}ms" @unless($isRevisit) x-show="ready" x-cloak
+                    @endunless>
                     <span
                         class="mt-0.5 h-5 w-5 rounded-full bg-[#e6f3fb] text-[#0b9ed0] flex items-center justify-center flex-shrink-0">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
                     </span>
                     <div>
                         <p class="text-sm font-bold text-[#173045]">{{ $item['title'] }}</p>
@@ -2435,12 +2456,15 @@ new class extends Component
 
             @if($isRevisit)
             <button type="button" wire:click="backToQuestions"
-                class="mt-8 w-full max-w-xs rounded bg-[#12304f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">Back to the questions &rarr;</button>
+                class="mt-8 w-full max-w-xs rounded bg-[#12304f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">Back
+                to the questions &rarr;</button>
             @else
             <button type="button" wire:click="continueFromIntro" x-show="ready" x-cloak wire:loading.attr="disabled"
                 class="mt-8 w-full max-w-xs rounded bg-[#12304f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
                 <span wire:loading.remove wire:target="continueFromIntro">Continue to the intake &rarr;</span>
-                <span wire:loading.inline-flex wire:target="continueFromIntro" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading&hellip;</span>
+                <span wire:loading.inline-flex wire:target="continueFromIntro" class="inline-flex items-center gap-1.5">
+                    <x-spinner class="h-3.5 w-3.5" /> Loading&hellip;
+                </span>
             </button>
             @endif
 
@@ -2453,1037 +2477,1328 @@ new class extends Component
 
     {{-- ── Documents ── --}}
     @if($screen === 'documents')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full">
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">
-                {{ $this->includesWorkflowQuestionnaire ? 'First, upload what you already have' : 'Upload your existing policies and manuals' }}
-            </h2>
-            <p class="text-sm text-[#5d6e7f] mb-5">
-                @if($this->includesWorkflowQuestionnaire)
-                Share any current policies, manuals or training materials. We'll still walk you through a few questions about how your practice runs, so nothing is missed.
-                @else
-                The Essential package reviews and updates the documents you already have. Upload each one below, or tell us if you don't have it.
-                @endif
-            </p>
+            <div class="max-w-xl w-full">
+                <h2 class="text-lg font-semibold text-[#12304f] mb-1">
+                    {{ $this->includesWorkflowQuestionnaire ? 'First, upload what you already have' : 'Upload your
+                    existing policies and manuals' }}
+                </h2>
+                <p class="text-sm text-[#5d6e7f] mb-5">
+                    @if($this->includesWorkflowQuestionnaire)
+                    Share any current policies, manuals or training materials. We'll still walk you through a few
+                    questions about how your practice runs, so nothing is missed.
+                    @else
+                    The Essential package reviews and updates the documents you already have. Upload each one below, or
+                    tell us if you don't have it.
+                    @endif
+                </p>
 
-            <ul class="divide-y divide-[#eef2f6] border border-[#eef2f6] rounded-xl mb-4">
-                @foreach($this->requiredDocumentCategories as $key => $label)
-                @php
+                <ul class="divide-y divide-[#eef2f6] border border-[#eef2f6] rounded-xl mb-4">
+                    @foreach($this->requiredDocumentCategories as $key => $label)
+                    @php
                     $status = $this->documentCategoryStatus($key);
-                @endphp
-                <li class="flex items-center justify-between gap-3 px-4 py-3">
-                    <span class="text-sm font-semibold text-[#173045]">
-                        {{ $label }}
-                        @if($this->includesWorkflowQuestionnaire)
-                        <span class="text-xs font-normal text-[#8592a1]">(if you have it)</span>
-                        @endif
-                    </span>
-                    <span class="flex items-center gap-3">
-                        <span
-                            class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold tracking-wide uppercase
-                            {{ $status === 'uploaded' ? 'bg-[#d7f3ea] text-[#117a51]' : ($status === 'declined' ? 'bg-[#eef1f5] text-[#5d6e7f]' : 'bg-[#fdf3e0] text-[#a3690f]') }}">
-                            {{ $status === 'uploaded' ? 'Uploaded' : ($status === 'declined' ? "Don't have it" : ($this->includesWorkflowQuestionnaire ? 'Optional' : 'Needed')) }}
+                    @endphp
+                    <li class="flex items-center justify-between gap-3 px-4 py-3">
+                        <span class="text-sm font-semibold text-[#173045]">
+                            {{ $label }}
+                            @if($this->includesWorkflowQuestionnaire)
+                            <span class="text-xs font-normal text-[#8592a1]">(if you have it)</span>
+                            @endif
                         </span>
-                        @if($status !== 'uploaded')
-                        <button type="button" wire:click="toggleDocumentMissing('{{ $key }}')"
-                            class="text-xs font-semibold text-[#1a7aad] hover:underline">
-                            {{ $status === 'declined' ? 'Undo' : "I don't have this" }}
-                        </button>
-                        @endif
-                    </span>
-                </li>
-                @endforeach
-            </ul>
+                        <span class="flex items-center gap-3">
+                            <span
+                                class="inline-flex items-center px-2.5 py-1 rounded-full text-[0.68rem] font-extrabold tracking-wide uppercase
+                            {{ $status === 'uploaded' ? 'bg-[#d7f3ea] text-[#117a51]' : ($status === 'declined' ? 'bg-[#eef1f5] text-[#5d6e7f]' : 'bg-[#fdf3e0] text-[#a3690f]') }}">
+                                {{ $status === 'uploaded' ? 'Uploaded' : ($status === 'declined' ? "Don't have it" :
+                                ($this->includesWorkflowQuestionnaire ? 'Optional' : 'Needed')) }}
+                            </span>
+                            @if($status !== 'uploaded')
+                            <button type="button" wire:click="toggleDocumentMissing('{{ $key }}')"
+                                class="text-xs font-semibold text-[#1a7aad] hover:underline">
+                                {{ $status === 'declined' ? 'Undo' : "I don't have this" }}
+                            </button>
+                            @endif
+                        </span>
+                    </li>
+                    @endforeach
+                </ul>
 
-            @if(! $this->includesWorkflowQuestionnaire && collect($this->requiredDocumentCategories)->keys()->contains(fn ($key) => $this->documentCategoryStatus($key) === 'declined'))
-            <div class="rounded-xl bg-[#fdf3e0] px-3.5 py-2.5 mb-4 text-xs text-[#8a5a0f] leading-relaxed">
-                The package you selected requires you to upload your current documents. If you do not have any documents to upload, please upgrade your package.
-                <a href="{{ route('home') }}#pricing" class="font-bold underline hover:no-underline">Compare
-                    packages</a>
-            </div>
-            @endif
+                @if(! $this->includesWorkflowQuestionnaire &&
+                collect($this->requiredDocumentCategories)->keys()->contains(fn ($key) =>
+                $this->documentCategoryStatus($key) === 'declined'))
+                <div class="rounded-xl bg-[#fdf3e0] px-3.5 py-2.5 mb-4 text-xs text-[#8a5a0f] leading-relaxed">
+                    The package you selected requires you to upload your current documents. If you do not have any
+                    documents to upload, please upgrade your package.
+                    <a href="{{ route('home') }}#pricing" class="font-bold underline hover:no-underline">Compare
+                        packages</a>
+                </div>
+                @endif
 
-            <div x-data="{ dragging: false, uploading: false, progress: 0 }"
-                x-on:dragover.prevent="dragging = true" x-on:dragleave.prevent="dragging = false"
-                x-on:drop.prevent="dragging = false; $refs.documentFilesInput.files = $event.dataTransfer.files; $refs.documentFilesInput.dispatchEvent(new Event('change'))"
-                x-on:click="$refs.documentFilesInput.click()"
-                x-on:livewire-upload-start.window="uploading = true; progress = 0"
-                x-on:livewire-upload-finish.window="uploading = false"
-                x-on:livewire-upload-error.window="uploading = false"
-                x-on:livewire-upload-progress.window="progress = $event.detail.progress"
-                x-bind:class="dragging ? 'border-[#009bde] bg-[#edf6ff]' : 'border-[#b9cfe0] bg-[#f7fbfd]'"
-                class="border-2 border-dashed rounded-[1rem] p-6 text-center cursor-pointer transition-colors">
-                <template x-if="!uploading">
-                    <div>
-                        <div
-                            class="w-9 h-9 rounded-full bg-white border border-[#b9cfe0] mx-auto mb-2 flex items-center justify-center text-[#12304f]">
-                            &#8593;
+                <div x-data="{ dragging: false, uploading: false, progress: 0 }" x-on:dragover.prevent="dragging = true"
+                    x-on:dragleave.prevent="dragging = false"
+                    x-on:drop.prevent="dragging = false; $refs.documentFilesInput.files = $event.dataTransfer.files; $refs.documentFilesInput.dispatchEvent(new Event('change'))"
+                    x-on:click="$refs.documentFilesInput.click()"
+                    x-on:livewire-upload-start.window="uploading = true; progress = 0"
+                    x-on:livewire-upload-finish.window="uploading = false"
+                    x-on:livewire-upload-error.window="uploading = false"
+                    x-on:livewire-upload-progress.window="progress = $event.detail.progress"
+                    x-bind:class="dragging ? 'border-[#009bde] bg-[#edf6ff]' : 'border-[#b9cfe0] bg-[#f7fbfd]'"
+                    class="border-2 border-dashed rounded-[1rem] p-6 text-center cursor-pointer transition-colors">
+                    <template x-if="!uploading">
+                        <div>
+                            <div
+                                class="w-9 h-9 rounded-full bg-white border border-[#b9cfe0] mx-auto mb-2 flex items-center justify-center text-[#12304f]">
+                                &#8593;
+                            </div>
+                            <p class="text-sm text-[#173045]"><strong class="font-semibold">Click to upload
+                                    files</strong> or drag
+                                them here</p>
+                            <p class="text-xs text-[#8592a1] mt-1">PDF, DOCX or XLSX</p>
                         </div>
-                        <p class="text-sm text-[#173045]"><strong class="font-semibold">Click to upload files</strong> or drag
-                            them here</p>
-                        <p class="text-xs text-[#8592a1] mt-1">PDF, DOCX or XLSX</p>
-                    </div>
-                </template>
-                <template x-if="uploading">
-                    <div class="max-w-xs mx-auto" x-on:click.stop="">
-                        <p class="text-sm text-[#173045] mb-2">Uploading&hellip; <span x-text="progress"></span>%</p>
-                        <div class="h-1.5 rounded-full bg-[#e8eef4] overflow-hidden">
-                            <div class="h-full rounded-full bg-[#0b9ed0] transition-all duration-75" :style="`width: ${progress}%`"></div>
+                    </template>
+                    <template x-if="uploading">
+                        <div class="max-w-xs mx-auto" x-on:click.stop="">
+                            <p class="text-sm text-[#173045] mb-2">Uploading&hellip; <span x-text="progress"></span>%
+                            </p>
+                            <div class="h-1.5 rounded-full bg-[#e8eef4] overflow-hidden">
+                                <div class="h-full rounded-full bg-[#0b9ed0] transition-all duration-75"
+                                    :style="`width: ${progress}%`"></div>
+                            </div>
                         </div>
-                    </div>
-                </template>
-                <input x-ref="documentFilesInput" type="file" wire:model="documentFiles" multiple
-                    accept=".pdf,.jpg,.jpeg,.png,.docx,.xls,.xlsx" class="hidden">
-            </div>
-            @error('documentFiles') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
-            @error('documentFiles.*') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </template>
+                    <input x-ref="documentFilesInput" type="file" wire:model="documentFiles" multiple
+                        accept=".pdf,.jpg,.jpeg,.png,.docx,.xls,.xlsx" class="hidden">
+                </div>
+                @error('documentFiles') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                @error('documentFiles.*') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
 
-            @if($this->bulkMissingDocumentsLabel)
-            <button type="button" wire:click="markRemainingDocumentsMissing" wire:target="markRemainingDocumentsMissing" wire:loading.attr="disabled"
-                class="mt-3 w-full rounded-xl border border-dashed border-[#9ed3e9] bg-[#f2f9fd] px-4 py-2.5 text-sm font-semibold text-[#0b7ca8] hover:bg-[#e7f4fb] transition-colors disabled:opacity-50">
-                {{ $this->bulkMissingDocumentsLabel }}
-            </button>
-            @endif
-
-            @if($this->existingDocuments->isNotEmpty() || ! empty($documentFiles))
-            <ul class="mt-4 space-y-2" wire:loading.remove wire:target="documentFiles">
-                @foreach($this->existingDocuments as $doc)
-                <li class="border border-[#eef2f6] rounded-lg px-3 py-2.5">
-                    <div class="flex items-center gap-2 mb-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="text-[#8592a1] flex-shrink-0">
-                            <path d="M6 2h9l5 5v15H6V2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                            <path d="M15 2v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                        </svg>
-                        <span class="flex-1 truncate text-[#173045] font-medium text-sm">{{ $doc->original_filename }}</span>
-                        <span class="text-xs text-[#8592a1] flex-shrink-0">{{ $doc->fileSizeForHumans() }}</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <select wire:change="tagExistingDocument({{ $doc->id }}, $event.target.value)"
-                            class="flex-1 rounded-lg border border-[#dbe4ee] bg-white px-2 py-1.5 text-xs text-[#173045]">
-                            <option value="">Document type&hellip;</option>
-                            @foreach($this->requiredDocumentCategories as $key => $label)
-                            <option value="{{ $key }}" @selected($doc->document_category===$key)>{{ $label }}</option>
-                            @endforeach
-                            <option value="other" @selected($doc->document_category==='other')>Other</option>
-                        </select>
-                        <button type="button" wire:click="deleteExistingDocument({{ $doc->id }})"
-                            wire:confirm="Remove this document?" aria-label="Remove {{ $doc->original_filename }}"
-                            class="flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                            </svg>
-                        </button>
-                    </div>
-                </li>
-                @endforeach
-                @foreach($documentFiles as $i => $file)
-                <li class="border border-[#eef2f6] rounded-lg px-3 py-2.5">
-                    <div class="flex items-center gap-2 mb-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="text-[#8592a1] flex-shrink-0">
-                            <path d="M6 2h9l5 5v15H6V2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                            <path d="M15 2v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                        </svg>
-                        <span class="flex-1 truncate text-[#173045] font-medium text-sm">{{ $file->getClientOriginalName() }}</span>
-                        <span class="text-xs text-[#8592a1] flex-shrink-0">{{ number_format(max(1, round($file->getSize() / 1024))) }} KB</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <select wire:model.live="documentFileTags.{{ $i }}"
-                            class="flex-1 rounded-lg border border-[#dbe4ee] bg-white px-2 py-1.5 text-xs text-[#173045]">
-                            <option value="">Document type&hellip;</option>
-                            @foreach($this->requiredDocumentCategories as $key => $label)
-                            <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                            <option value="other">Other</option>
-                        </select>
-                        <button type="button" wire:click="removeDocumentFile({{ $i }})"
-                            aria-label="Remove {{ $file->getClientOriginalName() }}"
-                            class="flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                            </svg>
-                        </button>
-                    </div>
-                </li>
-                @endforeach
-            </ul>
-            @endif
-
-            @if($justSaved)
-            <p class="mt-4 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
-                where you left off.</p>
-            @endif
-
-            <div class="flex justify-between items-center mt-5">
-                <button wire:click="$dispatch('go-to-payment-step')" wire:target="$dispatch('go-to-payment-step')"
-                    class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
-                    &larr; Back
+                @if($this->bulkMissingDocumentsLabel)
+                <button type="button" wire:click="markRemainingDocumentsMissing"
+                    wire:target="markRemainingDocumentsMissing" wire:loading.attr="disabled"
+                    class="mt-3 w-full rounded-xl border border-dashed border-[#9ed3e9] bg-[#f2f9fd] px-4 py-2.5 text-sm font-semibold text-[#0b7ca8] hover:bg-[#e7f4fb] transition-colors disabled:opacity-50">
+                    {{ $this->bulkMissingDocumentsLabel }}
                 </button>
-                <div class="flex items-center gap-4">
-                    <button wire:click="continueFromDocuments(true)" wire:target="continueFromDocuments"
-                        class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                    <button wire:click="continueFromDocuments(true, true)" wire:target="continueFromDocuments"
-                        class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                    <button wire:click="continueFromDocuments" wire:target="continueFromDocuments" wire:loading.attr="disabled"
-                        class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                        <span wire:loading.remove wire:target="continueFromDocuments">Continue &rarr;</span>
-                        <span wire:loading.inline-flex wire:target="continueFromDocuments" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
+                @endif
+
+                @if($this->existingDocuments->isNotEmpty() || ! empty($documentFiles))
+                <ul class="mt-4 space-y-2" wire:loading.remove wire:target="documentFiles">
+                    @foreach($this->existingDocuments as $doc)
+                    <li class="border border-[#eef2f6] rounded-lg px-3 py-2.5">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                class="text-[#8592a1] flex-shrink-0">
+                                <path d="M6 2h9l5 5v15H6V2z" stroke="currentColor" stroke-width="1.6"
+                                    stroke-linejoin="round" />
+                                <path d="M15 2v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                            </svg>
+                            <span class="flex-1 truncate text-[#173045] font-medium text-sm">{{ $doc->original_filename
+                                }}</span>
+                            <span class="text-xs text-[#8592a1] flex-shrink-0">{{ $doc->fileSizeForHumans() }}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select wire:change="tagExistingDocument({{ $doc->id }}, $event.target.value)"
+                                class="flex-1 rounded-lg border border-[#dbe4ee] bg-white px-2 py-1.5 text-xs text-[#173045]">
+                                <option value="">Document type&hellip;</option>
+                                @foreach($this->requiredDocumentCategories as $key => $label)
+                                <option value="{{ $key }}" @selected($doc->document_category===$key)>{{ $label }}
+                                </option>
+                                @endforeach
+                                <option value="other" @selected($doc->document_category==='other')>Other</option>
+                            </select>
+                            <button type="button" wire:click="deleteExistingDocument({{ $doc->id }})"
+                                wire:confirm="Remove this document?" aria-label="Remove {{ $doc->original_filename }}"
+                                class="flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </div>
+                    </li>
+                    @endforeach
+                    @foreach($documentFiles as $i => $file)
+                    <li class="border border-[#eef2f6] rounded-lg px-3 py-2.5">
+                        <div class="flex items-center gap-2 mb-2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                class="text-[#8592a1] flex-shrink-0">
+                                <path d="M6 2h9l5 5v15H6V2z" stroke="currentColor" stroke-width="1.6"
+                                    stroke-linejoin="round" />
+                                <path d="M15 2v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                            </svg>
+                            <span class="flex-1 truncate text-[#173045] font-medium text-sm">{{
+                                $file->getClientOriginalName() }}</span>
+                            <span class="text-xs text-[#8592a1] flex-shrink-0">{{ number_format(max(1,
+                                round($file->getSize() / 1024))) }} KB</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select wire:model.live="documentFileTags.{{ $i }}"
+                                class="flex-1 rounded-lg border border-[#dbe4ee] bg-white px-2 py-1.5 text-xs text-[#173045]">
+                                <option value="">Document type&hellip;</option>
+                                @foreach($this->requiredDocumentCategories as $key => $label)
+                                <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                                <option value="other">Other</option>
+                            </select>
+                            <button type="button" wire:click="removeDocumentFile({{ $i }})"
+                                aria-label="Remove {{ $file->getClientOriginalName() }}"
+                                class="flex-shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </div>
+                    </li>
+                    @endforeach
+                </ul>
+                @endif
+
+                @if($justSaved)
+                <p class="mt-4 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick
+                    up
+                    where you left off.</p>
+                @endif
+
+                <div class="flex justify-between items-center mt-5">
+                    <button wire:click="$dispatch('go-to-payment-step')" wire:target="$dispatch('go-to-payment-step')"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">
+                        &larr; Back
                     </button>
+                    <div class="flex items-center gap-4">
+                        <button wire:click="continueFromDocuments(true)" wire:target="continueFromDocuments"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button wire:click="continueFromDocuments(true, true)" wire:target="continueFromDocuments"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button wire:click="continueFromDocuments" wire:target="continueFromDocuments"
+                            wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromDocuments">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromDocuments"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            @php
+            <aside
+                class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                @php
                 $documentsWhyText = $this->includesWorkflowQuestionnaire
-                    ? "Your existing documents show us where you're starting from. We compare them with your answers so the new manuals keep what already works."
-                    : "At the Essential level we review and update your own documents rather than writing new ones, so we need a copy of each.";
-            @endphp
-            <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify($documentsWhyText) !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <div class="flex flex-wrap gap-1.5">
-                @foreach($this->requiredDocumentCategories as $label)
-                <span
-                    class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{ $label }}</span>
-                @endforeach
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+                ? "Your existing documents show us where you're starting from. We compare them with your answers so the
+                new manuals keep what already works."
+                : "At the Essential level we review and update your own documents rather than writing new ones, so we
+                need a copy of each.";
+                @endphp
+                <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify($documentsWhyText) !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($this->requiredDocumentCategories as $label)
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{
+                        $label }}</span>
+                    @endforeach
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
 
     {{-- ── Basics: 1) Profile ── --}}
     @if($screen === 'b_profile')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <form wire:submit="continueFromProfile" class="max-w-xl w-full">
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics &middot; 1 of 4</p>
-        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Let's start with your practice</h2>
-        <p class="text-sm text-[#5d6e7f] mb-5">The name patients know you by, and your specialty.</p>
+            <form wire:submit="continueFromProfile" class="max-w-xl w-full">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics
+                    &middot; 1 of 4</p>
+                <h2 class="text-lg font-semibold text-[#12304f] mb-1">Let's start with your practice</h2>
+                <p class="text-sm text-[#5d6e7f] mb-5">The name patients know you by, and your specialty.</p>
 
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice name <span class="text-red-500">*</span></label>
-                <input wire:model.live="practiceName" type="text" placeholder="Riverside Family Medicine" required maxlength="150" {{ $this->practice?->is_profile_locked ? 'disabled' : '' }}
-                    class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' : 'border-[#dbe4ee]' }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed' : 'bg-[#f8fbfd]' }} px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Practice name <span
+                                class="text-red-500">*</span></label>
+                        <input wire:model.live="practiceName" type="text" placeholder="Riverside Family Medicine"
+                            required maxlength="150" {{ $this->practice?->is_profile_locked ? 'disabled' : '' }}
+                        class="w-full rounded-xl border {{ $errors->has('practiceName') ? 'border-red-400' :
+                        'border-[#dbe4ee]' }} {{ $this->practice?->is_profile_locked ? 'bg-[#f0f4f8] cursor-not-allowed'
+                        : 'bg-[#f8fbfd]' }} px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2
+                        focus:ring-[#0b9ed0] focus:border-transparent transition">
+                        @error('practiceName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
 
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span class="text-red-500">*</span></label>
-                <select wire:model.live="specialty"
-                    class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                    <option value="">Select your specialty</option>
-                    @if($specialty !== '' && ! in_array($specialty, Practice::SPECIALTIES, true))
-                    <option value="{{ $specialty }}" selected>{{ $specialty }}</option>
-                    @endif
-                    @foreach(Practice::SPECIALTIES as $s)
-                    <option value="{{ $s }}" @selected($specialty===$s)>{{ $s }}</option>
-                    @endforeach
-                </select>
-                @error('specialty') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-        </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Specialty <span
+                                class="text-red-500">*</span></label>
+                        <select wire:model.live="specialty"
+                            class="w-full rounded-xl border {{ $errors->has('specialty') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            <option value="">Select your specialty</option>
+                            @if($specialty !== '' && ! in_array($specialty, Practice::SPECIALTIES, true))
+                            <option value="{{ $specialty }}" selected>{{ $specialty }}</option>
+                            @endif
+                            @foreach(Practice::SPECIALTIES as $s)
+                            <option value="{{ $s }}" @selected($specialty===$s)>{{ $s }}</option>
+                            @endforeach
+                        </select>
+                        @error('specialty') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
 
-        @if($justSaved)
-        <p class="mt-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
-            where you left off.</p>
-        @endif
+                @if($justSaved)
+                <p class="mt-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick
+                    up
+                    where you left off.</p>
+                @endif
 
-        <div class="flex justify-between items-center mt-5">
-            <button type="button" wire:click="backToDocuments" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button type="button" wire:click="continueFromProfile(true)" wire:target="continueFromProfile"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button type="button" wire:click="continueFromProfile(true, true)" wire:target="continueFromProfile"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button type="submit" wire:target="continueFromProfile" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromProfile">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromProfile" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </form>
+                <div class="flex justify-between items-center mt-5">
+                    <button type="button" wire:click="backToDocuments"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button type="button" wire:click="continueFromProfile(true)" wire:target="continueFromProfile"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button type="button" wire:click="continueFromProfile(true, true)"
+                            wire:target="continueFromProfile"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button type="submit" wire:target="continueFromProfile" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromProfile">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromProfile"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </form>
 
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Your practice name appears on the cover and header of every document. Your specialty matches you to the right policy templates.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <div class="flex flex-wrap gap-1.5">
-                <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All documents</span>
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+            <aside
+                class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Your practice name appears
+                    on the cover and header of every document. Your specialty matches you to the right policy
+                    templates.') !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All
+                        documents</span>
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
 
     {{-- ── Basics: 2) Providers ── --}}
     @if($screen === 'b_providers')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full">
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics &middot; 2 of 4</p>
-        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Billable providers</h2>
-        <p class="text-sm text-[#5d6e7f] mb-5">Confirmed at checkout — physicians and non-physician practitioners who bill under your group NPI.</p>
+            <div class="max-w-xl w-full">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics
+                    &middot; 2 of 4</p>
+                <h2 class="text-lg font-semibold text-[#12304f] mb-1">Billable providers</h2>
+                <p class="text-sm text-[#5d6e7f] mb-5">Confirmed at checkout — physicians and non-physician
+                    practitioners who bill under your group NPI.</p>
 
-        <div class="inline-flex items-center gap-2 rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-5 py-3">
-            <span class="text-lg font-semibold text-[#173045]">{{ $billableProviders }}</span>
-            <span class="text-sm text-[#5d6e7f]">provider{{ $billableProviders === 1 ? '' : 's' }}</span>
-        </div>
+                <div class="inline-flex items-center gap-2 rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-5 py-3">
+                    <span class="text-lg font-semibold text-[#173045]">{{ $billableProviders }}</span>
+                    <span class="text-sm text-[#5d6e7f]">provider{{ $billableProviders === 1 ? '' : 's' }}</span>
+                </div>
 
-        @if($this->providerInvoiceHint)
-        <p class="mt-3 text-xs text-[#5d6e7f]">{!! $this->providerInvoiceHint !!}</p>
-        @endif
+                @if($this->providerInvoiceHint)
+                <p class="mt-3 text-xs text-[#5d6e7f]">{!! $this->providerInvoiceHint !!}</p>
+                @endif
 
-        <div class="flex justify-between items-center mt-5">
-            <button wire:click="backToProfile" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <button wire:click="continueFromProviders" wire:target="continueFromProviders" wire:loading.attr="disabled"
-                class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                <span wire:loading.remove wire:target="continueFromProviders">Continue &rarr;</span>
-                <span wire:loading.inline-flex wire:target="continueFromProviders" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-            </button>
-        </div>
-        </div>
-
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Your invoice already reflects this count from checkout. Providers who join mid-term are prorated and trued up at renewal. Need to change it? Contact support.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <div class="flex flex-wrap gap-1.5">
-                <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All documents</span>
+                <div class="flex justify-between items-center mt-5">
+                    <button wire:click="backToProfile"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <button wire:click="continueFromProviders" wire:target="continueFromProviders"
+                        wire:loading.attr="disabled"
+                        class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                        <span wire:loading.remove wire:target="continueFromProviders">Continue &rarr;</span>
+                        <span wire:loading.inline-flex wire:target="continueFromProviders"
+                            class="inline-flex items-center gap-1.5">
+                            <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                        </span>
+                    </button>
+                </div>
             </div>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+
+            <aside
+                class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Your invoice already
+                    reflects this count from checkout. Providers who join mid-term are prorated and trued up at renewal.
+                    Need to change it? Contact support.') !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All
+                        documents</span>
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
 
     {{-- ── Basics: 3) Address ── --}}
     @if($screen === 'b_address')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <form wire:submit="continueFromAddress" class="max-w-xl w-full">
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics &middot; 3 of 4</p>
-        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Where is your practice located?</h2>
-        <p class="text-sm text-[#5d6e7f] mb-5">Your main practice address.</p>
+            <form wire:submit="continueFromAddress" class="max-w-xl w-full">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics
+                    &middot; 3 of 4</p>
+                <h2 class="text-lg font-semibold text-[#12304f] mb-1">Where is your practice located?</h2>
+                <p class="text-sm text-[#5d6e7f] mb-5">Your main practice address.</p>
 
-        <label class="flex items-start gap-2.5 rounded-xl border {{ $sameAsBillingAddress ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
-            <input type="checkbox" wire:model.live="sameAsBillingAddress" class="mt-0.5 accent-[#12304f]">
-            <span>
-                <span class="block text-sm font-bold text-[#173045]">Same as my billing address</span>
-                <span class="block text-xs text-[#5d6e7f] mt-0.5">{{ $this->billingAddressLine ?: 'Billing address from step 1' }}</span>
-            </span>
-        </label>
+                <label
+                    class="flex items-start gap-2.5 rounded-xl border {{ $sameAsBillingAddress ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
+                    <input type="checkbox" wire:model.live="sameAsBillingAddress" class="mt-0.5 accent-[#12304f]">
+                    <span>
+                        <span class="block text-sm font-bold text-[#173045]">Same as my billing address</span>
+                        <span class="block text-xs text-[#5d6e7f] mt-0.5">{{ $this->billingAddressLine ?: 'Billing
+                            address from step 1' }}</span>
+                    </span>
+                </label>
 
-        @unless($sameAsBillingAddress)
-        <div class="mt-4 relative" x-data="addressAutocomplete({ address1: 'practiceAddress' })">
-            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Street address <span class="text-red-500">*</span></label>
-            <input type="text" placeholder="123 Main St, Springfield, IL" required maxlength="255" autocomplete="off"
-                role="combobox" aria-autocomplete="list" aria-expanded="open" data-ac-field="practiceAddress"
-                x-model="query" x-on:input="onAddressInput()"
-                x-on:keydown.down.prevent="move(1)" x-on:keydown.up.prevent="move(-1)"
-                x-on:keydown.enter.prevent="chooseHighlighted()" x-on:keydown.escape="close()"
-                x-on:blur="setTimeout(() => close(), 150)"
-                class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            <ul x-show="open" x-cloak role="listbox"
-                class="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-[#dbe4ee] bg-white shadow-lg py-1">
-                <template x-for="(suggestion, index) in suggestions" :key="suggestion.label">
-                    <li role="option" x-text="suggestion.label" x-on:mousedown.prevent="select(suggestion)"
-                        :class="index === highlightedIndex ? 'bg-[#f0f7fb]' : ''"
-                        class="px-4 py-2 text-sm text-[#173045] cursor-pointer hover:bg-[#f0f7fb]">
-                    </li>
-                </template>
-            </ul>
-            @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-        </div>
-        @endunless
+                @unless($sameAsBillingAddress)
+                <div class="mt-4 relative" x-data="addressAutocomplete({ address1: 'practiceAddress' })">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Street address <span
+                            class="text-red-500">*</span></label>
+                    <input type="text" placeholder="123 Main St, Springfield, IL" required maxlength="255"
+                        autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="open"
+                        data-ac-field="practiceAddress" x-model="query" x-on:input="onAddressInput()"
+                        x-on:keydown.down.prevent="move(1)" x-on:keydown.up.prevent="move(-1)"
+                        x-on:keydown.enter.prevent="chooseHighlighted()" x-on:keydown.escape="close()"
+                        x-on:blur="setTimeout(() => close(), 150)"
+                        class="w-full rounded-xl border {{ $errors->has('practiceAddress') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    <ul x-show="open" x-cloak role="listbox"
+                        class="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-[#dbe4ee] bg-white shadow-lg py-1">
+                        <template x-for="(suggestion, index) in suggestions" :key="suggestion.label">
+                            <li role="option" x-text="suggestion.label" x-on:mousedown.prevent="select(suggestion)"
+                                :class="index === highlightedIndex ? 'bg-[#f0f7fb]' : ''"
+                                class="px-4 py-2 text-sm text-[#173045] cursor-pointer hover:bg-[#f0f7fb]">
+                            </li>
+                        </template>
+                    </ul>
+                    @error('practiceAddress') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                @endunless
 
-        @if($justSaved)
-        <p class="mt-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
-            where you left off.</p>
-        @endif
+                @if($justSaved)
+                <p class="mt-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick
+                    up
+                    where you left off.</p>
+                @endif
 
-        <div class="flex justify-between items-center mt-5">
-            <button type="button" wire:click="backToProviders" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button type="button" wire:click="continueFromAddress(true)" wire:target="continueFromAddress"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button type="button" wire:click="continueFromAddress(true, true)" wire:target="continueFromAddress"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button type="submit" wire:target="continueFromAddress" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromAddress">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromAddress" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </form>
+                <div class="flex justify-between items-center mt-5">
+                    <button type="button" wire:click="backToProviders"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button type="button" wire:click="continueFromAddress(true)" wire:target="continueFromAddress"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button type="button" wire:click="continueFromAddress(true, true)"
+                            wire:target="continueFromAddress"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button type="submit" wire:target="continueFromAddress" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromAddress">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromAddress"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </form>
 
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Your primary address appears in the header of every manual.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <div class="flex flex-wrap gap-1.5">
-                <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All documents</span>
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+            <aside
+                class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Your primary address appears
+                    in the header of every manual.') !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All
+                        documents</span>
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
 
     {{-- ── Basics: 4) Logo ── --}}
     @if($screen === 'b_logo')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full">
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics &middot; 4 of 4</p>
-        <h2 class="text-lg font-semibold text-[#12304f] mb-1">Add your practice logo</h2>
-        <p class="text-sm text-[#5d6e7f] mb-5">Optional. We'll put it on the cover of your documents.</p>
+            <div class="max-w-xl w-full">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5">Practice basics
+                    &middot; 4 of 4</p>
+                <h2 class="text-lg font-semibold text-[#12304f] mb-1">Add your practice logo</h2>
+                <p class="text-sm text-[#5d6e7f] mb-5">Optional. We'll put it on the cover of your documents.</p>
 
-        @if($logoFile)
-        <div class="flex items-center gap-4 rounded-xl border border-[#dbe4ee] p-4">
-            <div class="w-20 h-14 rounded-lg border border-[#e6edf4] bg-[#f8fbfd] flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img src="{{ $logoFile->temporaryUrl() }}" alt="Logo preview" class="max-w-full max-h-full object-contain">
-            </div>
-            <div class="flex items-center gap-3">
-                <label class="rounded-lg border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] cursor-pointer transition-colors">
-                    Replace
+                @if($logoFile)
+                <div class="flex items-center gap-4 rounded-xl border border-[#dbe4ee] p-4">
+                    <div
+                        class="w-20 h-14 rounded-lg border border-[#e6edf4] bg-[#f8fbfd] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <img src="{{ $logoFile->temporaryUrl() }}" alt="Logo preview"
+                            class="max-w-full max-h-full object-contain">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label
+                            class="rounded-lg border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] cursor-pointer transition-colors">
+                            Replace
+                            <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg" class="hidden">
+                        </label>
+                        <button type="button" wire:click="$set('logoFile', null)"
+                            class="text-xs font-semibold text-red-600 hover:underline">Remove</button>
+                    </div>
+                </div>
+                @elseif($this->practice?->logo_path)
+                <div class="flex items-center gap-4 rounded-xl border border-[#dbe4ee] p-4">
+                    <div
+                        class="w-20 h-14 rounded-lg border border-[#e6edf4] bg-[#f8fbfd] flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <img src="{{ Storage::disk('public')->url($this->practice->logo_path) }}" alt="Practice logo"
+                            class="max-w-full max-h-full object-contain">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label
+                            class="rounded-lg border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] cursor-pointer transition-colors">
+                            Replace
+                            <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg" class="hidden">
+                        </label>
+                        <button type="button" wire:click="removeLogo" wire:confirm="Remove your practice logo?"
+                            class="text-xs font-semibold text-red-600 hover:underline">Remove</button>
+                    </div>
+                </div>
+                @else
+                <label
+                    class="flex flex-col items-center justify-center gap-1.5 text-center border-2 border-dashed border-[#c7d3df] rounded-2xl bg-[#f8fbfd] hover:border-[#0b9ed0] hover:bg-[#eaf7fc] transition-colors p-7 cursor-pointer">
+                    <span
+                        class="w-11 h-11 rounded-full bg-white border border-[#dbe4ee] text-[#0b9ed0] flex items-center justify-center mb-1">&#8593;</span>
+                    <span class="text-sm text-[#173045]"><strong class="font-semibold text-[#12304f]">Click to upload
+                            logo</strong> or drag it here</span>
+                    <span class="text-xs text-[#5d6e7f]">PNG, JPG or SVG &middot; under 500 KB</span>
                     <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg" class="hidden">
                 </label>
-                <button type="button" wire:click="$set('logoFile', null)" class="text-xs font-semibold text-red-600 hover:underline">Remove</button>
-            </div>
-        </div>
-        @elseif($this->practice?->logo_path)
-        <div class="flex items-center gap-4 rounded-xl border border-[#dbe4ee] p-4">
-            <div class="w-20 h-14 rounded-lg border border-[#e6edf4] bg-[#f8fbfd] flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img src="{{ Storage::disk('public')->url($this->practice->logo_path) }}" alt="Practice logo" class="max-w-full max-h-full object-contain">
-            </div>
-            <div class="flex items-center gap-3">
-                <label class="rounded-lg border border-[#dbe4ee] px-3.5 py-1.5 text-xs font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] cursor-pointer transition-colors">
-                    Replace
-                    <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg" class="hidden">
-                </label>
-                <button type="button" wire:click="removeLogo" wire:confirm="Remove your practice logo?" class="text-xs font-semibold text-red-600 hover:underline">Remove</button>
-            </div>
-        </div>
-        @else
-        <label class="flex flex-col items-center justify-center gap-1.5 text-center border-2 border-dashed border-[#c7d3df] rounded-2xl bg-[#f8fbfd] hover:border-[#0b9ed0] hover:bg-[#eaf7fc] transition-colors p-7 cursor-pointer">
-            <span class="w-11 h-11 rounded-full bg-white border border-[#dbe4ee] text-[#0b9ed0] flex items-center justify-center mb-1">&#8593;</span>
-            <span class="text-sm text-[#173045]"><strong class="font-semibold text-[#12304f]">Click to upload logo</strong> or drag it here</span>
-            <span class="text-xs text-[#5d6e7f]">PNG, JPG or SVG &middot; under 500 KB</span>
-            <input wire:model.live="logoFile" type="file" accept=".png,.jpg,.jpeg,.svg" class="hidden">
-        </label>
-        @endif
-        @error('logoFile') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
-        <div wire:loading wire:target="logoFile" class="mt-2 text-xs text-[#5d6e7f]">Uploading&hellip;</div>
+                @endif
+                @error('logoFile') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                <div wire:loading wire:target="logoFile" class="mt-2 text-xs text-[#5d6e7f]">Uploading&hellip;</div>
 
-        @if($justSaved)
-        <p class="mt-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
-            where you left off.</p>
-        @endif
+                @if($justSaved)
+                <p class="mt-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick
+                    up
+                    where you left off.</p>
+                @endif
 
-        <div class="flex justify-between items-center mt-5">
-            <button wire:click="backToAddress" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button wire:click="continueFromLogo(true)" wire:target="continueFromLogo"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button wire:click="continueFromLogo" wire:target="continueFromLogo" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromLogo">{{ $logoFile || $this->practice?->logo_path ? 'Continue' : 'Continue without a logo' }} &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromLogo" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
+                <div class="flex justify-between items-center mt-5">
+                    <button wire:click="backToAddress"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button wire:click="continueFromLogo(true)" wire:target="continueFromLogo"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button wire:click="continueFromLogo" wire:target="continueFromLogo"
+                            wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromLogo">{{ $logoFile ||
+                                $this->practice?->logo_path ? 'Continue' : 'Continue without a logo' }} &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromLogo"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
-        </div>
-        </div>
 
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Branded documents look official to staff, payers and auditors.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <div class="flex flex-wrap gap-1.5">
-                <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All documents</span>
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+            <aside
+                class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-sm text-[#173045] leading-relaxed mb-4">{!! $this->glossify('Branded documents look
+                    official to staff, payers and auditors.') !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">All
+                        documents</span>
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
 
     {{-- ── Team ── --}}
     @php
-        $self = $this;
-        $teamAside = function (string $why) use ($self) {
-            return '<aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-                <p class="text-sm text-[#173045] leading-relaxed mb-4">'.$self->glossify($why).' Asked once, and used in all three manuals.</p>
-                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-                <div class="flex flex-wrap gap-1.5">
-                    <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">Compliance &amp; Ethics &middot; &sect;1</span>
-                    <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">HIPAA Privacy &middot; &sect;1</span>
-                    <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">HIPAA Security &middot; &sect;1</span>
-                </div>
-                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-            </aside>';
-        };
+    $self = $this;
+    $teamAside = function (string $why) use ($self) {
+    return '<aside
+        class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+        <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+        <p class="text-sm text-[#173045] leading-relaxed mb-4">'.$self->glossify($why).' Asked once, and used in all
+            three manuals.</p>
+        <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+        <div class="flex flex-wrap gap-1.5">
+            <span
+                class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">Compliance
+                &amp; Ethics &middot; &sect;1</span>
+            <span
+                class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">HIPAA
+                Privacy &middot; &sect;1</span>
+            <span
+                class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">HIPAA
+                Security &middot; &sect;1</span>
+        </div>
+        <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button"
+                wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a
+                specialist</button></p>
+    </aside>';
+    };
     @endphp
 
     {{-- ── Team 1/5: Your practice's legal details ── --}}
     @if($screen === 't_practice')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <form wire:submit="continueFromPractice" class="max-w-xl w-full space-y-5">
-        <div>
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 1 of 5</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">Your practice's legal details</h2>
-            <p class="text-sm text-[#5d6e7f]">Legal name, main phone and email, and every location.</p>
-        </div>
+            <form wire:submit="continueFromPractice" class="max-w-xl w-full space-y-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 1
+                        of 5</p>
+                    <h2 class="text-lg font-semibold text-[#12304f] mb-1">Your practice's legal details</h2>
+                    <p class="text-sm text-[#5d6e7f]">Legal name, main phone and email, and every location.</p>
+                </div>
 
-        <div>
-            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Legal practice name <span class="text-red-500">*</span></label>
-            <input wire:model="legalPracticeName" type="text" required maxlength="200"
-                class="w-full rounded-xl border {{ $errors->has('legalPracticeName') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            @error('legalPracticeName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-        </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Legal practice name <span
+                            class="text-red-500">*</span></label>
+                    <input wire:model="legalPracticeName" type="text" required maxlength="200"
+                        class="w-full rounded-xl border {{ $errors->has('legalPracticeName') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    @error('legalPracticeName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">DBA <span class="text-xs font-normal text-[#8592a1]">(if any)</span></label>
-                <input wire:model="dbaName" type="text"
-                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Other entities <span class="text-xs font-normal text-[#8592a1]">(if any)</span></label>
-                <input wire:model="otherEntities" type="text"
-                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Main phone <span class="text-red-500">*</span></label>
-                <input wire:model="mainPhone" type="tel" inputmode="tel" required maxlength="30"
-                    pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
-                    x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
-                    class="w-full rounded-xl border {{ $errors->has('mainPhone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('mainPhone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Main email <span class="text-red-500">*</span></label>
-                <input wire:model="mainEmail" type="email" required maxlength="150"
-                    pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please include a domain extension, e.g. name@example.com"
-                    class="w-full rounded-xl border {{ $errors->has('mainEmail') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('mainEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-        </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">DBA <span
+                                class="text-xs font-normal text-[#8592a1]">(if any)</span></label>
+                        <input wire:model="dbaName" type="text"
+                            class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Other entities <span
+                                class="text-xs font-normal text-[#8592a1]">(if any)</span></label>
+                        <input wire:model="otherEntities" type="text"
+                            class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Main phone <span
+                                class="text-red-500">*</span></label>
+                        <input wire:model="mainPhone" type="tel" inputmode="tel" required maxlength="30"
+                            pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
+                            x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
+                            class="w-full rounded-xl border {{ $errors->has('mainPhone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                        @error('mainPhone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Main email <span
+                                class="text-red-500">*</span></label>
+                        <input wire:model="mainEmail" type="email" required maxlength="150"
+                            pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                            title="Please include a domain extension, e.g. name@example.com"
+                            class="w-full rounded-xl border {{ $errors->has('mainEmail') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                        @error('mainEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                </div>
 
-        <div class="border-t border-[#eef2f6] pt-4">
-            <label class="block text-sm font-semibold text-[#31465b] mb-0.5">Locations <span class="text-red-500">*</span></label>
-            <p class="text-xs text-[#8592a1] mb-2">Legal address first, then each additional site.</p>
-            @foreach($practiceLocations as $i => $location)
-            <div class="flex gap-2 mb-2">
-                <input wire:model="practiceLocations.{{ $i }}" type="text" maxlength="255" placeholder="{{ $i ? 'Location '.($i + 1).' address' : 'Legal / main address' }}"
-                    class="flex-1 rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                <button type="button" wire:click="removeLocation({{ $i }})" @disabled(count($practiceLocations) < 2)
-                    class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-40">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                </button>
-            </div>
-            @endforeach
-            @error('practiceLocations') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            <button type="button" wire:click="addLocation" class="text-xs font-bold text-[#1a7aad] hover:underline">+ Add another location</button>
-        </div>
+                <div class="border-t border-[#eef2f6] pt-4">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-0.5">Locations <span
+                            class="text-red-500">*</span></label>
+                    <p class="text-xs text-[#8592a1] mb-2">Legal address first, then each additional site.</p>
+                    @foreach($practiceLocations as $i => $location)
+                    <div class="flex gap-2 mb-2">
+                        <input wire:model="practiceLocations.{{ $i }}" type="text" maxlength="255"
+                            placeholder="{{ $i ? 'Location '.($i + 1).' address' : 'Legal / main address' }}"
+                            class="flex-1 rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                        <button type="button" wire:click="removeLocation({{ $i }})" @disabled(count($practiceLocations)
+                            < 2)
+                            class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-40">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
+                        </button>
+                    </div>
+                    @endforeach
+                    @error('practiceLocations') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    <button type="button" wire:click="addLocation"
+                        class="text-xs font-bold text-[#1a7aad] hover:underline">+ Add another location</button>
+                </div>
 
-        @if($justSaved)
-        <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up where
-            you left off.</p>
-        @endif
+                @if($justSaved)
+                <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
+                    where
+                    you left off.</p>
+                @endif
 
-        <div class="flex justify-between items-center pt-2">
-            <button type="button" wire:click="backToBasics" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button type="button" wire:click="continueFromPractice(true)" wire:target="continueFromPractice"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button type="button" wire:click="continueFromPractice(true, true)" wire:target="continueFromPractice"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button type="submit" wire:target="continueFromPractice" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromPractice">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromPractice" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </form>
-        {!! $teamAside("Section 1 starts with your legal name and addresses. Facility security policies and hotline poster counts depend on your locations.") !!}
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" wire:click="backToBasics"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button type="button" wire:click="continueFromPractice(true)" wire:target="continueFromPractice"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button type="button" wire:click="continueFromPractice(true, true)"
+                            wire:target="continueFromPractice"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button type="submit" wire:target="continueFromPractice" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromPractice">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromPractice"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            {!! $teamAside("Section 1 starts with your legal name and addresses. Facility security policies and hotline
+            poster counts depend on your locations.") !!}
         </div>
     </div>
     @endif
 
     {{-- ── Team 2/5: Who fills your compliance roles? ── --}}
     @if($screen === 't_officers')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <form wire:submit="continueFromOfficers" class="max-w-xl w-full space-y-5">
-        <div>
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 2 of 5</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">Who fills your compliance roles?</h2>
-            <p class="text-sm text-[#5d6e7f]">One person can hold more than one role. Use Quick add to reuse someone&rsquo;s details.</p>
-        </div>
+            <form wire:submit="continueFromOfficers" class="max-w-xl w-full space-y-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 2
+                        of 5</p>
+                    <h2 class="text-lg font-semibold text-[#12304f] mb-1">Who fills your compliance roles?</h2>
+                    <p class="text-sm text-[#5d6e7f]">One person can hold more than one role. Use Quick add to reuse
+                        someone&rsquo;s details.</p>
+                </div>
 
-        @foreach($this->officerPrefixes as $prefix => $label)
-        @php
-            $quickAddOptions = $this->quickAddOptionsForOfficer($prefix);
-        @endphp
-        <div class="rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4">
-            <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                <p class="text-sm font-semibold text-[#12304f]">{{ $label }}</p>
-                @if(count($quickAddOptions) > 0)
-                <span class="flex flex-wrap items-center gap-1.5 text-xs text-[#5d6e7f]">
-                    Quick add:
-                    @foreach($quickAddOptions as $option)
-                    <button type="button" wire:click="copyOfficerContact('{{ $prefix }}', '{{ $option['source'] }}')"
-                        wire:loading.attr="disabled" wire:target="copyOfficerContact"
-                        class="inline-flex items-center rounded-full border border-[#9ed3e9] bg-white px-2.5 py-1 text-xs font-semibold text-[#0b7ca8] hover:bg-[#eaf7fc] transition-colors disabled:opacity-50">
-                        + {{ $option['label'] }}
-                    </button>
-                    @endforeach
-                </span>
+                @foreach($this->officerPrefixes as $prefix => $label)
+                @php
+                $quickAddOptions = $this->quickAddOptionsForOfficer($prefix);
+                @endphp
+                <div class="rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+                    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                        <p class="text-sm font-semibold text-[#12304f]">{{ $label }}</p>
+                        @if(count($quickAddOptions) > 0)
+                        <span class="flex flex-wrap items-center gap-1.5 text-xs text-[#5d6e7f]">
+                            Quick add:
+                            @foreach($quickAddOptions as $option)
+                            <button type="button"
+                                wire:click="copyOfficerContact('{{ $prefix }}', '{{ $option['source'] }}')"
+                                wire:loading.attr="disabled" wire:target="copyOfficerContact"
+                                class="inline-flex items-center rounded-full border border-[#9ed3e9] bg-white px-2.5 py-1 text-xs font-semibold text-[#0b7ca8] hover:bg-[#eaf7fc] transition-colors disabled:opacity-50">
+                                + {{ $option['label'] }}
+                            </button>
+                            @endforeach
+                        </span>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Full name <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="{{ $prefix }}Name" type="text" required maxlength="150"
+                                class="w-full rounded-xl border {{ $errors->has($prefix.'Name') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-white px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error($prefix.'Name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="{{ $prefix }}Phone" type="tel" inputmode="tel" required maxlength="30"
+                                pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
+                                x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
+                                class="w-full rounded-xl border {{ $errors->has($prefix.'Phone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-white px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error($prefix.'Phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="{{ $prefix }}Email" type="email" required maxlength="150"
+                                pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                                title="Please include a domain extension, e.g. name@example.com"
+                                class="w-full rounded-xl border {{ $errors->has($prefix.'Email') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-white px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error($prefix.'Email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+
+                @if($justSaved)
+                <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
+                    where
+                    you left off.</p>
                 @endif
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Full name <span class="text-red-500">*</span></label>
-                    <input wire:model="{{ $prefix }}Name" type="text" required maxlength="150"
-                        class="w-full rounded-xl border {{ $errors->has($prefix.'Name') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-white px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                    @error($prefix.'Name') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone <span class="text-red-500">*</span></label>
-                    <input wire:model="{{ $prefix }}Phone" type="tel" inputmode="tel" required maxlength="30"
-                        pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
-                        x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
-                        class="w-full rounded-xl border {{ $errors->has($prefix.'Phone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-white px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                    @error($prefix.'Phone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email <span class="text-red-500">*</span></label>
-                    <input wire:model="{{ $prefix }}Email" type="email" required maxlength="150"
-                        pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please include a domain extension, e.g. name@example.com"
-                        class="w-full rounded-xl border {{ $errors->has($prefix.'Email') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-white px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                    @error($prefix.'Email') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                </div>
-            </div>
-        </div>
-        @endforeach
 
-        @if($justSaved)
-        <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up where
-            you left off.</p>
-        @endif
-
-        <div class="flex justify-between items-center pt-2">
-            <button type="button" wire:click="backToPractice" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button type="button" wire:click="continueFromOfficers(true)" wire:target="continueFromOfficers"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button type="button" wire:click="continueFromOfficers(true, true)" wire:target="continueFromOfficers"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button type="submit" wire:target="continueFromOfficers" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromOfficers">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromOfficers" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </form>
-        {!! $teamAside("HIPAA requires designated Privacy and Security Officers, and OIG guidance calls for a Compliance Officer. They are named throughout all three manuals.") !!}
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" wire:click="backToPractice"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button type="button" wire:click="continueFromOfficers(true)" wire:target="continueFromOfficers"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button type="button" wire:click="continueFromOfficers(true, true)"
+                            wire:target="continueFromOfficers"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button type="submit" wire:target="continueFromOfficers" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromOfficers">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromOfficers"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            {!! $teamAside("HIPAA requires designated Privacy and Security Officers, and OIG guidance calls for a
+            Compliance Officer. They are named throughout all three manuals.") !!}
         </div>
     </div>
     @endif
 
     {{-- ── Team 3/5: Who handles your IT? ── --}}
     @if($screen === 't_it')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <form wire:submit="continueFromIt" class="max-w-xl w-full space-y-5">
-        <div>
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 3 of 5</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">Who handles your IT?</h2>
-            <p class="text-sm text-[#5d6e7f]">An outside IT company or someone in-house.</p>
-        </div>
+            <form wire:submit="continueFromIt" class="max-w-xl w-full space-y-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 3
+                        of 5</p>
+                    <h2 class="text-lg font-semibold text-[#12304f] mb-1">Who handles your IT?</h2>
+                    <p class="text-sm text-[#5d6e7f]">An outside IT company or someone in-house.</p>
+                </div>
 
-        <div class="space-y-2">
-            <label class="flex items-start gap-3 rounded-xl border {{ $itMode === 'vendor' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
-                <input type="radio" wire:model.live="itMode" value="vendor" class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                <span>
-                    <span class="block text-sm font-semibold text-[#173045]">An outside IT company</span>
-                    <span class="block text-xs text-[#5d6e7f]">A managed service provider or IT consultant.</span>
-                </span>
-            </label>
-            <label class="flex items-start gap-3 rounded-xl border {{ $itMode === 'inhouse' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
-                <input type="radio" wire:model.live="itMode" value="inhouse" class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                <span>
-                    <span class="block text-sm font-semibold text-[#173045]">We handle IT in-house</span>
-                    <span class="block text-xs text-[#5d6e7f]">A staff member manages computers and systems.</span>
-                </span>
-            </label>
-            @error('itMode') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-        </div>
+                <div class="space-y-2">
+                    <label
+                        class="flex items-start gap-3 rounded-xl border {{ $itMode === 'vendor' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
+                        <input type="radio" wire:model.live="itMode" value="vendor"
+                            class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                        <span>
+                            <span class="block text-sm font-semibold text-[#173045]">An outside IT company</span>
+                            <span class="block text-xs text-[#5d6e7f]">A managed service provider or IT
+                                consultant.</span>
+                        </span>
+                    </label>
+                    <label
+                        class="flex items-start gap-3 rounded-xl border {{ $itMode === 'inhouse' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
+                        <input type="radio" wire:model.live="itMode" value="inhouse"
+                            class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                        <span>
+                            <span class="block text-sm font-semibold text-[#173045]">We handle IT in-house</span>
+                            <span class="block text-xs text-[#5d6e7f]">A staff member manages computers and
+                                systems.</span>
+                        </span>
+                    </label>
+                    @error('itMode') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
 
-        @if($itMode === 'vendor')
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Company name <span class="text-red-500">*</span></label>
-                <input wire:model="itVendorName" type="text" required maxlength="150"
-                    class="w-full rounded-xl border {{ $errors->has('itVendorName') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('itVendorName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Contact name</label>
-                <input wire:model="itContactName" type="text" maxlength="150"
-                    class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone <span class="text-red-500">*</span></label>
-                <input wire:model="itContactPhone" type="tel" inputmode="tel" required maxlength="30"
-                    pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
-                    x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
-                    class="w-full rounded-xl border {{ $errors->has('itContactPhone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('itContactPhone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email <span class="text-red-500">*</span></label>
-                <input wire:model="itContactEmail" type="email" required maxlength="150"
-                    pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please include a domain extension, e.g. name@example.com"
-                    class="w-full rounded-xl border {{ $errors->has('itContactEmail') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('itContactEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-        </div>
-        @elseif($itMode === 'inhouse')
-        @php
-            $itQuickAddOptions = $this->quickAddOptionsForIt();
-        @endphp
-        <div class="border border-[#eef2f6] rounded-xl p-4">
-            <div class="flex items-center justify-between gap-3 mb-2 flex-wrap">
-                <p class="text-sm font-semibold text-[#12304f]">Who handles IT?</p>
-                @if(count($itQuickAddOptions) > 0)
-                <span class="flex flex-wrap items-center gap-1.5 text-xs text-[#5d6e7f]">
-                    Quick add:
-                    @foreach($itQuickAddOptions as $option)
-                    <button type="button" wire:click="copyItContact('{{ $option['source'] }}')"
-                        wire:loading.attr="disabled" wire:target="copyItContact"
-                        class="inline-flex items-center rounded-full border border-[#9ed3e9] bg-white px-2.5 py-1 text-xs font-semibold text-[#0b7ca8] hover:bg-[#eaf7fc] transition-colors disabled:opacity-50">
-                        + {{ $option['label'] }}
-                    </button>
-                    @endforeach
-                </span>
+                @if($itMode === 'vendor')
+                <div wire:key="it-details-{{ $itMode }}"
+                    class="reveal-in rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Company name <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="itVendorName" type="text" required maxlength="150"
+                                class="w-full rounded-xl border {{ $errors->has('itVendorName') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error('itVendorName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Contact name</label>
+                            <input wire:model="itContactName" type="text" maxlength="150"
+                                class="w-full rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="itContactPhone" type="tel" inputmode="tel" required maxlength="30"
+                                pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
+                                x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
+                                class="w-full rounded-xl border {{ $errors->has('itContactPhone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error('itContactPhone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="itContactEmail" type="email" required maxlength="150"
+                                pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                                title="Please include a domain extension, e.g. name@example.com"
+                                class="w-full rounded-xl border {{ $errors->has('itContactEmail') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error('itContactEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+                @elseif($itMode === 'inhouse')
+                @php
+                $itQuickAddOptions = $this->quickAddOptionsForIt();
+                @endphp
+                <div wire:key="it-details-{{ $itMode }}"
+                    class="reveal-in border border-[#eef2f6] rounded-xl bg-[#f8fbfd] p-4">
+                    <div class="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                        <p class="text-sm font-semibold text-[#12304f]">Who handles IT?</p>
+                        @if(count($itQuickAddOptions) > 0)
+                        <span class="flex flex-wrap items-center gap-1.5 text-xs text-[#5d6e7f]">
+                            Quick add:
+                            @foreach($itQuickAddOptions as $option)
+                            <button type="button" wire:click="copyItContact('{{ $option['source'] }}')"
+                                wire:loading.attr="disabled" wire:target="copyItContact"
+                                class="inline-flex items-center rounded-full border border-[#9ed3e9] bg-white px-2.5 py-1 text-xs font-semibold text-[#0b7ca8] hover:bg-[#eaf7fc] transition-colors disabled:opacity-50">
+                                + {{ $option['label'] }}
+                            </button>
+                            @endforeach
+                        </span>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Full name <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="itContactName" type="text" required maxlength="150"
+                                class="w-full rounded-xl border {{ $errors->has('itContactName') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error('itContactName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="itContactPhone" type="tel" inputmode="tel" required maxlength="30"
+                                pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
+                                x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
+                                class="w-full rounded-xl border {{ $errors->has('itContactPhone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error('itContactPhone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email <span
+                                    class="text-red-500">*</span></label>
+                            <input wire:model="itContactEmail" type="email" required maxlength="150"
+                                pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                                title="Please include a domain extension, e.g. name@example.com"
+                                class="w-full rounded-xl border {{ $errors->has('itContactEmail') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            @error('itContactEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
                 @endif
-            </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Full name <span class="text-red-500">*</span></label>
-                <input wire:model="itContactName" type="text" required maxlength="150"
-                    class="w-full rounded-xl border {{ $errors->has('itContactName') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('itContactName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Phone <span class="text-red-500">*</span></label>
-                <input wire:model="itContactPhone" type="tel" inputmode="tel" required maxlength="30"
-                    pattern="[+]?[0-9\s().\-]{7,30}" title="A valid phone number"
-                    x-on:input="$el.value = $el.value.replace(/[^0-9+()\-.\s]/g, '')"
-                    class="w-full rounded-xl border {{ $errors->has('itContactPhone') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('itContactPhone') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email <span class="text-red-500">*</span></label>
-                <input wire:model="itContactEmail" type="email" required maxlength="150"
-                    pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please include a domain extension, e.g. name@example.com"
-                    class="w-full rounded-xl border {{ $errors->has('itContactEmail') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                @error('itContactEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-        </div>
-        </div>
-        @endif
 
-        @if($justSaved)
-        <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up where
-            you left off.</p>
-        @endif
+                @if($justSaved)
+                <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
+                    where
+                    you left off.</p>
+                @endif
 
-        <div class="flex justify-between items-center pt-2">
-            <button type="button" wire:click="backToOfficers" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button type="button" wire:click="continueFromIt(true)" wire:target="continueFromIt"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button type="button" wire:click="continueFromIt(true, true)" wire:target="continueFromIt"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button type="submit" wire:target="continueFromIt" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromIt">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromIt" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </form>
-        {!! $teamAside("Your IT contact is named in most HIPAA Security policies.") !!}
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" wire:click="backToOfficers"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button type="button" wire:click="continueFromIt(true)" wire:target="continueFromIt"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button type="button" wire:click="continueFromIt(true, true)" wire:target="continueFromIt"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button type="submit" wire:target="continueFromIt" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromIt">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromIt"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            {!! $teamAside("Your IT contact is named in most HIPAA Security policies.") !!}
         </div>
     </div>
     @endif
 
     {{-- ── Team 4/5: How can staff reach a compliance hotline? ── --}}
     @if($screen === 't_hotline')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <form wire:submit="continueFromHotline" class="max-w-xl w-full space-y-5">
-        <div>
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 4 of 5</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">How can staff reach a compliance hotline?</h2>
-            <p class="text-sm text-[#5d6e7f]">Staff need a way to report concerns anonymously.</p>
-        </div>
+            <form wire:submit="continueFromHotline" class="max-w-xl w-full space-y-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 4
+                        of 5</p>
+                    <h2 class="text-lg font-semibold text-[#12304f] mb-1">How can staff reach a compliance hotline?</h2>
+                    <p class="text-sm text-[#5d6e7f]">Staff need a way to report concerns anonymously.</p>
+                </div>
 
-        <div class="space-y-2">
-            <label class="flex items-start gap-3 rounded-xl border {{ $usesEhcpHotline === true ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
-                <input type="radio" wire:model.live="usesEhcpHotline" value="1" class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                <span>
-                    <span class="block text-sm font-semibold text-[#173045]">Use the Empower compliance hotline</span>
-                    <span class="block text-xs text-[#5d6e7f]">Included in your package. Anonymous phone and web reporting.</span>
-                </span>
-            </label>
-            <label class="flex items-start gap-3 rounded-xl border {{ $usesEhcpHotline === false ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
-                <input type="radio" wire:model.live="usesEhcpHotline" value="0" class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                <span>
-                    <span class="block text-sm font-semibold text-[#173045]">We have our own hotline</span>
-                    <span class="block text-xs text-[#5d6e7f]">Tell us the number and/or email.</span>
-                </span>
-            </label>
-            @error('usesEhcpHotline') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-        </div>
+                <div class="space-y-2">
+                    <label
+                        class="flex items-start gap-3 rounded-xl border {{ $usesEhcpHotline === true ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
+                        <input type="radio" wire:model.live="usesEhcpHotline" value="1"
+                            class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                        <span>
+                            <span class="block text-sm font-semibold text-[#173045]">Use the Empower compliance
+                                hotline</span>
+                            <span class="block text-xs text-[#5d6e7f]">Included in your package. Anonymous phone and web
+                                reporting.</span>
+                        </span>
+                    </label>
+                    <label
+                        class="flex items-start gap-3 rounded-xl border {{ $usesEhcpHotline === false ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-3 cursor-pointer">
+                        <input type="radio" wire:model.live="usesEhcpHotline" value="0"
+                            class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                        <span>
+                            <span class="block text-sm font-semibold text-[#173045]">We have our own hotline</span>
+                            <span class="block text-xs text-[#5d6e7f]">Tell us the number and/or email.</span>
+                        </span>
+                    </label>
+                    @error('usesEhcpHotline') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
 
-        @if($usesEhcpHotline === false)
-        <div>
-            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Hotline number and/or email <span class="text-red-500">*</span></label>
-            <input wire:model="hotlineContact" type="text" required maxlength="200"
-                class="w-full rounded-xl border {{ $errors->has('hotlineContact') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            @error('hotlineContact') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-        </div>
-        @endif
+                @if($usesEhcpHotline === false)
+                <div class="reveal-in rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Hotline number and/or email <span
+                            class="text-red-500">*</span></label>
+                    <input wire:model="hotlineContact" type="text" required maxlength="200"
+                        class="w-full rounded-xl border {{ $errors->has('hotlineContact') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    @error('hotlineContact') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                @endif
 
-        @if($usesEhcpHotline !== null)
-        @php $locationCount = max(1, collect($practiceLocations)->filter(fn ($l) => trim($l) !== '')->count()); @endphp
-        <div>
-            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Hotline posters needed</label>
-            <input wire:model="hotlinePosterCount" type="number" min="0" placeholder="{{ $locationCount * 2 }}"
-                class="w-full max-w-[10rem] rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-            <p class="text-xs text-[#8592a1] mt-1">2 per location recommended ({{ $locationCount }} location{{ $locationCount > 1 ? 's' : '' }}).</p>
-        </div>
-        @endif
+                @if($usesEhcpHotline !== null)
+                @php $locationCount = max(1, collect($practiceLocations)->filter(fn ($l) => trim($l) !== '')->count());
+                @endphp
+                <div class="reveal-in rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Hotline posters needed</label>
+                    <input wire:model="hotlinePosterCount" type="number" min="0" placeholder="{{ $locationCount * 2 }}"
+                        class="w-full max-w-[10rem] rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                    <p class="text-xs text-[#8592a1] mt-1">2 per location recommended ({{ $locationCount }} location{{
+                        $locationCount > 1 ? 's' : '' }}).</p>
+                </div>
+                @endif
 
-        @if($justSaved)
-        <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up where
-            you left off.</p>
-        @endif
+                @if($justSaved)
+                <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
+                    where
+                    you left off.</p>
+                @endif
 
-        <div class="flex justify-between items-center pt-2">
-            <button type="button" wire:click="backToIt" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button type="button" wire:click="continueFromHotline(true)" wire:target="continueFromHotline"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button type="button" wire:click="continueFromHotline(true, true)" wire:target="continueFromHotline"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button type="submit" wire:target="continueFromHotline" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromHotline">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromHotline" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </form>
-        {!! $teamAside("A hotline is part of the reporting element. Section 1 recommends 2 posters per location.") !!}
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" wire:click="backToIt"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button type="button" wire:click="continueFromHotline(true)" wire:target="continueFromHotline"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button type="button" wire:click="continueFromHotline(true, true)"
+                            wire:target="continueFromHotline"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button type="submit" wire:target="continueFromHotline" wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromHotline">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromHotline"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            {!! $teamAside("A hotline is part of the reporting element. Section 1 recommends 2 posters per location.")
+            !!}
         </div>
     </div>
     @endif
 
     {{-- ── Team 5/5: Who leads compliance oversight? ── --}}
     @if($screen === 't_leadership')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full space-y-5">
-        <div>
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 5 of 5</p>
-            <h2 class="text-lg font-semibold text-[#12304f] mb-1">Who leads compliance oversight?</h2>
-            <p class="text-sm text-[#5d6e7f]">Your Compliance Committee, and your owners or governing board.</p>
-        </div>
+            <div class="max-w-xl w-full space-y-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wide text-[#1a7aad] mb-1">Your team &middot; 5
+                        of 5</p>
+                    <h2 class="text-lg font-semibold text-[#12304f] mb-1">Who leads compliance oversight?</h2>
+                    <p class="text-sm text-[#5d6e7f]">Your Compliance Committee, and your owners or governing board.</p>
+                </div>
 
-        <div class="border border-[#eef2f6] rounded-xl p-4">
-            <p class="text-sm font-semibold text-[#12304f] mb-2">Compliance Committee</p>
-            <label class="inline-flex items-center gap-2 text-sm text-[#173045] cursor-pointer mb-3">
-                <input type="checkbox" wire:model.live="committeeNone" class="rounded text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                We don't have a committee yet
-            </label>
-            @unless($committeeNone)
-            @foreach($complianceCommitteeMembers as $i => $member)
-            <div class="flex gap-2 mb-2">
-                <input wire:model="complianceCommitteeMembers.{{ $i }}.name" type="text" placeholder="Name" maxlength="150"
-                    class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                <input wire:model="complianceCommitteeMembers.{{ $i }}.title" type="text" placeholder="Title or role" maxlength="150"
-                    class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                <button type="button" wire:click="removeCommitteeMember({{ $i }})" @disabled(count($complianceCommitteeMembers) < 2)
-                    class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-white transition-colors disabled:opacity-40">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                </button>
+                <div class="border border-[#eef2f6] rounded-xl p-4">
+                    <p class="text-sm font-semibold text-[#12304f] mb-2">Compliance Committee</p>
+                    <label class="inline-flex items-center gap-2 text-sm text-[#173045] cursor-pointer mb-3">
+                        <input type="checkbox" wire:model.live="committeeNone"
+                            class="rounded text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                        We don't have a committee yet
+                    </label>
+                    @unless($committeeNone)
+                    <div class="reveal-in rounded-xl bg-[#f8fbfd] p-3">
+                        @foreach($complianceCommitteeMembers as $i => $member)
+                        <div class="flex gap-2 mb-2">
+                            <input wire:model="complianceCommitteeMembers.{{ $i }}.name" type="text" placeholder="Name"
+                                maxlength="150"
+                                class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            <input wire:model="complianceCommitteeMembers.{{ $i }}.title" type="text"
+                                placeholder="Title or role" maxlength="150"
+                                class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            <button type="button" wire:click="removeCommitteeMember({{ $i }})"
+                                @disabled(count($complianceCommitteeMembers) < 2)
+                                class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-white transition-colors disabled:opacity-40">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </div>
+                        @endforeach
+                        @error('complianceCommitteeMembers') <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                        <button type="button" wire:click="addCommitteeMember"
+                            class="text-xs font-bold text-[#1a7aad] hover:underline">+ Add member</button>
+                        @if($this->knownTeamRoster !== [])
+                        <p class="text-xs text-[#8592a1] mt-2">Quick add:
+                            @foreach($this->knownTeamRoster as $person)
+                            <button type="button"
+                                wire:click="quickAddMember('committee', '{{ addslashes($person['name']) }}', '{{ addslashes($person['roles']) }}')"
+                                title="{{ $person['roles'] ?: 'No role assigned yet' }}"
+                                class="inline-flex items-center rounded-full border border-[#dbe4ee] bg-white px-2 py-0.5 text-[0.7rem] font-semibold text-[#173045] hover:bg-[#f4f7fb] mr-1">+
+                                {{ $person['name'] }}</button>
+                            @endforeach
+                        </p>
+                        @endif
+                    </div>
+                    @endunless
+                </div>
+
+                <div class="border border-[#eef2f6] rounded-xl p-4">
+                    <p class="text-sm font-semibold text-[#12304f] mb-2">Owners or governing board</p>
+                    <div class="space-y-2 mb-3">
+                        <label
+                            class="flex items-start gap-3 rounded-xl border {{ $boardMode === 'owners' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-white px-4 py-3 cursor-pointer">
+                            <input type="radio" wire:model.live="boardMode" value="owners"
+                                class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                            <span>
+                                <span class="block text-sm font-semibold text-[#173045]">Our owners or partners oversee
+                                    compliance</span>
+                                <span class="block text-xs text-[#5d6e7f]">No formal governing board.</span>
+                            </span>
+                        </label>
+                        <label
+                            class="flex items-start gap-3 rounded-xl border {{ $boardMode === 'board' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-white px-4 py-3 cursor-pointer">
+                            <input type="radio" wire:model.live="boardMode" value="board"
+                                class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
+                            <span>
+                                <span class="block text-sm font-semibold text-[#173045]">We have a governing
+                                    board</span>
+                                <span class="block text-xs text-[#5d6e7f]">List each board member.</span>
+                            </span>
+                        </label>
+                        @error('boardMode') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                    </div>
+
+                    @if($boardMode !== '')
+                    <div wire:key="board-members-{{ $boardMode }}" class="reveal-in rounded-xl bg-[#f8fbfd] p-3">
+                        @foreach($complianceGoverningBoardMembers as $i => $member)
+                        <div class="flex gap-2 mb-2">
+                            <input wire:model="complianceGoverningBoardMembers.{{ $i }}.name" type="text"
+                                placeholder="Name" maxlength="150"
+                                class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            <input wire:model="complianceGoverningBoardMembers.{{ $i }}.title" type="text"
+                                placeholder="Title or role" maxlength="150"
+                                class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
+                            <button type="button" wire:click="removeBoardMember({{ $i }})"
+                                @disabled(count($complianceGoverningBoardMembers) < 2)
+                                class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-white transition-colors disabled:opacity-40">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" />
+                                </svg>
+                            </button>
+                        </div>
+                        @endforeach
+                        @error('complianceGoverningBoardMembers') <p class="mt-1 text-xs text-red-600">{{ $message }}
+                        </p> @enderror
+                        <button type="button" wire:click="addBoardMember"
+                            class="text-xs font-bold text-[#1a7aad] hover:underline">+ Add {{ $boardMode === 'owners' ?
+                            'owner' : 'board member' }}</button>
+                        @if($this->knownTeamRoster !== [])
+                        <p class="text-xs text-[#8592a1] mt-2">Quick add:
+                            @foreach($this->knownTeamRoster as $person)
+                            <button type="button"
+                                wire:click="quickAddMember('board', '{{ addslashes($person['name']) }}', '{{ addslashes($person['roles']) }}')"
+                                title="{{ $person['roles'] ?: 'No role assigned yet' }}"
+                                class="inline-flex items-center rounded-full border border-[#dbe4ee] bg-white px-2 py-0.5 text-[0.7rem] font-semibold text-[#173045] hover:bg-[#f4f7fb] mr-1">+
+                                {{ $person['name'] }}</button>
+                            @endforeach
+                        </p>
+                        @endif
+                    </div>
+                    @endif
+                </div>
+
+                @if($justSaved)
+                <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up
+                    where
+                    you left off.</p>
+                @endif
+
+                <div class="flex justify-between items-center pt-2">
+                    <button wire:click="backToHotline"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button wire:click="continueFromLeadership(true)" wire:target="continueFromLeadership"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
+                        <button wire:click="continueFromLeadership(true, true)" wire:target="continueFromLeadership"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue
+                            later</button>
+                        <button wire:click="continueFromLeadership" wire:target="continueFromLeadership"
+                            wire:loading.attr="disabled"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
+                            <span wire:loading.remove wire:target="continueFromLeadership">Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="continueFromLeadership"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                </div>
             </div>
-            @endforeach
-            @error('complianceCommitteeMembers') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            <button type="button" wire:click="addCommitteeMember" class="text-xs font-bold text-[#1a7aad] hover:underline">+ Add member</button>
-            @if($this->knownTeamRoster !== [])
-            <p class="text-xs text-[#8592a1] mt-2">Quick add:
-                @foreach($this->knownTeamRoster as $person)
-                    <button type="button" wire:click="quickAddMember('committee', '{{ addslashes($person['name']) }}', '{{ addslashes($person['roles']) }}')"
-                        title="{{ $person['roles'] ?: 'No role assigned yet' }}"
-                        class="inline-flex items-center rounded-full border border-[#dbe4ee] bg-white px-2 py-0.5 text-[0.7rem] font-semibold text-[#173045] hover:bg-[#f4f7fb] mr-1">+ {{ $person['name'] }}</button>
-                @endforeach
-            </p>
-            @endif
-            @endunless
-        </div>
-
-        <div class="border border-[#eef2f6] rounded-xl p-4">
-            <p class="text-sm font-semibold text-[#12304f] mb-2">Owners or governing board</p>
-            <div class="space-y-2 mb-3">
-                <label class="flex items-start gap-3 rounded-xl border {{ $boardMode === 'owners' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-white px-4 py-3 cursor-pointer">
-                    <input type="radio" wire:model.live="boardMode" value="owners" class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                    <span>
-                        <span class="block text-sm font-semibold text-[#173045]">Our owners or partners oversee compliance</span>
-                        <span class="block text-xs text-[#5d6e7f]">No formal governing board.</span>
-                    </span>
-                </label>
-                <label class="flex items-start gap-3 rounded-xl border {{ $boardMode === 'board' ? 'border-[#0b9ed0] ring-1 ring-[#0b9ed0]' : 'border-[#dbe4ee]' }} bg-white px-4 py-3 cursor-pointer">
-                    <input type="radio" wire:model.live="boardMode" value="board" class="mt-1 text-[#0b9ed0] focus:ring-[#0b9ed0]">
-                    <span>
-                        <span class="block text-sm font-semibold text-[#173045]">We have a governing board</span>
-                        <span class="block text-xs text-[#5d6e7f]">List each board member.</span>
-                    </span>
-                </label>
-                @error('boardMode') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            </div>
-
-            @if($boardMode !== '')
-            @foreach($complianceGoverningBoardMembers as $i => $member)
-            <div class="flex gap-2 mb-2">
-                <input wire:model="complianceGoverningBoardMembers.{{ $i }}.name" type="text" placeholder="Name" maxlength="150"
-                    class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                <input wire:model="complianceGoverningBoardMembers.{{ $i }}.title" type="text" placeholder="Title or role" maxlength="150"
-                    class="flex-1 rounded-xl border border-[#dbe4ee] bg-white px-4 py-2 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition">
-                <button type="button" wire:click="removeBoardMember({{ $i }})" @disabled(count($complianceGoverningBoardMembers) < 2)
-                    class="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe4ee] text-[#5d6e7f] hover:bg-white transition-colors disabled:opacity-40">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-                </button>
-            </div>
-            @endforeach
-            @error('complianceGoverningBoardMembers') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            <button type="button" wire:click="addBoardMember" class="text-xs font-bold text-[#1a7aad] hover:underline">+ Add {{ $boardMode === 'owners' ? 'owner' : 'board member' }}</button>
-            @if($this->knownTeamRoster !== [])
-            <p class="text-xs text-[#8592a1] mt-2">Quick add:
-                @foreach($this->knownTeamRoster as $person)
-                    <button type="button" wire:click="quickAddMember('board', '{{ addslashes($person['name']) }}', '{{ addslashes($person['roles']) }}')"
-                        title="{{ $person['roles'] ?: 'No role assigned yet' }}"
-                        class="inline-flex items-center rounded-full border border-[#dbe4ee] bg-white px-2 py-0.5 text-[0.7rem] font-semibold text-[#173045] hover:bg-[#f4f7fb] mr-1">+ {{ $person['name'] }}</button>
-                @endforeach
-            </p>
-            @endif
-            @endif
-        </div>
-
-        @if($justSaved)
-        <p class="text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved — come back anytime to pick up where
-            you left off.</p>
-        @endif
-
-        <div class="flex justify-between items-center pt-2">
-            <button wire:click="backToHotline" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors">&larr; Back</button>
-            <div class="flex items-center gap-4">
-                <button wire:click="continueFromLeadership(true)" wire:target="continueFromLeadership"
-                    class="text-sm font-semibold text-[#1a7aad] hover:underline">Skip for now</button>
-                <button wire:click="continueFromLeadership(true, true)" wire:target="continueFromLeadership"
-                    class="text-sm font-semibold text-[#5d6e7f] hover:underline">Save &amp; continue later</button>
-                <button wire:click="continueFromLeadership" wire:target="continueFromLeadership" wire:loading.attr="disabled"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
-                    <span wire:loading.remove wire:target="continueFromLeadership">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromLeadership" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-        </div>
-        {!! $teamAside("Committee and board members are listed in the Compliance & Ethics Manual. OIG guidance expects leadership to oversee the program.") !!}
+            {!! $teamAside("Committee and board members are listed in the Compliance & Ethics Manual. OIG guidance
+            expects leadership to oversee the program.") !!}
         </div>
     </div>
     @endif
 
     {{-- ── Your services ── --}}
     @if($screen === 'services')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full">
-            <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-1">Which of these does your practice do?</h2>
-            <p class="text-sm text-[#5d6e7f] mb-4">Check everything that applies. We'll skip the questions that don't.</p>
+            <div class="max-w-xl w-full">
+                <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-1">Which of these does your practice do?</h2>
+                <p class="text-sm text-[#5d6e7f] mb-4">Check everything that applies. We'll skip the questions that
+                    don't.</p>
 
-            <div class="space-y-2.5 mb-3">
-                @foreach(self::SERVICES as $key => $service)
-                @php
-                    $checked = in_array($key, $this->selectedServices, true);
-                @endphp
-                <label class="flex items-start gap-2.5 rounded-xl border {{ $checked ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="checkbox" wire:click="toggleService('{{ $key }}')" wire:loading.attr="disabled" wire:target="toggleService,setServicesNone,continueFromServices" @checked($checked) class="mt-0.5 accent-[#12304f]">
-                    <span>
-                        <span class="block text-sm font-bold text-[#173045]">{!! $this->glossify($service['label']) !!}</span>
-                        @if($service['description'])
-                        <span class="block text-xs text-[#5d6e7f] mt-0.5">{!! $this->glossify($service['description']) !!}</span>
-                        @endif
-                    </span>
+                <label class="flex items-center gap-2.5 mb-3 cursor-pointer">
+                    <input type="checkbox" wire:click="toggleAllServices" wire:loading.attr="disabled"
+                        wire:target="toggleService,toggleAllServices,setServicesNone,continueFromServices"
+                        @checked($this->allServicesSelected) class="accent-[#12304f]">
+                    <span class="text-sm font-semibold text-[#173045]">Select all</span>
                 </label>
-                @endforeach
+
+                <div class="space-y-2.5 mb-3">
+                    @foreach(self::SERVICES as $key => $service)
+                    @php
+                    $checked = in_array($key, $this->selectedServices, true);
+                    @endphp
+                    <label
+                        class="flex items-start gap-2.5 rounded-xl border {{ $checked ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
+                        <input type="checkbox" wire:click="toggleService('{{ $key }}')" wire:loading.attr="disabled"
+                            wire:target="toggleService,toggleAllServices,setServicesNone,continueFromServices"
+                            @checked($checked) class="mt-0.5 accent-[#12304f]">
+                        <span>
+                            <span class="block text-sm font-bold text-[#173045]">{!! $this->glossify($service['label'])
+                                !!}</span>
+                            @if($service['description'])
+                            <span class="block text-xs text-[#5d6e7f] mt-0.5">{!!
+                                $this->glossify($service['description']) !!}</span>
+                            @endif
+                        </span>
+                    </label>
+                    @endforeach
+                </div>
+
+                <label class="flex items-center gap-2.5 mb-4 cursor-pointer">
+                    <input type="checkbox" wire:click="setServicesNone" wire:loading.attr="disabled"
+                        wire:target="toggleService,setServicesNone,continueFromServices"
+                        @checked($this->selectedServices === [] && $this->currentSubmission->wizard_selected_services
+                    !== null) class="accent-[#12304f]">
+                    <span class="text-sm text-[#173045]">None of these apply to us</span>
+                </label>
+                @error('services') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
+
+                <div class="flex items-center justify-between mt-5">
+                    <button wire:click="backFromServices" wire:loading.attr="disabled"
+                        wire:target="continueFromServices,backFromServices"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">&larr;
+                        Back</button>
+                    <button wire:click="continueFromServices" wire:loading.attr="disabled"
+                        wire:target="continueFromServices,backFromServices"
+                        class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
+                        <span wire:loading.remove wire:target="continueFromServices">Continue &rarr;</span>
+                        <span wire:loading.inline-flex wire:target="continueFromServices"
+                            class="inline-flex items-center gap-1.5">
+                            <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                        </span>
+                    </button>
+                </div>
             </div>
 
-            <label class="flex items-center gap-2.5 mb-4 cursor-pointer">
-                <input type="checkbox" wire:click="setServicesNone" wire:loading.attr="disabled" wire:target="toggleService,setServicesNone,continueFromServices" @checked($this->selectedServices === [] && $this->currentSubmission->wizard_selected_services !== null) class="accent-[#12304f]">
-                <span class="text-sm text-[#173045]">None of these apply to us</span>
-            </label>
-            @error('services') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
-
-            <div class="flex items-center justify-between mt-5">
-                <button wire:click="backFromServices" wire:loading.attr="disabled" wire:target="continueFromServices,backFromServices" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">&larr; Back</button>
-                <button wire:click="continueFromServices" wire:loading.attr="disabled" wire:target="continueFromServices,backFromServices"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
-                    <span wire:loading.remove wire:target="continueFromServices">Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="continueFromServices" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-        </div>
-
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify("Some policies only apply to certain services. Anything you leave unchecked is skipped, and that policy's Practice Specific Workflow Description is removed. The policy's general guidelines remain.") !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <div class="flex flex-wrap gap-1.5">
-                @foreach($this->servicesUsedInPolicyCodes as $code)
-                <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{ $code }}</span>
-                @endforeach
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-2">These policies depend on your answers here.</p>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+            <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify("Some policies only apply to
+                    certain services. Anything you leave unchecked is skipped, and that policy's Practice Specific
+                    Workflow Description is removed. The policy's general guidelines remain.") !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($this->servicesUsedInPolicyCodes as $code)
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{
+                        $code }}</span>
+                    @endforeach
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-2">These policies depend on your answers here.</p>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
@@ -3491,117 +3806,183 @@ new class extends Component
     {{-- ── Section gate ── --}}
     @if($screen === 'gate' && $this->currentGateSectionId)
     @php
-        $gateSection = $this->sections->firstWhere('id', $this->currentGateSectionId);
-        $gateTopics = $this->gateTopicsForSection($gateSection);
-        $gateEntry = $this->sectionGates[(string) $this->currentGateSectionId] ?? ['mode' => '', 'picked' => []];
-        $gateMode = $gateEntry['mode'] ?? '';
-        $gatePicked = $gateEntry['picked'] ?? [];
-        $gateTopicCount = $gateTopics->count();
-        $gateWasSkipped = in_array($this->currentGateSectionId, $this->skippedSectionIds, true);
+    $gateSection = $this->sections->firstWhere('id', $this->currentGateSectionId);
+    $gateTopics = $this->gateTopicsForSection($gateSection);
+    $gateEntry = $this->sectionGates[(string) $this->currentGateSectionId] ?? ['mode' => '', 'picked' => []];
+    $gateMode = $gateEntry['mode'] ?? '';
+    $gatePicked = $gateEntry['picked'] ?? [];
+    $gateTopicCount = $gateTopics->count();
+    $gateWasSkipped = in_array($this->currentGateSectionId, $this->skippedSectionIds, true);
     @endphp
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        x-on:keydown.window="
+            const target = $event.target;
+            if (target.closest('input:not([type=radio]):not([type=checkbox]), textarea, select, [contenteditable=true]')) return;
+            if ($event.key === '1' || $event.key === '2') {
+                $event.preventDefault();
+                $wire.chooseGateMode({{ $this->currentGateSectionId }}, $event.key === '1' ? 'none' : 'some');
+            } else if ($event.key === 'Enter' && !target.closest('button, a, [role=button]')) {
+                $event.preventDefault();
+                $wire.continueFromGate({{ $this->currentGateSectionId }});
+            }
+        " class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full">
-            <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5 flex items-center gap-2 flex-wrap">
-                {{ $gateSection->label }} &middot; 1 of 1
-                @if($gateWasSkipped)
-                <span class="text-[10.5px] font-bold tracking-normal normal-case bg-[#fdf3e0] text-[#b7791f] px-2 py-0.5 rounded-full">Skipped earlier</span>
-                @endif
-            </p>
-            <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-2 leading-tight">{!! $this->glossify($gateSection->label) !!}</h2>
-            <p class="text-[15.5px] text-[#5d6e7f] leading-relaxed mb-4">{!! $this->glossify("Does your practice have procedures for any of these {$gateTopicCount} ".Str::plural('topic', $gateTopicCount).'?') !!}</p>
+            <div class="max-w-xl w-full">
+                <p
+                    class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5 flex items-center gap-2 flex-wrap">
+                    {{ $gateSection->label }} &middot; 1 of 1
+                    @if($gateWasSkipped)
+                    <span
+                        class="text-[10.5px] font-bold tracking-normal normal-case bg-[#fdf3e0] text-[#b7791f] px-2 py-0.5 rounded-full">Skipped
+                        earlier</span>
+                    @endif
+                </p>
+                <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-2 leading-tight">{!!
+                    $this->glossify($gateSection->label) !!}</h2>
+                <p class="text-[15.5px] text-[#5d6e7f] leading-relaxed mb-4">{!! $this->glossify("Does your practice
+                    have procedures for any of these {$gateTopicCount} ".Str::plural('topic', $gateTopicCount).'?') !!}
+                </p>
 
-            @if($gateMode !== 'some')
-            <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 list-disc list-inside text-[13.5px] text-[#173045] space-y-1 mb-4 bg-[#f6f9fc] border border-[#e6edf4] rounded-xl px-4 py-3 marker:text-[#0b9ed0]">
-                @foreach($gateTopics as $topic)
-                <li>{!! $this->glossify($topic->title) !!}</li>
-                @endforeach
-            </ul>
-            @endif
-
-            <div class="space-y-2.5 mb-2" wire:loading.class="opacity-60 pointer-events-none" wire:target="chooseGateMode">
-                <label class="flex items-start gap-2.5 rounded-xl border {{ $gateMode === 'none' ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" name="gate_mode_{{ $this->currentGateSectionId }}" wire:click="chooseGateMode({{ $this->currentGateSectionId }}, 'none')" wire:loading.attr="disabled" @checked($gateMode === 'none') class="mt-0.5 accent-[#12304f]">
-                    <span>
-                        <span class="block text-sm font-bold text-[#173045]">No &mdash; use the policy defaults for this section</span>
-                        <span class="block text-xs text-[#5d6e7f] mt-0.5">The policy's best-practice language applies to {{ $gateTopicCount > 1 ? "all {$gateTopicCount} topics" : 'this topic' }}, and you move to the next section.</span>
-                        <span class="inline-block mt-1.5 text-[11.5px] font-bold text-[#1a7aad] bg-[#eaf5fb] rounded-full px-2 py-0.5">Takes a second</span>
-                    </span>
-                </label>
-                <label class="flex items-start gap-2.5 rounded-xl border {{ $gateMode === 'some' ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
-                    <input type="radio" name="gate_mode_{{ $this->currentGateSectionId }}" wire:click="chooseGateMode({{ $this->currentGateSectionId }}, 'some')" wire:loading.attr="disabled" @checked($gateMode === 'some') class="mt-0.5 accent-[#12304f]">
-                    <span>
-                        <span class="block text-sm font-bold text-[#173045]">Yes &mdash; let me pick which ones</span>
-                        <span class="block text-xs text-[#5d6e7f] mt-0.5">Check the topics with documented procedures. You'll describe each one; the rest use the policy defaults.</span>
-                        <span class="inline-block mt-1.5 text-[11.5px] font-bold text-[#1a7aad] bg-[#eaf5fb] rounded-full px-2 py-0.5">About 2&ndash;3 min per topic you pick</span>
-                    </span>
-                </label>
-            </div>
-
-            @if($gateMode === 'some')
-            <div class="reveal-in rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4 mb-2">
-                <p class="text-xs font-extrabold uppercase tracking-wide text-[#12304f] mb-2">Which topics have documented procedures?</p>
-                <div class="space-y-2">
+                @if($gateMode !== 'some')
+                <ul
+                    class="reveal-in grid grid-cols-1 sm:grid-cols-2 gap-x-5 list-disc list-inside text-[13.5px] text-[#173045] space-y-1 mb-4 bg-[#f8fbfd] border border-[#e6edf4] rounded-xl px-4 py-3 marker:text-[#0b9ed0]">
                     @foreach($gateTopics as $topic)
-                    @php
-                        $isPicked = in_array($topic->id, $gatePicked, true);
-                    @endphp
-                    <label class="flex items-start gap-2.5 rounded-lg border {{ $isPicked ? 'border-[#12304f] bg-white' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-3.5 py-2.5 cursor-pointer transition">
-                        <input type="checkbox" wire:click="toggleGateTopic({{ $this->currentGateSectionId }}, {{ $topic->id }})" wire:loading.attr="disabled" wire:target="toggleGateTopic" @checked($isPicked) class="mt-0.5 accent-[#12304f]">
+                    <li>{!! $this->glossify($topic->title) !!}</li>
+                    @endforeach
+                </ul>
+                @endif
+
+                <div class="space-y-2.5 mb-2" wire:loading.class="opacity-60 pointer-events-none"
+                    wire:target="chooseGateMode">
+                    <label
+                        class="flex items-start gap-2.5 rounded-xl border {{ $gateMode === 'none' ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
+                        <input type="radio" name="gate_mode_{{ $this->currentGateSectionId }}"
+                            wire:click="chooseGateMode({{ $this->currentGateSectionId }}, 'none')"
+                            wire:loading.attr="disabled" @checked($gateMode==='none' ) class="mt-0.5 accent-[#12304f]">
                         <span>
-                            <span class="block text-sm font-bold text-[#173045]">{{ $topic->title }}</span>
-                            @if($topic->prompt_summary)
-                            <span class="block text-xs text-[#5d6e7f] mt-0.5">{{ $topic->prompt_summary }}</span>
-                            @endif
+                            <span class="block text-sm font-bold text-[#173045]">No &mdash; use the policy defaults for
+                                this section</span>
+                            <span class="block text-xs text-[#5d6e7f] mt-0.5">The policy's best-practice language
+                                applies to {{ $gateTopicCount > 1 ? "all {$gateTopicCount} topics" : 'this topic' }},
+                                and you move to the next section.</span>
+                            <span
+                                class="inline-block mt-1.5 text-[11.5px] font-bold text-[#1a7aad] bg-[#eaf5fb] rounded-full px-2 py-0.5">Takes
+                                a second</span>
                         </span>
                     </label>
+                    <label
+                        class="flex items-start gap-2.5 rounded-xl border {{ $gateMode === 'some' ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
+                        <input type="radio" name="gate_mode_{{ $this->currentGateSectionId }}"
+                            wire:click="chooseGateMode({{ $this->currentGateSectionId }}, 'some')"
+                            wire:loading.attr="disabled" @checked($gateMode==='some' ) class="mt-0.5 accent-[#12304f]">
+                        <span>
+                            <span class="block text-sm font-bold text-[#173045]">Yes &mdash; let me pick which
+                                ones</span>
+                            <span class="block text-xs text-[#5d6e7f] mt-0.5">Check the topics with documented
+                                procedures. You'll describe each one; the rest use the policy defaults.</span>
+                            <span
+                                class="inline-block mt-1.5 text-[11.5px] font-bold text-[#1a7aad] bg-[#eaf5fb] rounded-full px-2 py-0.5">About
+                                2&ndash;3 min per topic you pick</span>
+                        </span>
+                    </label>
+                </div>
+
+                @if($gateMode === 'some')
+                <div class="reveal-in rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4 mb-2">
+                    <p class="text-xs font-extrabold uppercase tracking-wide text-[#12304f] mb-2">Which topics have
+                        documented procedures?</p>
+                    <div class="space-y-2">
+                        @foreach($gateTopics as $topic)
+                        @php
+                        $isPicked = in_array($topic->id, $gatePicked, true);
+                        @endphp
+                        <label
+                            class="flex items-start gap-2.5 rounded-lg border {{ $isPicked ? 'border-[#12304f] bg-white' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-3.5 py-2.5 cursor-pointer transition">
+                            <input type="checkbox"
+                                wire:click="toggleGateTopic({{ $this->currentGateSectionId }}, {{ $topic->id }})"
+                                wire:loading.attr="disabled" wire:target="toggleGateTopic" @checked($isPicked)
+                                class="mt-0.5 accent-[#12304f]">
+                            <span>
+                                <span class="block text-sm font-bold text-[#173045]">{{ $topic->title }}</span>
+                                @if($topic->prompt_summary)
+                                <span class="block text-xs text-[#5d6e7f] mt-0.5">{{ $topic->prompt_summary }}</span>
+                                @endif
+                            </span>
+                        </label>
+                        @endforeach
+                    </div>
+                    <p class="text-xs text-[#5d6e7f] mt-2.5">{{ count($gatePicked) }} of {{ $gateTopicCount }} picked
+                        &middot; unpicked topics use the policy defaults</p>
+                </div>
+                @endif
+
+                @if($justSaved)
+                <p class="mb-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved &mdash; come back anytime
+                    to pick up where you left off.</p>
+                @endif
+                @error('gate') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
+
+                <button wire:click="continueFromGate({{ $this->currentGateSectionId }})" wire:loading.attr="disabled"
+                    wire:target="continueFromGate,backFromGate,skipCurrentGate"
+                    class="w-full inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-[#12304f] px-5 py-3.5 text-[15px] font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
+                    <span wire:loading.remove wire:target="continueFromGate">Continue &rarr;</span>
+                    <span wire:loading.inline-flex wire:target="continueFromGate"
+                        class="inline-flex items-center gap-1.5">
+                        <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                    </span>
+                </button>
+                <div class="flex items-center justify-between mt-3">
+                    <button wire:click="backFromGate" wire:loading.attr="disabled"
+                        wire:target="continueFromGate,backFromGate,skipCurrentGate"
+                        class="text-sm font-semibold text-[#5d6e7f] hover:underline disabled:opacity-50">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-4">
+                        <button wire:click="skipCurrentGate({{ $this->currentGateSectionId }})"
+                            wire:loading.attr="disabled" wire:target="continueFromGate,backFromGate,skipCurrentGate"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline disabled:opacity-50">Skip for
+                            now</button>
+                        <button wire:click="continueFromGate({{ $this->currentGateSectionId }}, true)"
+                            wire:loading.attr="disabled" wire:target="continueFromGate,backFromGate,skipCurrentGate"
+                            class="text-sm font-semibold text-[#5d6e7f] hover:underline disabled:opacity-50">Save &amp;
+                            continue later</button>
+                    </div>
+                </div>
+                <p class="text-xs text-[#5d6e7f] mt-3">Press
+                    <kbd
+                        class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-[#dbe4ee] bg-[#f4f7fb] text-[11px] font-bold text-[#5d6e7f]">1</kbd>
+                    <kbd
+                        class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-[#dbe4ee] bg-[#f4f7fb] text-[11px] font-bold text-[#5d6e7f]">2</kbd>
+                    to choose &middot;
+                    <kbd
+                        class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-[#dbe4ee] bg-[#f4f7fb] text-[11px] font-bold text-[#5d6e7f]">Enter</kbd>
+                    to continue
+                </p>
+            </div>
+
+            @php
+            $gateUsedInCodes = $this->gateUsedInPolicyCodes($gateTopics);
+            @endphp
+            <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify('Choose "No" if your practice
+                    doesn\'t have written procedures for these topics. Any topic you don\'t pick uses the policy\'s
+                    best-practice language, and its Practice Specific Workflow Description is removed.') !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
+                <p class="text-[12.5px] text-[#135f41] bg-[#e6f6ef] rounded-lg px-2.5 py-1.5 mb-2">This section covers
+                    <strong>{{ count($gateUsedInCodes) }} {{ Str::plural('policy', count($gateUsedInCodes)) }}</strong>.
+                </p>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($gateUsedInCodes as $code)
+                    <span
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{
+                        $code }}</span>
                     @endforeach
                 </div>
-                <p class="text-xs text-[#5d6e7f] mt-2.5">{{ count($gatePicked) }} of {{ $gateTopicCount }} picked &middot; unpicked topics use the policy defaults</p>
-            </div>
-            @endif
-
-            @if($justSaved)
-            <p class="mb-3 text-xs font-semibold text-[#1f9d6b]">&#10003; Progress saved &mdash; come back anytime to pick up where you left off.</p>
-            @endif
-            @error('gate') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
-
-            <button wire:click="continueFromGate({{ $this->currentGateSectionId }})" wire:loading.attr="disabled" wire:target="continueFromGate,backFromGate,skipCurrentGate"
-                class="w-full inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-[#12304f] px-5 py-3.5 text-[15px] font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
-                <span wire:loading.remove wire:target="continueFromGate">Continue &rarr;</span>
-                <span wire:loading.inline-flex wire:target="continueFromGate" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-            </button>
-            <div class="flex items-center justify-between mt-3">
-                <button wire:click="backFromGate" wire:loading.attr="disabled" wire:target="continueFromGate,backFromGate,skipCurrentGate" class="text-sm font-semibold text-[#5d6e7f] hover:underline disabled:opacity-50">&larr; Back</button>
-                <div class="flex items-center gap-4">
-                    <button wire:click="skipCurrentGate({{ $this->currentGateSectionId }})" wire:loading.attr="disabled" wire:target="continueFromGate,backFromGate,skipCurrentGate" class="text-sm font-semibold text-[#1a7aad] hover:underline disabled:opacity-50">Skip for now</button>
-                    <button wire:click="continueFromGate({{ $this->currentGateSectionId }}, true)" wire:loading.attr="disabled" wire:target="continueFromGate,backFromGate,skipCurrentGate" class="text-sm font-semibold text-[#5d6e7f] hover:underline disabled:opacity-50">Save &amp; continue later</button>
-                </div>
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-3">Press
-                <kbd class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-[#dbe4ee] bg-[#f4f7fb] text-[11px] font-bold text-[#5d6e7f]">1</kbd>
-                <kbd class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-[#dbe4ee] bg-[#f4f7fb] text-[11px] font-bold text-[#5d6e7f]">2</kbd>
-                to choose &middot;
-                <kbd class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded border border-[#dbe4ee] bg-[#f4f7fb] text-[11px] font-bold text-[#5d6e7f]">Enter</kbd>
-                to continue</p>
-        </div>
-
-        @php
-            $gateUsedInCodes = $this->gateUsedInPolicyCodes($gateTopics);
-        @endphp
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify('Choose "No" if your practice doesn\'t have written procedures for these topics. Any topic you don\'t pick uses the policy\'s best-practice language, and its Practice Specific Workflow Description is removed.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Used in</h4>
-            <p class="text-[12.5px] text-[#135f41] bg-[#e6f6ef] rounded-lg px-2.5 py-1.5 mb-2">This section covers <strong>{{ count($gateUsedInCodes) }} {{ Str::plural('policy', count($gateUsedInCodes)) }}</strong>.</p>
-            <div class="flex flex-wrap gap-1.5">
-                @foreach($gateUsedInCodes as $code)
-                <span class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{ $code }}</span>
-                @endforeach
-            </div>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
@@ -3609,154 +3990,217 @@ new class extends Component
     {{-- ── Question ── --}}
     @if($screen === 'question' && $this->currentQuestion)
     @php
-        $question = $this->currentQuestion;
-        $sectionQuestionIds = $this->sectionGates[(string) $question->intake_section_id]['picked'] ?? [$question->id];
-        $questionPosition = array_search($question->id, $sectionQuestionIds, true);
-        $questionPosition = $questionPosition === false ? 0 : $questionPosition + 1;
-        $wasSkipped = in_array($question->id, $this->skippedQuestionIds, true);
-        $isAnswered = in_array($question->id, $this->answeredQuestionIds, true);
+    $question = $this->currentQuestion;
+    $sectionQuestionIds = $this->sectionGates[(string) $question->intake_section_id]['picked'] ?? [$question->id];
+    $questionPosition = array_search($question->id, $sectionQuestionIds, true);
+    $questionPosition = $questionPosition === false ? 0 : $questionPosition + 1;
+    $wasSkipped = in_array($question->id, $this->skippedQuestionIds, true);
+    $isAnswered = in_array($question->id, $this->answeredQuestionIds, true);
     @endphp
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_310px] lg:items-start gap-8 p-6 lg:p-10">
-        <div class="max-w-xl w-full">
-        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5 flex items-center gap-2 flex-wrap">
-            {{ $question->section->label }} &middot; {{ $questionPosition }} of {{ count($sectionQuestionIds) }}
-            @if($wasSkipped)
-            <span class="text-[10.5px] font-bold tracking-normal normal-case bg-[#fdf3e0] text-[#b7791f] px-2 py-0.5 rounded-full">Skipped earlier</span>
-            @endif
-            @if($isAnswered)
-            <span class="text-[10.5px] font-bold tracking-normal normal-case bg-[#e6f6ef] text-[#1f9d6b] px-2 py-0.5 rounded-full">Answered</span>
-            @endif
-        </p>
-        <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-1">{!! $this->glossify($question->title) !!}</h2>
-        @if($question->prompt_summary)
-        <p class="text-sm text-[#5d6e7f] mb-4">{!! $this->glossify($question->prompt_summary) !!}</p>
-        @endif
-
-        <div class="space-y-2.5 mb-4" wire:loading.class="opacity-60 pointer-events-none" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion">
-            <label class="flex items-start gap-2.5 rounded-xl border {{ $currentHasDocumentedProcess === true ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
-                <input type="radio" wire:key="has-documented-process-yes-{{ $currentQuestionId }}" name="has_documented_process_{{ $currentQuestionId }}" wire:click="chooseDocumentedProcess" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion" @checked($currentHasDocumentedProcess === true) class="mt-0.5 accent-[#12304f]">
-                <span>
-                    <span class="block text-sm font-bold text-[#173045]">We have a process</span>
-                    <span class="block text-xs text-[#5d6e7f] mt-0.5">Describe it in your own words. Your response is used exactly as you write it.</span>
-                </span>
-            </label>
-            <label class="flex items-start gap-2.5 rounded-xl border {{ $currentHasDocumentedProcess === false ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
-                <input type="radio" wire:key="has-documented-process-no-{{ $currentQuestionId }}" name="has_documented_process_{{ $currentQuestionId }}" wire:click="chooseNoDocumentedProcess" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion" @checked($currentHasDocumentedProcess === false) class="mt-0.5 accent-[#12304f]">
-                <span>
-                    <span class="block text-sm font-bold text-[#173045]">We don't have a process</span>
-                    <span class="block text-xs text-[#5d6e7f] mt-0.5">The policy's best-practice language becomes your default, and we move you to the next question.</span>
-                </span>
-            </label>
-        </div>
-
-        @if($currentHasDocumentedProcess === true)
-        @php
-            $knownFacts = $this->knownFactsForQuestion($question);
-        @endphp
-        @if(count($knownFacts))
-        <div class="rounded-xl bg-[#eef8f3] border border-[#cdebdc] border-l-[3px] border-l-[#1f9d6b] p-3.5 mb-3">
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#135f41] mb-1.5">Already on file from your intake</p>
-            <ul class="list-disc list-inside text-[13.5px] text-[#173045] space-y-0.5">
-                @foreach($knownFacts as $fact)
-                <li>{{ $fact }}</li>
-                @endforeach
-            </ul>
-            <p class="text-xs text-[#5d6e7f] mt-1.5">No need to repeat these in your response.</p>
-        </div>
-        @endif
-        @if($question->policies->isNotEmpty())
-        <div class="rounded-xl bg-[#f8fbfd] border-l-[3px] border-l-[#0b9ed0] border-y border-r border-y-[#e6edf4] border-r-[#e6edf4] p-4 mb-3">
-            <p class="text-xs font-extrabold uppercase tracking-wide text-[#12304f] mb-2">Your response should cover{{ $question->policies->count() > 1 ? ' all '.$question->policies->count().' policies' : '' }}</p>
-            @foreach($question->policies as $policy)
-            <div class="{{ ! $loop->last ? 'border-b border-[#eef2f6] mb-2.5 pb-2.5' : '' }}">
-                @if($question->policies->count() > 1)
-                <p class="text-xs text-[#12304f] mb-1.5"><strong class="text-[11.5px] bg-[#eaf5fb] text-[#1a7aad] rounded-full px-1.5 py-0.5 mr-1">{{ $policy->code }}</strong> {{ $policy->title }}</p>
+            <div class="max-w-xl w-full">
+                <p
+                    class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1.5 flex items-center gap-2 flex-wrap">
+                    {{ $question->section->label }} &middot; {{ $questionPosition }} of {{ count($sectionQuestionIds) }}
+                    @if($wasSkipped)
+                    <span
+                        class="text-[10.5px] font-bold tracking-normal normal-case bg-[#fdf3e0] text-[#b7791f] px-2 py-0.5 rounded-full">Skipped
+                        earlier</span>
+                    @endif
+                    @if($isAnswered)
+                    <span
+                        class="text-[10.5px] font-bold tracking-normal normal-case bg-[#e6f6ef] text-[#1f9d6b] px-2 py-0.5 rounded-full">Answered</span>
+                    @endif
+                </p>
+                <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-1">{!! $this->glossify($question->title) !!}
+                </h2>
+                @if($question->prompt_summary)
+                <p class="text-sm text-[#5d6e7f] mb-4">{!! $this->glossify($question->prompt_summary) !!}</p>
                 @endif
-                <ul class="list-disc list-inside text-xs text-[#173045] space-y-1">
-                    @foreach(($policy->requirements['bullets'] ?? []) as $bullet)
-                    <li>{!! $this->glossify($bullet) !!}</li>
+
+                <div class="space-y-2.5 mb-4" wire:loading.class="opacity-60 pointer-events-none"
+                    wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion">
+                    <label
+                        class="flex items-start gap-2.5 rounded-xl border {{ $currentHasDocumentedProcess === true ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
+                        <input type="radio" wire:key="has-documented-process-yes-{{ $currentQuestionId }}"
+                            name="has_documented_process_{{ $currentQuestionId }}" wire:click="chooseDocumentedProcess"
+                            wire:loading.attr="disabled"
+                            wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                            @checked($currentHasDocumentedProcess===true) class="mt-0.5 accent-[#12304f]">
+                        <span>
+                            <span class="block text-sm font-bold text-[#173045]">We have a process</span>
+                            <span class="block text-xs text-[#5d6e7f] mt-0.5">Describe it in your own words. Your
+                                response is used exactly as you write it.</span>
+                        </span>
+                    </label>
+                    <label
+                        class="flex items-start gap-2.5 rounded-xl border {{ $currentHasDocumentedProcess === false ? 'border-[#12304f] bg-[#f4f8fc]' : 'border-[#dbe4ee] bg-white hover:border-[#9ed3e9]' }} px-4 py-3 cursor-pointer transition">
+                        <input type="radio" wire:key="has-documented-process-no-{{ $currentQuestionId }}"
+                            name="has_documented_process_{{ $currentQuestionId }}"
+                            wire:click="chooseNoDocumentedProcess" wire:loading.attr="disabled"
+                            wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                            @checked($currentHasDocumentedProcess===false) class="mt-0.5 accent-[#12304f]">
+                        <span>
+                            <span class="block text-sm font-bold text-[#173045]">We don't have a process</span>
+                            <span class="block text-xs text-[#5d6e7f] mt-0.5">The policy's best-practice language
+                                becomes your default, and we move you to the next question.</span>
+                        </span>
+                    </label>
+                </div>
+
+                @if($currentHasDocumentedProcess === true)
+                <div class="reveal-in rounded-xl bg-[#f8fbfd] p-4">
+                    @php
+                    $knownFacts = $this->knownFactsForQuestion($question);
+                    @endphp
+                    @if(count($knownFacts))
+                    <div
+                        class="rounded-xl bg-[#eef8f3] border border-[#cdebdc] border-l-[3px] border-l-[#1f9d6b] p-3.5 mb-3">
+                        <p class="text-xs font-extrabold uppercase tracking-wide text-[#135f41] mb-1.5">Already on file
+                            from your intake</p>
+                        <ul class="list-disc list-inside text-[13.5px] text-[#173045] space-y-0.5">
+                            @foreach($knownFacts as $fact)
+                            <li>{{ $fact }}</li>
+                            @endforeach
+                        </ul>
+                        <p class="text-xs text-[#5d6e7f] mt-1.5">No need to repeat these in your response.</p>
+                    </div>
+                    @endif
+                    @if($question->policies->isNotEmpty())
+                    <div
+                        class="rounded-xl bg-[#f8fbfd] border-l-[3px] border-l-[#0b9ed0] border-y border-r border-y-[#e6edf4] border-r-[#e6edf4] p-4 mb-3">
+                        <p class="text-xs font-extrabold uppercase tracking-wide text-[#12304f] mb-2">Your response
+                            should cover{{ $question->policies->count() > 1 ? ' all '.$question->policies->count().'
+                            policies' : '' }}</p>
+                        @foreach($question->policies as $policy)
+                        <div class="{{ ! $loop->last ? 'border-b border-[#eef2f6] mb-2.5 pb-2.5' : '' }}">
+                            @if($question->policies->count() > 1)
+                            <p class="text-xs text-[#12304f] mb-1.5"><strong
+                                    class="text-[11.5px] bg-[#eaf5fb] text-[#1a7aad] rounded-full px-1.5 py-0.5 mr-1">{{
+                                    $policy->code }}</strong> {{ $policy->title }}</p>
+                            @endif
+                            <ul class="list-disc list-inside text-xs text-[#173045] space-y-1">
+                                @foreach(($policy->requirements['bullets'] ?? []) as $bullet)
+                                <li>{!! $this->glossify($bullet) !!}</li>
+                                @endforeach
+                            </ul>
+                            @if($policy->requirements['full_question'] ?? null)
+                            <details class="group mt-1.5">
+                                <summary
+                                    class="list-none [&::-webkit-details-marker]:hidden text-xs font-bold text-[#1a7aad] cursor-pointer before:content-['▸_'] group-open:before:content-['▾_']">
+                                    Full question{{ $question->policies->count() > 1 ? ' for '.$policy->code : '' }}
+                                </summary>
+                                <p class="text-xs text-[#5d6e7f] leading-relaxed mt-1.5">{!!
+                                    $this->glossify($policy->requirements['full_question']) !!}</p>
+                            </details>
+                            @endif
+                        </div>
+                        @endforeach
+                    </div>
+                    @endif
+
+                    <div x-data="{ text: @js($currentResponse), get wordCount() { return this.text.trim() === '' ? 0 : this.text.trim().split(/\s+/).filter(Boolean).length } }"
+                        wire:key="response-field-{{ $currentQuestionId }}">
+                        <label for="qText" class="block text-sm font-semibold text-[#173045] mb-1.5">Practice response
+                            <span class="text-red-500">*</span></label>
+                        <textarea wire:model="currentResponse" x-on:input="text = $event.target.value" id="qText"
+                            rows="8" placeholder="Describe your practice's process&hellip;"
+                            class="w-full rounded-xl border {{ $errors->has('currentResponse') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition"></textarea>
+                        @error('currentResponse') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        <p class="mt-1.5 text-xs text-[#5d6e7f]"><span x-text="wordCount"></span> <span
+                                x-text="wordCount === 1 ? 'word' : 'words'"></span> &middot; Name real roles, real
+                            systems, real vendors, and real timeframes &mdash; not &ldquo;as required by policy.&rdquo;
+                            Empower does not edit practice responses.</p>
+                    </div>
+                    @endif
+                </div>
+
+                <div class="flex items-center justify-between mt-5">
+                    <button wire:click="backOneQuestion" wire:loading.attr="disabled"
+                        wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                        class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">&larr;
+                        Back</button>
+                    <div class="flex items-center gap-2">
+                        @if($this->onlySkippedQuestionsRemain)
+                        <button wire:click="skipCurrentQuestion" wire:loading.attr="disabled"
+                            wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                            class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">Finish
+                            questionnaire</button>
+                        @else
+                        <button wire:click="skipCurrentQuestion" wire:loading.attr="disabled"
+                            wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                            class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">Skip
+                            for now</button>
+                        @endif
+                        @if($currentHasDocumentedProcess === true)
+                        <button wire:click="saveCurrentAnswer" wire:loading.attr="disabled"
+                            wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                            class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
+                            <span wire:loading.remove wire:target="saveCurrentAnswer">Save &amp; Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="saveCurrentAnswer"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                        @endif
+                    </div>
+
+                    {{-- Sticky mobile Continue — mirrors the prototype's "Sticky Continue on phones"
+                    (@media max-width:640px, .qz-continue { position:sticky; bottom:12px }). Phones
+                    only: the row above already handles desktop, this just keeps the primary action
+                    reachable without scrolling back up on a long question screen. --}}
+                    @if($currentHasDocumentedProcess === true)
+                    <div class="sm:hidden sticky-mobile-bar">
+                        <button wire:click="saveCurrentAnswer" wire:loading.attr="disabled"
+                            wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
+                            class="w-full inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-[#12304f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
+                            <span wire:loading.remove wire:target="saveCurrentAnswer">Save &amp; Continue &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="saveCurrentAnswer"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                            </span>
+                        </button>
+                    </div>
+                    @endif
+                </div>
+            </div>
+
+            <aside
+                class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
+                <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify($question->why_we_ask ?: 'This
+                    answer feeds directly into your compliance manuals.') !!}</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">No process?</h4>
+                <p class="text-xs text-[#173045] leading-snug mb-4">Choose "We don't have a process." The policy's
+                    best-practice language becomes your default and you move to the next question. If you do respond,
+                    your response is used as written.</p>
+                <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Fills these
+                    policies</h4>
+                @php($policyManualCount = $question->policies->pluck('manual')->unique()->count())
+                @if($question->policies->count() > 1)
+                <p class="text-[12.5px] text-[#135f41] bg-[#e6f6ef] rounded-lg px-2.5 py-1.5 mb-2">One answer fills
+                    <strong>{{ $question->policies->count() }} policies</strong>{{ $policyManualCount > 1 ? ' across
+                    '.$policyManualCount.' manuals' : '' }}.</p>
+                @endif
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($question->policies as $policy)
+                    <span title="{{ $policy->title }}"
+                        class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{
+                        $policy->code }}</span>
+                    @endforeach
+                </div>
+                <ul class="list-none mt-2 text-xs text-[#5d6e7f] leading-relaxed space-y-0.5">
+                    @foreach($question->policies as $policy)
+                    <li>&middot; {{ $policy->title }}</li>
                     @endforeach
                 </ul>
-                @if($policy->requirements['full_question'] ?? null)
-                <details class="group mt-1.5">
-                    <summary class="list-none [&::-webkit-details-marker]:hidden text-xs font-bold text-[#1a7aad] cursor-pointer before:content-['▸_'] group-open:before:content-['▾_']">Full question{{ $question->policies->count() > 1 ? ' for '.$policy->code : '' }}</summary>
-                    <p class="text-xs text-[#5d6e7f] leading-relaxed mt-1.5">{!! $this->glossify($policy->requirements['full_question']) !!}</p>
-                </details>
-                @endif
-            </div>
-            @endforeach
-        </div>
-        @endif
-
-        <div x-data="{ text: @js($currentResponse), get wordCount() { return this.text.trim() === '' ? 0 : this.text.trim().split(/\s+/).filter(Boolean).length } }" wire:key="response-field-{{ $currentQuestionId }}">
-            <label for="qText" class="block text-sm font-semibold text-[#173045] mb-1.5">Practice response <span class="text-red-500">*</span></label>
-            <textarea wire:model="currentResponse" x-on:input="text = $event.target.value" id="qText" rows="8" placeholder="Describe your practice's process&hellip;"
-                class="w-full rounded-xl border {{ $errors->has('currentResponse') ? 'border-red-400' : 'border-[#dbe4ee]' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#0b9ed0] focus:border-transparent transition"></textarea>
-            @error('currentResponse') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-            <p class="mt-1.5 text-xs text-[#5d6e7f]"><span x-text="wordCount"></span> <span x-text="wordCount === 1 ? 'word' : 'words'"></span> &middot; Name real roles, real systems, real vendors, and real timeframes &mdash; not &ldquo;as required by policy.&rdquo; Empower does not edit practice responses.</p>
-        </div>
-        @endif
-
-        <div class="flex items-center justify-between mt-5">
-            <button wire:click="backOneQuestion" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion" class="rounded border border-[#dbe4ee] px-5 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">&larr; Back</button>
-            <div class="flex items-center gap-2">
-                @if($this->onlySkippedQuestionsRemain)
-                <button wire:click="skipCurrentQuestion" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
-                    class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">Finish questionnaire</button>
-                @else
-                <button wire:click="skipCurrentQuestion" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
-                    class="rounded border border-[#dbe4ee] px-4 py-2 text-sm font-semibold text-[#5d6e7f] hover:bg-[#f4f7fb] transition-colors disabled:opacity-50">Skip for now</button>
-                @endif
-                @if($currentHasDocumentedProcess === true)
-                <button wire:click="saveCurrentAnswer" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
-                    class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-5 py-2 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
-                    <span wire:loading.remove wire:target="saveCurrentAnswer">Save &amp; Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="saveCurrentAnswer" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-                @endif
-            </div>
-
-            {{-- Sticky mobile Continue — mirrors the prototype's "Sticky Continue on phones"
-                 (@media max-width:640px, .qz-continue { position:sticky; bottom:12px }). Phones
-                 only: the row above already handles desktop, this just keeps the primary action
-                 reachable without scrolling back up on a long question screen. --}}
-            @if($currentHasDocumentedProcess === true)
-            <div class="sm:hidden sticky-mobile-bar">
-                <button wire:click="saveCurrentAnswer" wire:loading.attr="disabled" wire:target="chooseDocumentedProcess,chooseNoDocumentedProcess,saveCurrentAnswer,skipCurrentQuestion,backOneQuestion"
-                    class="w-full inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-[#12304f] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
-                    <span wire:loading.remove wire:target="saveCurrentAnswer">Save &amp; Continue &rarr;</span>
-                    <span wire:loading.inline-flex wire:target="saveCurrentAnswer" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Saving&hellip;</span>
-                </button>
-            </div>
-            @endif
-        </div>
-        </div>
-
-        <aside class="bg-[#f6f9fc] border border-[#e6edf4] rounded-2xl p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Why we ask</h4>
-            <p class="text-xs text-[#173045] leading-snug mb-4">{!! $this->glossify($question->why_we_ask ?: 'This answer feeds directly into your compliance manuals.') !!}</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">No process?</h4>
-            <p class="text-xs text-[#173045] leading-snug mb-4">Choose "We don't have a process." The policy's best-practice language becomes your default and you move to the next question. If you do respond, your response is used as written.</p>
-            <h4 class="text-[11.5px] font-extrabold uppercase tracking-wide text-[#5d6e7f] mb-1.5">Fills these policies</h4>
-            @php($policyManualCount = $question->policies->pluck('manual')->unique()->count())
-            @if($question->policies->count() > 1)
-            <p class="text-[12.5px] text-[#135f41] bg-[#e6f6ef] rounded-lg px-2.5 py-1.5 mb-2">One answer fills <strong>{{ $question->policies->count() }} policies</strong>{{ $policyManualCount > 1 ? ' across '.$policyManualCount.' manuals' : '' }}.</p>
-            @endif
-            <div class="flex flex-wrap gap-1.5">
-                @foreach($question->policies as $policy)
-                <span title="{{ $policy->title }}"
-                    class="text-[11.5px] font-bold bg-white border border-[#dbe4ee] text-[#12304f] rounded-full px-2.5 py-1">{{ $policy->code }}</span>
-                @endforeach
-            </div>
-            <ul class="list-none mt-2 text-xs text-[#5d6e7f] leading-relaxed space-y-0.5">
-                @foreach($question->policies as $policy)
-                <li>&middot; {{ $policy->title }}</li>
-                @endforeach
-            </ul>
-            <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button type="button" wire:click="openCallDialog" class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
-        </aside>
+                <p class="text-xs text-[#5d6e7f] mt-4 pt-4 border-t border-[#e6edf4]">Stuck on this one? <button
+                        type="button" wire:click="openCallDialog"
+                        class="font-semibold text-[#0b9ed0] hover:underline">Talk to a specialist</button></p>
+            </aside>
         </div>
     </div>
     @endif
@@ -3764,13 +4208,12 @@ new class extends Component
     {{-- ── Done ── --}}
     {{-- ── Saving (cosmetic transition between the last question and the done screen) ── --}}
     @if($screen === 'saving')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
-        <div class="flex flex-col items-center text-center px-6 py-14 lg:py-20 max-w-xl mx-auto"
-            x-data="{
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+        <div class="flex flex-col items-center text-center px-6 py-14 lg:py-20 max-w-xl mx-auto" x-data="{
                 step: 0,
                 items: ['Saving your answers securely', 'Linking your answers to your policies', 'Preparing your review'],
-            }"
-            x-init="
+            }" x-init="
                 setTimeout(() => step = 1, 500);
                 setTimeout(() => step = 2, 1000);
                 setTimeout(() => step = 3, 1500);
@@ -3778,16 +4221,23 @@ new class extends Component
             ">
             <div
                 class="h-14 w-14 rounded-full border-[2.5px] border-[#0b9ed0] text-[#0b9ed0] flex items-center justify-center mb-5">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
             </div>
             <h2 class="text-2xl font-extrabold text-[#0e1b30] mb-1.5">Answers saved</h2>
             <p class="text-sm text-[#5d6e7f] mb-6">Next, you&rsquo;ll review everything before you submit.</p>
             <ul class="space-y-2.5 text-left">
                 <template x-for="(item, index) in items" :key="index">
-                    <li class="flex items-center gap-2.5 text-sm" :class="index < step ? 'text-[#173045] font-semibold' : 'text-[#9aabbd]'">
+                    <li class="flex items-center gap-2.5 text-sm"
+                        :class="index < step ? 'text-[#173045] font-semibold' : 'text-[#9aabbd]'">
                         <span class="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center"
                             :class="index < step ? 'bg-[#e6f6ef] text-[#1f9d6b]' : 'bg-[#eef2f6]'">
-                            <svg x-show="index < step" width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <svg x-show="index < step" width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                            </svg>
                         </span>
                         <span x-text="item"></span>
                     </li>
@@ -3798,26 +4248,33 @@ new class extends Component
     @endif
 
     @if($screen === 'done')
-    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}" class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
+    <div wire:key="wizscreen-{{ $screen }}-{{ $currentQuestionId ?? 0 }}-{{ $currentGateSectionId ?? 0 }}"
+        class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)]">
         @include('components.portal._intake-wizard-chapter-header', $chapterHeaderData)
         <div class="flex flex-col items-center text-center px-6 py-14 lg:py-20 max-w-xl mx-auto">
             <div class="w-14 h-14 rounded-full flex items-center justify-center mb-5 bg-[#e6f6ef] text-[#1f9d6b]">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
             </div>
             <h2 class="text-[28px] font-extrabold text-[#0e1b30] mb-1.5">You're through the intake</h2>
             <p class="text-sm text-[#5d6e7f] mb-6">Next, review your answers and documents, then certify and submit.</p>
 
-            <button type="button" wire:click="continueToConfirm" wire:target="continueToConfirm" wire:loading.attr="disabled"
+            <button type="button" wire:click="continueToConfirm" wire:target="continueToConfirm"
+                wire:loading.attr="disabled"
                 class="inline-flex items-center gap-1.5 rounded bg-[#12304f] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">
                 <span wire:loading.remove wire:target="continueToConfirm">Continue to Upload &amp; Confirm &rarr;</span>
-                <span wire:loading.inline-flex wire:target="continueToConfirm" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Continuing&hellip;</span>
+                <span wire:loading.inline-flex wire:target="continueToConfirm" class="inline-flex items-center gap-1.5">
+                    <x-spinner class="h-3.5 w-3.5" /> Continuing&hellip;
+                </span>
             </button>
         </div>
     </div>
     @endif
 
     {{-- "Talk to a specialist" call-booking dialog. Only rendered while open: its day/time/topic lists
-         read the admin-editable settings, which would otherwise cost extra queries on every click. --}}
+    read the admin-editable settings, which would otherwise cost extra queries on every click. --}}
     @if($callDialogOpen)
     <div x-show="$wire.callDialogOpen" x-cloak x-on:keydown.escape.window="$wire.closeCallDialog()"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
@@ -3834,7 +4291,8 @@ new class extends Component
                 <button type="button" wire:click="closeCallDialog" aria-label="Close"
                     class="flex-shrink-0 text-[#5c778d] hover:text-[#0e3a61] transition-colors">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
@@ -3843,7 +4301,10 @@ new class extends Component
             <div class="px-6 pb-8 text-center">
                 <div
                     class="mx-auto mb-4 h-14 w-14 rounded-full bg-[#e6f6ef] text-[#1f9d6b] flex items-center justify-center">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
                 </div>
                 <h4 class="text-base font-bold text-[#173045] mb-1">Call requested</h4>
                 <p class="text-sm text-[#5d6e7f]">We&rsquo;ll call {{ $callPhone }} shortly to confirm a time.
@@ -3888,7 +4349,10 @@ new class extends Component
                     wire:target="bookSpecialistCall"
                     class="rounded-full bg-[#3a9bd5] px-5 py-2 text-sm font-semibold text-white hover:bg-[#2b82b8] transition-colors">
                     <span wire:loading.remove wire:target="bookSpecialistCall">Book call</span>
-                    <span wire:loading.inline-flex wire:target="bookSpecialistCall" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Booking&hellip;</span>
+                    <span wire:loading.inline-flex wire:target="bookSpecialistCall"
+                        class="inline-flex items-center gap-1.5">
+                        <x-spinner class="h-3.5 w-3.5" /> Booking&hellip;
+                    </span>
                 </button>
             </div>
             @endif

@@ -99,6 +99,27 @@ class PracticeIntakeWizardTest extends TestCase
             ->assertHasErrors(['services']);
     }
 
+    public function test_select_all_services_can_be_toggled_off_without_marking_none(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = $this->makeProfessionalOrder($user);
+
+        $component = Livewire::actingAs($user)
+            ->test('portal.practice-intake-wizard', ['orderIds' => [$order->id]])
+            ->set('screen', 'services')
+            ->call('toggleAllServices');
+
+        $this->assertTrue($component->instance()->allServicesSelected);
+        $this->assertCount(12, $component->instance()->selectedServices);
+
+        $component->call('toggleAllServices');
+
+        $this->assertFalse($component->instance()->allServicesSelected);
+        $this->assertSame([], $component->instance()->selectedServices);
+        $this->assertNull($component->instance()->currentSubmission->wizard_selected_services);
+    }
+
     public function test_unchecking_a_service_excludes_its_mapped_question_from_the_gate(): void
     {
         $fixture = $this->seedGatedQuestions();
@@ -189,7 +210,10 @@ class PracticeIntakeWizardTest extends TestCase
             ->test('portal.practice-intake-wizard', ['orderIds' => [$order->id]])
             ->call('setServicesNone')
             ->call('continueFromServices')
-            ->assertSet('currentGateSectionId', $fixture['sectionCompliance']->id);
+            ->assertSet('currentGateSectionId', $fixture['sectionCompliance']->id)
+            ->assertSee('x-on:keydown.window=', false)
+            ->assertSee('$wire.chooseGateMode', false)
+            ->assertSee('$wire.continueFromGate', false);
 
         // Skip for now leaves the gate unresolved (the draft, if any, is untouched) and moves on
         // to the next section instead — it must not fall back to "apply the policy defaults".
@@ -873,6 +897,8 @@ class PracticeIntakeWizardTest extends TestCase
             ->test('portal.practice-intake-wizard', ['orderIds' => [$order->id]])
             ->set('screen', 't_it')
             ->set('itMode', 'inhouse')
+            ->assertSee('reveal-in border border-[#eef2f6] rounded-xl bg-[#f8fbfd] p-4')
+            ->assertSee('wire:key="it-details-inhouse"', false)
             ->set('complianceOfficerName', 'Alex Compliance')
             ->set('complianceOfficerPhone', '555-0199')
             ->set('complianceOfficerEmail', 'alex@example.com');
@@ -888,7 +914,11 @@ class PracticeIntakeWizardTest extends TestCase
         $component->call('copyItContact', 'complianceOfficer')
             ->assertSet('itContactName', 'Alex Compliance')
             ->assertSet('itContactPhone', '555-0199')
-            ->assertSet('itContactEmail', 'alex@example.com');
+            ->assertSet('itContactEmail', 'alex@example.com')
+            ->set('itMode', 'vendor')
+            ->assertSee('reveal-in rounded-xl border border-[#dbe4ee] bg-[#f8fbfd] p-4')
+            ->assertSee('wire:key="it-details-vendor"', false)
+            ->assertSee('Company name');
     }
 
     public function test_leadership_quick_add_dedupes_a_shared_name_and_joins_its_roles(): void
