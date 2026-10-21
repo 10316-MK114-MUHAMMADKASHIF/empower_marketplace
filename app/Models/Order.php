@@ -32,11 +32,12 @@ class Order extends Model
 
     /**
      * Every payment_status value that means "checkout is complete, proceed to onboarding" — not
-     * strictly "money was collected" (Trialing hasn't been charged yet, SimulatedPaid never
-     * charges a real card either; both still grant full portal access like a real payment does).
+    * strictly "money was collected" (Trialing hasn't been charged yet, SimulatedPaid never
+    * charges a real card, and ExternallyBilled is collected through a partner; all grant access).
      */
     public const PAID_STATUSES = [
         PaymentStatus::SimulatedPaid, PaymentStatus::Paid, PaymentStatus::Trialing, PaymentStatus::PastDue,
+        PaymentStatus::ExternallyBilled,
     ];
 
     /**

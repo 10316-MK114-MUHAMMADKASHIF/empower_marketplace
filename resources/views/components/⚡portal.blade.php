@@ -881,6 +881,12 @@ new class extends Component
         return in_array(auth()->user()?->practice?->source_system, ['cch', 'talkehr'], true);
     }
 
+    #[Computed]
+    public function partnerBilledClient(): bool
+    {
+        return $this->isSsoClient();
+    }
+
     /** Server-side twin of the hidden payment form, so a direct call can't skip the UI gate. */
     private function refuseWhileGated(): bool
     {
@@ -889,6 +895,18 @@ new class extends Component
         }
 
         $this->dispatch('toast', message: "Purchasing isn't open to the public yet.", type: 'error');
+
+        return true;
+    }
+
+    private function refuseCardPaymentForPartner(): bool
+    {
+        if (! $this->isSsoClient()) {
+            return false;
+        }
+
+        $this->addError('payment', 'Your subscription is billed through your SSO partner. No portal payment is required.');
+        $this->dispatch('toast', message: 'Your subscription is billed through your SSO partner.', type: 'error');
 
         return true;
     }
@@ -1608,6 +1626,10 @@ new class extends Component
      */
     public function validatePayment(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = ''): bool
     {
+        if ($this->refuseCardPaymentForPartner()) {
+            return false;
+        }
+
         if ($this->refuseWhileGated()) {
             return false;
         }
@@ -1652,8 +1674,90 @@ new class extends Component
         return $cycle;
     }
 
+    public function continuePartnerCheckout(): void
+    {
+        abort_unless($this->isSsoClient(), 403);
+
+        $this->validate([
+            'selectedPackageId' => 'required|exists:packages,id',
+            'billableProviders' => 'required|integer|min:1|max:9999',
+        ]);
+
+        $package = Package::whereKey($this->selectedPackageId)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $package) {
+            $this->addError('selectedPackageId', 'Please select an available package.');
+
+            return;
+        }
+
+        if ($package->isCustomQuote()) {
+            $this->redirect(route('contact', ['package' => $package->slug]), navigate: true);
+
+            return;
+        }
+
+        $user = auth()->user();
+        $existingOrder = $user->orders()
+            ->where('package_id', $package->id)
+            ->whereIn('payment_status', array_map(fn (PaymentStatus $status) => $status->value, Order::PAID_STATUSES))
+            ->latest()
+            ->first();
+
+        if ($existingOrder) {
+            $this->orderIds = $existingOrder->checkout_batch_id
+                ? $user->orders()->where('checkout_batch_id', $existingOrder->checkout_batch_id)->pluck('id')->all()
+                : [$existingOrder->id];
+            $this->dashboardOrderId = $existingOrder->id;
+            unset($this->batchOrders, $this->completedMilestone, $this->selectedPackage, $this->userOrders);
+
+            return;
+        }
+
+        $cycle = $this->effectiveBillingCycle(collect([$package]));
+        $providers = $this->billableProviders;
+        $price = ($package->priceForCycle($cycle) ?? 0.0) * $providers;
+        $practice = $user->practice ?? Practice::create(['user_id' => $user->id, 'name' => '']);
+        $practice->update(['billable_providers_count' => $providers]);
+
+        $order = Order::create([
+            'user_id' => $user->id,
+            'external_practice_id' => $this->activeExternalPracticeId(),
+            'package_id' => $package->id,
+            'checkout_batch_id' => (string) Str::ulid(),
+            'status' => OrderStatus::Paid,
+            'payment_status' => PaymentStatus::ExternallyBilled,
+            'billing_cycle' => $cycle,
+            'amount_paid' => 0,
+            'original_price' => $price,
+            'paid_at' => now(),
+            'notes' => 'Subscription billed through '.($practice->source_system === 'cch' ? 'CareCloud' : 'talkEHR').'; no payment was collected through the Empower portal.',
+        ]);
+
+        ActivityLog::record(
+            'order.externally_billed',
+            "{$package->name} enrolled through {$practice->source_system} billing; no portal payment was collected.",
+            user: $user,
+            order: $order,
+        );
+
+        app(FinanceOrderForms::class)->sendNewOrder($order);
+
+        $this->orderIds = [$order->id];
+        $this->dashboardOrderId = $order->id;
+        unset($this->batchOrders, $this->completedMilestone, $this->selectedPackage, $this->userOrders);
+
+        $this->dispatch('toast', message: 'Your subscription is linked. You can continue to practice intake.', type: 'success');
+    }
+
     public function pay(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
     {
+        if ($this->refuseCardPaymentForPartner()) {
+            return;
+        }
+
         if ($this->refuseWhileGated()) {
             return;
         }
@@ -1924,6 +2028,10 @@ new class extends Component
      */
     public function payFreeTrial(string $cardName = '', string $cardNumber = '', string $cardExpiry = '', string $cardCvc = '', bool $termsAccepted = false): void
     {
+        if ($this->refuseCardPaymentForPartner()) {
+            return;
+        }
+
         if ($this->refuseWhileGated()) {
             return;
         }
@@ -2551,7 +2659,7 @@ new class extends Component
 
 @php
 $steps = [
-1 => 'Payment',
+1 => $this->partnerBilledClient ? 'Subscription' : 'Payment',
 2 => 'Practice Intake',
 3 => 'Upload & Confirm',
 4 => 'Review',
@@ -2598,8 +2706,8 @@ $progressPct = ($milestone / 4) * 100;
                     {{ $heroPackages->count() }} packages selected
                     @endif
                 </h1>
-                <p class="text-white/60 text-sm xl:text-xs xl:mb-2">Payment, practice intake, review, and document
-                    generation.</p>
+                <p class="text-white/60 text-sm xl:text-xs xl:mb-2">{{ $this->partnerBilledClient ? 'Subscription, practice intake, review, and document generation.' : 'Payment, practice intake, review, and document generation.' }}
+                </p>
                 <p class="text-white text-sm xl:text-xs mt-1.5 xl:mt-0">Need help? <a
                         href="mailto:support@empowerhci.com"
                         class="font-bold text-white underline hover:text-[#dff7f3]">support@empowerhci.com</a></p>
@@ -2607,17 +2715,20 @@ $progressPct = ($milestone / 4) * 100;
             @if($heroPackages->isNotEmpty())
             <div class="bg-white/92 rounded-[1.25rem] p-4 min-w-48 xl:min-w-0 xl:w-full">
                 <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
-                @if($heroProviders > 0)
+                @if($this->partnerBilledClient)
+                <div class="text-sm font-semibold text-navy mb-1">Partner-billed subscription</div>
+                <div class="text-empower-muted text-xs">{{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }} handles your subscription billing.</div>
+                @elseif($heroProviders > 0)
                 <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal, $heroTotal ==
                     floor($heroTotal) ? 0 : 2) }}</div>
                 <div class="text-empower-muted text-xs">/ {{ $heroCycle->period() }}</div>
-                @else
+                @elseif($heroProviders < 1)
                 <div class="text-sm font-semibold text-navy mb-1">Enter provider count to calculate price</div>
                 @endif
                 <div class="text-empower-muted text-xs mt-1">
                     {{ $heroPackages->pluck('name')->implode(' + ') }}
                 </div>
-                @if($heroProviders)
+                @if($heroProviders && ! $this->partnerBilledClient)
                 <div class="text-empower-muted text-xs mt-1 pt-1 border-t border-[#eef2f6]">
                     {{ $heroProviders }} provider{{ $heroProviders === 1 ? '' : 's' }} &middot; ${{
                     number_format($heroTotal, $heroTotal == floor($heroTotal) ? 0 : 2) }} / {{ $heroCycle->period() }}
@@ -2699,8 +2810,7 @@ $progressPct = ($milestone / 4) * 100;
                         Leave your email and we'll let you know the moment it is.
                     </p>
                     @if($signedUpForUpdates)
-                    <p class="text-sm font-semibold text-[#117a51]">&#10003; Thanks — we'll email you as soon as this
-                        package is available.</p>
+                    <p class="text-sm font-semibold text-[#117a51]">&#10003; Thanks — we'll email you as soon as this package is available.</p>
                     @else
                     <form wire:submit="signUpForUpdates" class="flex flex-col sm:flex-row gap-2.5 max-w-md">
                         <input wire:model="updatesEmail" type="email" required placeholder="you@practice.com"
@@ -2717,6 +2827,121 @@ $progressPct = ($milestone / 4) * 100;
                     @error('updatesEmail') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
                     @endif
             </div>
+            @elseif($this->partnerBilledClient)
+            @if($milestone >= 1)
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-stretch">
+                <section class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1 · Subscription</p>
+                    <h2 class="text-xl font-semibold text-navy mb-2">Your subscription is connected</h2>
+                    <p class="text-sm text-empower-muted mb-4">Your {{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }} subscription is linked to Empower. No payment is collected in this portal.</p>
+                    @foreach($this->batchOrders as $order)
+                    <div class="flex items-center justify-between gap-3 rounded-xl border border-empower-border bg-[#f8fbfd] p-3 mb-2">
+                        <div>
+                            <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
+                            <p class="text-xs text-empower-muted">{{ $order->billing_cycle?->period() }} · {{ auth()->user()->practice?->billable_providers_count }} billable provider{{ auth()->user()->practice?->billable_providers_count === 1 ? '' : 's' }}</p>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-[#e6f6ef] px-3 py-1 text-xs font-bold text-[#117a51]">
+                            <span aria-hidden="true">&#10003;</span> Linked
+                        </span>
+                    </div>
+                    @endforeach
+                </section>
+                <aside class="flex flex-col justify-between bg-[#f2f8fd] border border-[#d4e5f1] rounded-[1.25rem] p-5">
+                    <div>
+                        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">Next step</p>
+                        <h3 class="text-lg font-semibold text-navy mb-2">Start your practice intake</h3>
+                        <p class="text-sm text-empower-muted">Your billing stays with {{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }}. Continue to add the details needed for your compliance documents.</p>
+                    </div>
+                    <button wire:click="goToStep(2)" wire:target="goToStep(2)" wire:loading.attr="disabled"
+                        class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#12304f] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
+                        <span wire:loading.remove wire:target="goToStep(2)">Continue to practice intake &rarr;</span>
+                        <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading&hellip;</span>
+                    </button>
+                </aside>
+            </div>
+            @elseif(! $this->selectedPackage)
+            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Partner subscription</p>
+                <h2 class="text-lg font-semibold text-navy mb-1">Choose your Empower package</h2>
+                <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">Your subscription is billed through {{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }}. Select the package connected to your subscription to continue.</p>
+                <a href="{{ route('home') }}#pricing" class="inline-flex items-center gap-1 rounded-lg bg-[#12304f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">Browse packages &rarr;</a>
+            </div>
+            @else
+            @php
+            $partnerName = auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR';
+            $partnerCycle = $this->currentBillingCycle();
+            if ($partnerCycle === BillingCycle::Monthly && ! $this->selectedPackage->hasMonthlyPricing()) {
+                $partnerCycle = BillingCycle::Annual;
+            }
+            $partnerUnitPrice = $this->selectedPackage->priceForCycle($partnerCycle);
+            $partnerTotalPrice = $partnerUnitPrice !== null ? $partnerUnitPrice * $this->billableProviders : null;
+            @endphp
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-stretch">
+                <section class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                    <div class="flex items-start justify-between gap-4 mb-5">
+                        <div>
+                            <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">Step 1 · Partner subscription</p>
+                            <h2 class="text-xl font-semibold text-navy mb-1">Confirm your Empower plan</h2>
+                            <p class="text-sm text-empower-muted">Your {{ $partnerName }} subscription means no payment is due here.</p>
+                        </div>
+                        <span class="shrink-0 rounded-full border border-[#b8dced] bg-[#edf8fc] px-3 py-1 text-xs font-bold text-[#0b7298]">{{ $partnerName }} billing</span>
+                    </div>
+
+                    <div class="rounded-xl border border-empower-border bg-[#f8fbfd] p-4 mb-5">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wide text-empower-muted">Selected package</p>
+                                <p class="text-lg font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
+                                <p class="text-sm text-empower-muted">{{ $this->currentBillingCycle()->period() }} subscription</p>
+                            </div>
+                            <a href="{{ route('home') }}#pricing" class="text-sm font-semibold text-[#1a7aad] hover:underline">Change package</a>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <label for="partner-billable-providers" class="block text-sm font-semibold text-[#173045] mb-1">Billable providers <span class="text-red-500">*</span></label>
+                            <p class="text-xs text-empower-muted mb-2">Physicians and non-physician practitioners billing under your group NPI.</p>
+                            @error('billableProviders') <p class="mb-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                            <div class="flex items-center gap-2">
+                                <button type="button" wire:click="decrementProviders" aria-label="Fewer providers" class="h-10 w-10 rounded-lg border border-empower-border text-navy font-bold hover:bg-page">&minus;</button>
+                                <input id="partner-billable-providers" wire:model.live="billableProviders" type="number" min="0" max="9999" aria-label="Billable providers" class="w-24 rounded-lg border border-empower-border bg-white px-2 py-2 text-center text-sm font-semibold text-[#173045]">
+                                <button type="button" wire:click="incrementProviders" aria-label="More providers" class="h-10 w-10 rounded-lg border border-empower-border text-navy font-bold hover:bg-page">&plus;</button>
+                            </div>
+                        </div>
+                        <p class="text-sm font-semibold text-navy">{{ $this->billableProviders > 0 ? $this->billableProviders.' provider'.($this->billableProviders === 1 ? '' : 's').' selected' : 'Provider count required' }}</p>
+                    </div>
+                </section>
+
+                <aside class="flex flex-col justify-between bg-white border border-empower-border rounded-[1.25rem] p-5 text-[#173045] shadow-[0_12px_32px_rgba(10,32,55,0.08)]">
+                    <div>
+                        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">{{ $partnerName }} billing</p>
+                        <h3 class="text-lg font-semibold text-navy mb-4">Package price</h3>
+                        @if($this->selectedPackage->isCustomQuote())
+                        <p class="text-2xl font-bold text-navy">Contact for pricing</p>
+                        @elseif($partnerUnitPrice !== null)
+                        <p class="text-sm text-empower-muted">${{ number_format($partnerUnitPrice, 2) }} per provider / {{ $partnerCycle->period() }}</p>
+                        @if($this->billableProviders > 0)
+                        <div class="mt-3 rounded-lg border border-empower-border bg-[#f2f8fd] px-3.5 py-3">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-empower-muted">Estimated total</p>
+                            <p class="mt-0.5 text-2xl font-bold text-navy">${{ number_format($partnerTotalPrice, 2) }} <span class="text-sm font-semibold text-empower-muted">/ {{ $partnerCycle->period() }}</span></p>
+                            <p class="mt-0.5 text-xs text-empower-muted">{{ $this->billableProviders }} billable provider{{ $this->billableProviders === 1 ? '' : 's' }}</p>
+                        </div>
+                        @else
+                        <p class="mt-2 text-sm font-semibold text-[#8a5a00]">Enter your provider count to see the estimated total.</p>
+                        @endif
+                        @endif
+                        <p class="mt-4 text-sm leading-relaxed text-empower-text">No payment is collected here. Your subscription billing stays with {{ $partnerName }}.</p>
+                        <p class="mt-2 text-xs text-empower-muted">We’ll send the order form to our billing team; the rest of your intake workflow is unchanged.</p>
+                    </div>
+                    <button wire:click="continuePartnerCheckout" wire:target="continuePartnerCheckout" wire:loading.attr="disabled" @disabled($this->billableProviders < 1)
+                        class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#12304f] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:cursor-not-allowed disabled:opacity-50">
+                        <span wire:loading.remove wire:target="continuePartnerCheckout">Continue to practice intake &rarr;</span>
+                        <span wire:loading.inline-flex wire:target="continuePartnerCheckout" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Setting up&hellip;</span>
+                    </button>
+                </aside>
+            </div>
+            @endif
             @else
             @if($milestone >= 1)
             @php
@@ -2838,8 +3063,7 @@ $progressPct = ($milestone / 4) * 100;
                     page.
                 </p>
                 <a href="{{ route('home') }}#pricing"
-                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View
-                    packages &rarr;</a>
+                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View packages &rarr;</a>
         </div>
         @else
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">

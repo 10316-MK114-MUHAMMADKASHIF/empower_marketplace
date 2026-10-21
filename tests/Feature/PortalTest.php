@@ -316,6 +316,66 @@ class PortalTest extends TestCase
             ->assertSee('Payment Details');
     }
 
+    public function test_carecloud_client_can_enroll_without_payment_and_sends_the_order_form(): void
+    {
+        Mail::fake();
+
+        $finance = User::factory()->create(['role' => UserRole::Admin, 'email' => 'finance@example.com']);
+        $user = User::factory()->create();
+        Practice::factory()->create([
+            'user_id' => $user->id,
+            'source_system' => 'cch',
+            'billable_providers_count' => 1,
+        ]);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->assertSee('CareCloud billing')
+            ->assertSee('No payment is collected here')
+            ->assertDontSee('Payment Details')
+            ->set('billableProviders', 4)
+            ->assertSee('$999.00 per provider / year')
+            ->assertSee('$3,996.00')
+            ->call('continuePartnerCheckout')
+            ->assertHasNoErrors()
+            ->assertSee('Your subscription is connected')
+            ->assertDontSee('Payment Details');
+
+        $order = Order::where('user_id', $user->id)->firstOrFail();
+        $this->assertSame(PaymentStatus::ExternallyBilled, $order->payment_status);
+        $this->assertSame(OrderStatus::Paid, $order->status);
+        $this->assertEquals(3996, (float) $order->original_price);
+        $this->assertEquals(0, (float) $order->amount_paid);
+        $this->assertNotNull($order->paid_at);
+        $this->assertTrue($order->isPaid());
+        $this->assertDatabaseHas('practices', [
+            'user_id' => $user->id,
+            'billable_providers_count' => 4,
+        ]);
+
+        Mail::assertQueued(OrderFormMail::class, fn (OrderFormMail $mail) => $mail->order->is($order) && $mail->hasTo($finance->email));
+        Http::assertNothingSent();
+    }
+
+    public function test_partner_client_cannot_invoke_card_payment_directly(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id, 'source_system' => 'talkehr']);
+        $package = Package::factory()->create(['slug' => 'essential', 'annual_price' => 999, 'is_active' => true]);
+
+        Livewire::actingAs($user)
+            ->test('portal')
+            ->set('selectedPackageId', $package->id)
+            ->set('billableProviders', 1)
+            ->call('pay', 'Jane Provider', '4242 4242 4242 4242', '12/27', '123', true)
+            ->assertHasErrors(['payment']);
+
+        $this->assertDatabaseMissing('orders', ['user_id' => $user->id]);
+        Http::assertNothingSent();
+    }
+
     public function test_guest_paying_emails_the_generated_password_and_it_works_for_login(): void
     {
         Mail::fake();
