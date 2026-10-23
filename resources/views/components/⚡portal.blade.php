@@ -2706,7 +2706,9 @@ $progressPct = ($milestone / 4) * 100;
                     {{ $heroPackages->count() }} packages selected
                     @endif
                 </h1>
-                <p class="text-white/60 text-sm xl:text-xs xl:mb-2">{{ $this->partnerBilledClient ? 'Subscription, practice intake, review, and document generation.' : 'Payment, practice intake, review, and document generation.' }}
+                <p class="text-white/60 text-sm xl:text-xs xl:mb-2">{{ $this->partnerBilledClient ? 'Subscription,
+                    practice intake, review, and document generation.' : 'Payment, practice intake, review, and document
+                    generation.' }}
                 </p>
                 <p class="text-white text-sm xl:text-xs mt-1.5 xl:mt-0">Need help? <a
                         href="mailto:support@empowerhci.com"
@@ -2717,550 +2719,613 @@ $progressPct = ($milestone / 4) * 100;
                 <div class="text-empower-muted text-xs uppercase tracking-wider font-semibold mb-1">Summary</div>
                 @if($this->partnerBilledClient)
                 <div class="text-sm font-semibold text-navy mb-1">Partner-billed subscription</div>
-                <div class="text-empower-muted text-xs">{{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }} handles your subscription billing.</div>
+                <div class="text-empower-muted text-xs">{{ auth()->user()->practice?->source_system === 'cch' ?
+                    'CareCloud' : 'talkEHR' }} handles your subscription billing.</div>
                 @elseif($heroProviders > 0)
                 <div class="text-xl font-extrabold text-navy mb-0.5">${{ number_format($heroTotal, $heroTotal ==
                     floor($heroTotal) ? 0 : 2) }}</div>
                 <div class="text-empower-muted text-xs">/ {{ $heroCycle->period() }}</div>
-                @elseif($heroProviders < 1)
-                <div class="text-sm font-semibold text-navy mb-1">Enter provider count to calculate price</div>
-                @endif
-                <div class="text-empower-muted text-xs mt-1">
-                    {{ $heroPackages->pluck('name')->implode(' + ') }}
-                </div>
-                @if($heroProviders && ! $this->partnerBilledClient)
-                <div class="text-empower-muted text-xs mt-1 pt-1 border-t border-[#eef2f6]">
-                    {{ $heroProviders }} provider{{ $heroProviders === 1 ? '' : 's' }} &middot; ${{
-                    number_format($heroTotal, $heroTotal == floor($heroTotal) ? 0 : 2) }} / {{ $heroCycle->period() }}
-                </div>
-                @endif
+                @elseif($heroProviders < 1) <div class="text-sm font-semibold text-navy mb-1">Enter provider count to
+                    calculate price
             </div>
             @endif
+            <div class="text-empower-muted text-xs mt-1">
+                {{ $heroPackages->pluck('name')->implode(' + ') }}
+            </div>
+            @if($heroProviders && ! $this->partnerBilledClient)
+            <div class="text-empower-muted text-xs mt-1 pt-1 border-t border-[#eef2f6]">
+                {{ $heroProviders }} provider{{ $heroProviders === 1 ? '' : 's' }} &middot; ${{
+                number_format($heroTotal, $heroTotal == floor($heroTotal) ? 0 : 2) }} / {{ $heroCycle->period() }}
+            </div>
+            @endif
+        </div>
+        @endif
+    </div>
+</div>
+
+{{-- ── Main column (everything but the hero) — its own track in the xl grid above ── --}}
+<div class="xl:col-start-1 xl:row-start-1 min-w-0 space-y-4">
+
+    {{-- ── Stepper ── --}}
+    <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+        <div class="flex justify-between items-center mb-4">
+            <p class="text-xs text-[#5d6e7f]">Complete each step to receive your compliance documents.</p>
+            <span
+                class="inline-flex items-center px-3 py-1 rounded-full bg-[#12304f]/[0.08] text-[#12304f] text-[0.72rem] font-extrabold tracking-wide uppercase">
+                Step {{ $step }} of 5
+            </span>
+        </div>
+
+        <div class="flex items-start gap-1.5 overflow-x-auto pb-1 -mb-1">
+            @foreach ($steps as $n => $title)
+            @php
+            $isDone = $n <= $milestone; $isActive=$n===$step; $reachable=$this->canReach($n);
+                @endphp
+                <div class="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[5.25rem] {{ $reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}"
+                    @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" wire:target="goToStep({{ $n }})"
+                    wire:loading.class="opacity-50" wire:target="goToStep({{ $n }})" @endif>
+                    <div
+                        class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
+                        {{ $isActive ? 'bg-[#12304f] text-white' : ($isDone ? 'bg-[#0b9ed0] text-white' : 'bg-[#edf2f7] text-[#5d6e7f]') }}">
+                        @if($reachable && !$isActive)
+                        <span wire:loading.remove wire:target="goToStep({{ $n }})">@if($isDone && !$isActive) ✓
+                            @else {{
+                            $n }} @endif</span>
+                        <span wire:loading wire:target="goToStep({{ $n }})">
+                            <x-spinner class="h-3.5 w-3.5" />
+                        </span>
+                        @else
+                        @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
+                        @endif
+                    </div>
+                    <div class="text-[0.78rem] text-center leading-tight whitespace-nowrap max-w-[7rem]
+                        {{ $isActive ? 'font-bold text-[#12304f]' : 'text-[#5d6e7f]' }}">
+                        {{ $title }}
+                    </div>
+                </div>
+                @if(!$loop->last)
+                <div class="flex-1 h-0.5 mt-[1.125rem] min-w-4 {{ $n < $milestone ? 'bg-[#0b9ed0]' : 'bg-[#dfe7ef]' }}">
+                </div>
+                @endif
+                @endforeach
+        </div>
+
+        <div class="mt-4 h-1.5 bg-[#dbe4ee] rounded-full overflow-hidden">
+            <div class="h-full bg-[#12304f] rounded-full transition-all duration-500"
+                style="width: {{ $progressPct }}%"></div>
         </div>
     </div>
 
-    {{-- ── Main column (everything but the hero) — its own track in the xl grid above ── --}}
-    <div class="xl:col-start-1 xl:row-start-1 min-w-0 space-y-4">
-
-        {{-- ── Stepper ── --}}
-        <div class="bg-white border border-[#dbe4ee] rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-            <div class="flex justify-between items-center mb-4">
-                <p class="text-xs text-[#5d6e7f]">Complete each step to receive your compliance documents.</p>
-                <span
-                    class="inline-flex items-center px-3 py-1 rounded-full bg-[#12304f]/[0.08] text-[#12304f] text-[0.72rem] font-extrabold tracking-wide uppercase">
-                    Step {{ $step }} of 5
-                </span>
-            </div>
-
-            <div class="flex items-start gap-1.5 overflow-x-auto pb-1 -mb-1">
-                @foreach ($steps as $n => $title)
-                @php
-                $isDone = $n <= $milestone; $isActive=$n===$step; $reachable=$this->canReach($n);
-                    @endphp
-                    <div class="flex flex-col items-center gap-1.5 flex-shrink-0 min-w-[4.5rem] {{ $reachable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}"
-                        @if($reachable && !$isActive) wire:click="goToStep({{ $n }})" wire:target="goToStep({{ $n }})"
-                        wire:loading.class="opacity-50" wire:target="goToStep({{ $n }})" @endif>
-                        <div
-                            class="w-9 h-9 rounded-full inline-flex items-center justify-center text-sm font-extrabold flex-shrink-0
-                        {{ $isActive ? 'bg-[#12304f] text-white' : ($isDone ? 'bg-[#0b9ed0] text-white' : 'bg-[#edf2f7] text-[#5d6e7f]') }}">
-                            @if($reachable && !$isActive)
-                            <span wire:loading.remove wire:target="goToStep({{ $n }})">@if($isDone && !$isActive) ✓
-                                @else {{
-                                $n }} @endif</span>
-                            <span wire:loading wire:target="goToStep({{ $n }})">
-                                <x-spinner class="h-3.5 w-3.5" />
-                            </span>
-                            @else
-                            @if($isDone && !$isActive) ✓ @else {{ $n }} @endif
-                            @endif
-                        </div>
-                        <div class="text-[0.78rem] text-center leading-tight max-w-[6rem]
-                        {{ $isActive ? 'font-bold text-[#12304f]' : 'text-[#5d6e7f]' }}">
-                            {{ $title }}
-                        </div>
-                    </div>
-                    @if(!$loop->last)
-                    <div
-                        class="flex-1 h-0.5 mt-[1.125rem] min-w-4 {{ $n < $milestone ? 'bg-[#0b9ed0]' : 'bg-[#dfe7ef]' }}">
-                    </div>
-                    @endif
-                    @endforeach
-            </div>
-
-            <div class="mt-4 h-1.5 bg-[#dbe4ee] rounded-full overflow-hidden">
-                <div class="h-full bg-[#12304f] rounded-full transition-all duration-500"
-                    style="width: {{ $progressPct }}%"></div>
-            </div>
-        </div>
-
-        {{-- ── Step 1: Payment ── --}}
-        @if($step === 1)
-        <div wire:key="portal-step-1">
-            <div class="space-y-3">
-                @if($this->publicLaunchGateActive && $milestone < 1) <div
-                    class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-                    <h2 class="text-lg font-semibold text-navy mb-1">We're not quite open to the public yet</h2>
-                    <p class="text-sm text-empower-muted mb-4">
-                        @if($this->selectedPackage)
-                        {{ $this->selectedPackage->name }} isn't available for purchase yet.
-                        @else
-                        Purchasing isn't available yet.
-                        @endif
-                        Leave your email and we'll let you know the moment it is.
-                    </p>
-                    @if($signedUpForUpdates)
-                    <p class="text-sm font-semibold text-[#117a51]">&#10003; Thanks — we'll email you as soon as this package is available.</p>
-                    @else
-                    <form wire:submit="signUpForUpdates" class="flex flex-col sm:flex-row gap-2.5 max-w-md">
-                        <input wire:model="updatesEmail" type="email" required placeholder="you@practice.com"
-                            class="flex-1 rounded-xl border {{ $errors->has('updatesEmail') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        <button type="submit" wire:loading.attr="disabled" wire:target="signUpForUpdates"
-                            class="inline-flex items-center justify-center gap-1.5 rounded bg-accent px-5 py-2.5 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50">
-                            <span wire:loading.remove wire:target="signUpForUpdates">Sign up for updates</span>
-                            <span wire:loading.inline-flex wire:target="signUpForUpdates"
-                                class="inline-flex items-center gap-1.5">
-                                <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
-                            </span>
-                        </button>
-                    </form>
-                    @error('updatesEmail') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
-                    @endif
-            </div>
-            @elseif($this->partnerBilledClient)
-            @if($milestone >= 1)
-            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-stretch">
-                <section class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1 · Subscription</p>
-                    <h2 class="text-xl font-semibold text-navy mb-2">Your subscription is connected</h2>
-                    <p class="text-sm text-empower-muted mb-4">Your {{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }} subscription is linked to Empower. No payment is collected in this portal.</p>
-                    @foreach($this->batchOrders as $order)
-                    <div class="flex items-center justify-between gap-3 rounded-xl border border-empower-border bg-[#f8fbfd] p-3 mb-2">
-                        <div>
-                            <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
-                            <p class="text-xs text-empower-muted">{{ $order->billing_cycle?->period() }} · {{ auth()->user()->practice?->billable_providers_count }} billable provider{{ auth()->user()->practice?->billable_providers_count === 1 ? '' : 's' }}</p>
-                        </div>
-                        <span class="inline-flex items-center gap-1.5 rounded-full bg-[#e6f6ef] px-3 py-1 text-xs font-bold text-[#117a51]">
-                            <span aria-hidden="true">&#10003;</span> Linked
-                        </span>
-                    </div>
-                    @endforeach
-                </section>
-                <aside class="flex flex-col justify-between bg-[#f2f8fd] border border-[#d4e5f1] rounded-[1.25rem] p-5">
-                    <div>
-                        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">Next step</p>
-                        <h3 class="text-lg font-semibold text-navy mb-2">Start your practice intake</h3>
-                        <p class="text-sm text-empower-muted">Your billing stays with {{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }}. Continue to add the details needed for your compliance documents.</p>
-                    </div>
-                    <button wire:click="goToStep(2)" wire:target="goToStep(2)" wire:loading.attr="disabled"
-                        class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#12304f] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
-                        <span wire:loading.remove wire:target="goToStep(2)">Continue to practice intake &rarr;</span>
-                        <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Loading&hellip;</span>
-                    </button>
-                </aside>
-            </div>
-            @elseif(! $this->selectedPackage)
-            <div class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
-                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Partner subscription</p>
-                <h2 class="text-lg font-semibold text-navy mb-1">Choose your Empower package</h2>
-                <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">Your subscription is billed through {{ auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }}. Select the package connected to your subscription to continue.</p>
-                <a href="{{ route('home') }}#pricing" class="inline-flex items-center gap-1 rounded-lg bg-[#12304f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">Browse packages &rarr;</a>
-            </div>
-            @else
-            @php
-            $partnerName = auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR';
-            $partnerCycle = $this->currentBillingCycle();
-            if ($partnerCycle === BillingCycle::Monthly && ! $this->selectedPackage->hasMonthlyPricing()) {
-                $partnerCycle = BillingCycle::Annual;
-            }
-            $partnerUnitPrice = $this->selectedPackage->priceForCycle($partnerCycle);
-            $partnerTotalPrice = $partnerUnitPrice !== null ? $partnerUnitPrice * $this->billableProviders : null;
-            @endphp
-            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-stretch">
-                <section class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
-                    <div class="flex items-start justify-between gap-4 mb-5">
-                        <div>
-                            <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">Step 1 · Partner subscription</p>
-                            <h2 class="text-xl font-semibold text-navy mb-1">Confirm your Empower plan</h2>
-                            <p class="text-sm text-empower-muted">Your {{ $partnerName }} subscription means no payment is due here.</p>
-                        </div>
-                        <span class="shrink-0 rounded-full border border-[#b8dced] bg-[#edf8fc] px-3 py-1 text-xs font-bold text-[#0b7298]">{{ $partnerName }} billing</span>
-                    </div>
-
-                    <div class="rounded-xl border border-empower-border bg-[#f8fbfd] p-4 mb-5">
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <p class="text-xs font-semibold uppercase tracking-wide text-empower-muted">Selected package</p>
-                                <p class="text-lg font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
-                                <p class="text-sm text-empower-muted">{{ $this->currentBillingCycle()->period() }} subscription</p>
-                            </div>
-                            <a href="{{ route('home') }}#pricing" class="text-sm font-semibold text-[#1a7aad] hover:underline">Change package</a>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <label for="partner-billable-providers" class="block text-sm font-semibold text-[#173045] mb-1">Billable providers <span class="text-red-500">*</span></label>
-                            <p class="text-xs text-empower-muted mb-2">Physicians and non-physician practitioners billing under your group NPI.</p>
-                            @error('billableProviders') <p class="mb-2 text-xs text-red-600">{{ $message }}</p> @enderror
-                            <div class="flex items-center gap-2">
-                                <button type="button" wire:click="decrementProviders" aria-label="Fewer providers" class="h-10 w-10 rounded-lg border border-empower-border text-navy font-bold hover:bg-page">&minus;</button>
-                                <input id="partner-billable-providers" wire:model.live="billableProviders" type="number" min="0" max="9999" aria-label="Billable providers" class="w-24 rounded-lg border border-empower-border bg-white px-2 py-2 text-center text-sm font-semibold text-[#173045]">
-                                <button type="button" wire:click="incrementProviders" aria-label="More providers" class="h-10 w-10 rounded-lg border border-empower-border text-navy font-bold hover:bg-page">&plus;</button>
-                            </div>
-                        </div>
-                        <p class="text-sm font-semibold text-navy">{{ $this->billableProviders > 0 ? $this->billableProviders.' provider'.($this->billableProviders === 1 ? '' : 's').' selected' : 'Provider count required' }}</p>
-                    </div>
-                </section>
-
-                <aside class="flex flex-col justify-between bg-white border border-empower-border rounded-[1.25rem] p-5 text-[#173045] shadow-[0_12px_32px_rgba(10,32,55,0.08)]">
-                    <div>
-                        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">{{ $partnerName }} billing</p>
-                        <h3 class="text-lg font-semibold text-navy mb-4">Package price</h3>
-                        @if($this->selectedPackage->isCustomQuote())
-                        <p class="text-2xl font-bold text-navy">Contact for pricing</p>
-                        @elseif($partnerUnitPrice !== null)
-                        <p class="text-sm text-empower-muted">${{ number_format($partnerUnitPrice, 2) }} per provider / {{ $partnerCycle->period() }}</p>
-                        @if($this->billableProviders > 0)
-                        <div class="mt-3 rounded-lg border border-empower-border bg-[#f2f8fd] px-3.5 py-3">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-empower-muted">Estimated total</p>
-                            <p class="mt-0.5 text-2xl font-bold text-navy">${{ number_format($partnerTotalPrice, 2) }} <span class="text-sm font-semibold text-empower-muted">/ {{ $partnerCycle->period() }}</span></p>
-                            <p class="mt-0.5 text-xs text-empower-muted">{{ $this->billableProviders }} billable provider{{ $this->billableProviders === 1 ? '' : 's' }}</p>
-                        </div>
-                        @else
-                        <p class="mt-2 text-sm font-semibold text-[#8a5a00]">Enter your provider count to see the estimated total.</p>
-                        @endif
-                        @endif
-                        <p class="mt-4 text-sm leading-relaxed text-empower-text">No payment is collected here. Your subscription billing stays with {{ $partnerName }}.</p>
-                        <p class="mt-2 text-xs text-empower-muted">We’ll send the order form to our billing team; the rest of your intake workflow is unchanged.</p>
-                    </div>
-                    <button wire:click="continuePartnerCheckout" wire:target="continuePartnerCheckout" wire:loading.attr="disabled" @disabled($this->billableProviders < 1)
-                        class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#12304f] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:cursor-not-allowed disabled:opacity-50">
-                        <span wire:loading.remove wire:target="continuePartnerCheckout">Continue to practice intake &rarr;</span>
-                        <span wire:loading.inline-flex wire:target="continuePartnerCheckout" class="inline-flex items-center gap-1.5"><x-spinner class="h-3.5 w-3.5" /> Setting up&hellip;</span>
-                    </button>
-                </aside>
-            </div>
-            @endif
-            @else
-            @if($milestone >= 1)
-            @php
-            $firstBatchOrder = $this->batchOrders->first();
-            $isTrialBatch = $firstBatchOrder?->payment_status === PaymentStatus::Trialing;
-            $totalPaidAmount = (float) $this->batchOrders->sum('amount_paid');
-            $cardEnding = $firstBatchOrder?->card_last_four;
-            $paidProviders = auth()->user()?->practice?->billable_providers_count;
-            @endphp
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
-                <div
-                    class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-                    <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
-                    <p class="text-sm text-empower-muted">
-                        Complete payment first to unlock your practice intake form. Your documents are generated
-                        automatically
-                        once intake is submitted and reviewed.
-                    </p>
-
-                    @foreach($this->batchOrders as $order)
-                    @php
-                    $orderIsTrial = $order->payment_status === PaymentStatus::Trialing;
-                    $orderPrice = (float) $order->original_price;
-                    $orderPaid = (float) $order->amount_paid;
-                    @endphp
-                    <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
-                        <div>
-                            <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
-                            <p class="text-xs text-empower-muted">${{ number_format($orderPrice, $orderPrice ==
-                                floor($orderPrice) ? 0 : 2) }} /
-                                {{ $order->billing_cycle?->period() }}</p>
-                        </div>
-                        <div class="flex flex-col items-end gap-1">
-                            <span
-                                class="inline-flex items-center px-2.5 py-1 rounded-full bg-[#d7f3ea] text-[#117a51] text-[0.68rem] font-extrabold tracking-wide uppercase">
-                                {{ $orderIsTrial ? 'Trial' : 'Paid' }}
-                            </span>
-                            <a href="{{ route('orders.receipt', $order) }}" target="_blank"
-                                class="text-xs font-semibold text-[#1a7aad] hover:underline">View Receipt</a>
-                        </div>
-                    </div>
-
-                    <div class="py-2.5 border-b border-[#eef2f6] mb-2">
-                        @if($order->discount_code)
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $order->discount_code
-                                }})</span>
-                            <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format((float)
-                                $order->discount_amount, 2) }}</span>
-                        </div>
-                        @else
-                        <p class="text-sm text-empower-muted">No discount applied</p>
-                        @endif
-                    </div>
-
-                    <div
-                        class="flex items-center justify-between pt-2 {{ !$loop->last ? 'border-b border-[#eef2f6] mb-2 pb-2.5' : '' }}">
-                        <span class="text-sm font-semibold text-[#173045]">{{ $orderIsTrial ? 'Due Today' : 'Paid'
-                            }}</span>
-                        <span class="text-lg font-extrabold text-navy">${{ number_format($orderPaid, $orderPaid ==
-                            floor($orderPaid) ? 0 : 2) }}</span>
-                    </div>
-                    @endforeach
-
-                    @if($newAccountEmail)
-                    <div class="mt-1 pt-3 border-t border-[#eef2f6]">
-                        <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.1</p>
-                        <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
-                        <p class="text-xs text-empower-muted">Account created for {{ auth()->user()->name }}
-                            ({{ $newAccountEmail }}). A login password would be emailed there.</p>
-                    </div>
-                    @endif
-
-                    <div class="flex items-center justify-between gap-3 pt-3 mt-3 border-t border-[#eef2f6]">
-                        <div>
-                            <p class="text-sm font-semibold text-[#31465b]">How many billable providers do you have?</p>
-                            <p class="text-xs text-empower-muted mt-0.5 max-w-sm">Physicians and non-physician
-                                practitioners billing under your group NPI.</p>
-                        </div>
-                        <p class="text-sm font-semibold text-navy flex-shrink-0">{{ $paidProviders }} provider{{
-                            $paidProviders === 1 ? '' : 's' }}</p>
-                    </div>
-                </div>
-
-                <div
-                    class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
-                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.2</p>
-                    <h3 class="text-lg font-semibold text-navy mb-3">Payment Details</h3>
-                    <div @if($justPaid) x-data
-                        x-init="$el.animate([{ backgroundColor: '#d7f3e3' }, { backgroundColor: '#eef8f3' }], { duration: 1200, easing: 'ease-out' })"
-                        @endif
-                        class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5">
-                        <span class="text-[#117a51]">&#10003;</span>
-                        <p class="text-sm font-semibold text-[#0f7a4f]">
-                            @if($isTrialBatch)
-                            Your free trial has started{{ $firstBatchOrder?->paid_at ? ' on
-                            '.$firstBatchOrder->paid_at->format('M j, Y') : '' }}{{ $cardEnding ? " (card ending
-                            {$cardEnding})" : '' }}.
-                            @else
-                            Payment of ${{ number_format($totalPaidAmount, $totalPaidAmount == floor($totalPaidAmount) ?
-                            0
-                            : 2)
-                            }} received{{ $firstBatchOrder?->paid_at ? ' on '.$firstBatchOrder->paid_at->format('M j,
-                            Y') :
-                            ''
-                            }}{{ $cardEnding ? " (card ending {$cardEnding})" : '' }}.
-                            @endif
-                        </p>
-                    </div>
-                </div>
-            </div>
-            @elseif(! $this->selectedPackage && $milestone < 1) <div
-                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
+    {{-- ── Step 1: Payment ── --}}
+    @if($step === 1)
+    <div wire:key="portal-step-1">
+        <div class="space-y-3">
+            @if($this->publicLaunchGateActive && $milestone < 1) <div
+                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
                 <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
-                <h2 class="text-lg font-semibold text-navy mb-1">Choose a package to continue</h2>
-                <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">
-                    Pick the package that fits your practice before paying. You can compare every package on our pricing
-                    page.
+                <h2 class="text-lg font-semibold text-navy mb-1">We're not quite open to the public yet</h2>
+                <p class="text-sm text-empower-muted mb-4">
+                    @if($this->selectedPackage)
+                    {{ $this->selectedPackage->name }} isn't available for purchase yet.
+                    @else
+                    Purchasing isn't available yet.
+                    @endif
+                    Leave your email and we'll let you know the moment it is.
                 </p>
-                <a href="{{ route('home') }}#pricing"
-                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View packages &rarr;</a>
+                @if($signedUpForUpdates)
+                <p class="text-sm font-semibold text-[#117a51]">&#10003; Thanks — we'll email you as soon as this
+                    package is available.</p>
+                @else
+                <form wire:submit="signUpForUpdates" class="flex flex-col sm:flex-row gap-2.5 max-w-md">
+                    <input wire:model="updatesEmail" type="email" required placeholder="you@practice.com"
+                        class="flex-1 rounded-xl border {{ $errors->has('updatesEmail') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-[#173045] focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <button type="submit" wire:loading.attr="disabled" wire:target="signUpForUpdates"
+                        class="inline-flex items-center justify-center gap-1.5 rounded bg-accent px-5 py-2.5 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50">
+                        <span wire:loading.remove wire:target="signUpForUpdates">Sign up for updates</span>
+                        <span wire:loading.inline-flex wire:target="signUpForUpdates"
+                            class="inline-flex items-center gap-1.5">
+                            <x-spinner class="h-3.5 w-3.5" /> Saving&hellip;
+                        </span>
+                    </button>
+                </form>
+                @error('updatesEmail') <p class="mt-1.5 text-xs text-red-600">{{ $message }}</p> @enderror
+                @endif
+        </div>
+        @elseif($this->partnerBilledClient)
+        @if($milestone >= 1)
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-stretch">
+            <section
+                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1 ·
+                    Subscription</p>
+                <h2 class="text-xl font-semibold text-navy mb-2">Your subscription is connected</h2>
+                <p class="text-sm text-empower-muted mb-4">Your {{ auth()->user()->practice?->source_system === 'cch' ?
+                    'CareCloud' : 'talkEHR' }} subscription is linked to Empower. No payment is collected in this
+                    portal.</p>
+                @foreach($this->batchOrders as $order)
+                <div
+                    class="flex items-center justify-between gap-3 rounded-xl border border-empower-border bg-[#f8fbfd] p-3 mb-2">
+                    <div>
+                        <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
+                        <p class="text-xs text-empower-muted">{{ $order->billing_cycle?->period() }} · {{
+                            auth()->user()->practice?->billable_providers_count }} billable provider{{
+                            auth()->user()->practice?->billable_providers_count === 1 ? '' : 's' }}</p>
+                    </div>
+                    @if(auth()->user()->practice?->source_system)
+                    <a href="{{ route('orders.order-form', $order) }}" target="_blank" rel="noopener"
+                        class="inline-flex items-center gap-1.5 rounded-full bg-[#edf6ff] px-3 py-1 text-xs font-bold text-[#0b5ea8] hover:bg-[#e2f0ff] transition-colors">
+                        <span aria-hidden="true">↓</span> Order form
+                    </a>
+                    @else
+                    <span
+                        class="inline-flex items-center gap-1.5 rounded-full bg-[#e6f6ef] px-3 py-1 text-xs font-bold text-[#117a51]">
+                        <span aria-hidden="true">&#10003;</span> Linked
+                    </span>
+                    @endif
+                </div>
+                @endforeach
+            </section>
+            <aside class="flex flex-col justify-between bg-[#f2f8fd] border border-[#d4e5f1] rounded-[1.25rem] p-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">Next step</p>
+                    <h3 class="text-lg font-semibold text-navy mb-2">Start your practice intake</h3>
+                    <p class="text-sm text-empower-muted">Your billing stays with {{
+                        auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }}. Continue to add
+                        the details needed for your compliance documents.</p>
+                </div>
+                <button wire:click="goToStep(2)" wire:target="goToStep(2)" wire:loading.attr="disabled"
+                    class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#12304f] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:opacity-50">
+                    <span wire:loading.remove wire:target="goToStep(2)">Continue to practice intake &rarr;</span>
+                    <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5">
+                        <x-spinner class="h-3.5 w-3.5" /> Loading&hellip;
+                    </span>
+                </button>
+            </aside>
+        </div>
+        @elseif(! $this->selectedPackage)
+        <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
+            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Partner subscription</p>
+            <h2 class="text-lg font-semibold text-navy mb-1">Choose your Empower package</h2>
+            <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">Your subscription is billed through {{
+                auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR' }}. Select the package
+                connected to your subscription to continue.</p>
+            <a href="{{ route('home') }}#pricing"
+                class="inline-flex items-center gap-1 rounded-lg bg-[#12304f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors">Browse
+                packages &rarr;</a>
         </div>
         @else
+        @php
+        $partnerName = auth()->user()->practice?->source_system === 'cch' ? 'CareCloud' : 'talkEHR';
+        $partnerCycle = $this->currentBillingCycle();
+        if ($partnerCycle === BillingCycle::Monthly && ! $this->selectedPackage->hasMonthlyPricing()) {
+        $partnerCycle = BillingCycle::Annual;
+        }
+        $partnerUnitPrice = $this->selectedPackage->priceForCycle($partnerCycle);
+        $partnerTotalPrice = $partnerUnitPrice !== null ? $partnerUnitPrice * $this->billableProviders : null;
+        @endphp
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-3 items-stretch">
+            <section
+                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-5">
+                <div class="flex items-start justify-between gap-4 mb-5">
+                    <div>
+                        <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">Step 1 · Partner
+                            subscription</p>
+                        <h2 class="text-xl font-semibold text-navy mb-1">Confirm your Empower plan</h2>
+                        <p class="text-sm text-empower-muted">Your {{ $partnerName }} subscription means no payment is
+                            due here.</p>
+                    </div>
+                    <span
+                        class="shrink-0 rounded-full border border-[#b8dced] bg-[#edf8fc] px-3 py-1 text-xs font-bold text-[#0b7298]">{{
+                        $partnerName }} billing</span>
+                </div>
+
+                <div class="rounded-xl border border-empower-border bg-[#f8fbfd] p-4 mb-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-empower-muted">Selected package
+                            </p>
+                            <p class="text-lg font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
+                            <p class="text-sm text-empower-muted">{{ $this->currentBillingCycle()->period() }}
+                                subscription</p>
+                        </div>
+                        <a href="{{ route('home') }}#pricing"
+                            class="text-sm font-semibold text-[#1a7aad] hover:underline">Change package</a>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="flex-1">
+                        <label for="partner-billable-providers"
+                            class="block text-sm font-semibold text-[#173045] mb-1">Billable providers <span
+                                class="text-red-500">*</span></label>
+                        <p class="text-xs text-empower-muted mb-2">Physicians and non-physician practitioners billing
+                            under your group NPI.</p>
+                        @error('billableProviders') <p class="mb-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                        <div class="flex items-center gap-2">
+                            <button type="button" wire:click="decrementProviders" aria-label="Fewer providers"
+                                class="h-10 w-10 rounded-lg border border-empower-border text-navy font-bold hover:bg-page">&minus;</button>
+                            <input id="partner-billable-providers" wire:model.live="billableProviders" type="number"
+                                min="0" max="9999" aria-label="Billable providers"
+                                class="w-24 rounded-lg border border-empower-border bg-white px-2 py-2 text-center text-sm font-semibold text-[#173045]">
+                            <button type="button" wire:click="incrementProviders" aria-label="More providers"
+                                class="h-10 w-10 rounded-lg border border-empower-border text-navy font-bold hover:bg-page">&plus;</button>
+                        </div>
+                    </div>
+                    @if($this->billableProviders <= 0) <span
+                        class="inline-flex items-center justify-center rounded-full border border-[#f2d9a7] bg-[#fff6e6] px-3 py-1.5 text-sm font-semibold text-[#8a5a00] whitespace-nowrap">
+                        Provider count required
+                        </span>
+                        @endif
+                </div>
+            </section>
+
+            <aside
+                class="flex flex-col justify-between bg-white border border-empower-border rounded-[1.25rem] p-5 text-[#173045] shadow-[0_12px_32px_rgba(10,32,55,0.08)]">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-[#1a7aad] mb-1">{{ $partnerName }}
+                        billing</p>
+                    <h3 class="text-lg font-semibold text-navy mb-4">Package price</h3>
+                    @if($this->selectedPackage->isCustomQuote())
+                    <p class="text-2xl font-bold text-navy">Contact for pricing</p>
+                    @elseif($partnerUnitPrice !== null)
+                    <p class="text-sm text-empower-muted">${{ number_format($partnerUnitPrice, 2) }} per provider / {{
+                        $partnerCycle->period() }}</p>
+                    @if($this->billableProviders > 0)
+                    <div class="mt-3 rounded-lg border border-empower-border bg-[#f2f8fd] px-3.5 py-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-empower-muted">Estimated total</p>
+                        <p class="mt-0.5 text-2xl font-bold text-navy">${{ number_format($partnerTotalPrice, 2) }} <span
+                                class="text-sm font-semibold text-empower-muted">/ {{ $partnerCycle->period() }}</span>
+                        </p>
+                        <span
+                            class="mt-2 inline-flex items-center justify-center rounded-full border border-[#cfd9e2] bg-[#edf4f9] px-3 py-1.5 text-xs font-bold text-[#173045] shadow-sm whitespace-nowrap">
+                            {{ $this->billableProviders }} {{ $this->billableProviders === 1 ? 'billable provider' :
+                            'billable providers' }}
+                        </span>
+                    </div>
+                    @else
+                    <p class="mt-2 text-sm font-semibold text-[#8a5a00]">Enter your provider count to see the estimated
+                        total.</p>
+                    @endif
+                    @endif
+                    <p class="mt-4 text-sm leading-relaxed text-empower-text">No payment is collected here. Your
+                        subscription billing stays with {{ $partnerName }}.</p>
+                    <p class="mt-2 text-xs text-empower-muted">We’ll send the order form to our billing team; the rest
+                        of your intake workflow is unchanged.</p>
+                </div>
+                <button wire:click="continuePartnerCheckout" wire:target="continuePartnerCheckout"
+                    wire:loading.attr="disabled" @disabled($this->billableProviders < 1)
+                        class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#12304f] px-5 py-3 text-sm font-bold text-white hover:bg-[#0c233b] transition-colors disabled:cursor-not-allowed disabled:opacity-50">
+                        <span wire:loading.remove wire:target="continuePartnerCheckout">Continue to practice intake
+                            &rarr;</span>
+                        <span wire:loading.inline-flex wire:target="continuePartnerCheckout"
+                            class="inline-flex items-center gap-1.5">
+                            <x-spinner class="h-3.5 w-3.5" /> Setting up&hellip;
+                        </span>
+                </button>
+            </aside>
+        </div>
+        @endif
+        @else
+        @if($milestone >= 1)
+        @php
+        $firstBatchOrder = $this->batchOrders->first();
+        $isTrialBatch = $firstBatchOrder?->payment_status === PaymentStatus::Trialing;
+        $totalPaidAmount = (float) $this->batchOrders->sum('amount_paid');
+        $cardEnding = $firstBatchOrder?->card_last_four;
+        $paidProviders = auth()->user()?->practice?->billable_providers_count;
+        @endphp
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
             <div
                 class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
                 <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
                 <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
-                <p class="text-xs text-empower-muted">
+                <p class="text-sm text-empower-muted">
                     Complete payment first to unlock your practice intake form. Your documents are generated
                     automatically
                     once intake is submitted and reviewed.
                 </p>
-                @if(! $this->selectedPackage)
-                <p class="text-sm text-empower-muted italic mb-2">No package selected.</p>
-                <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">Browse
-                    packages &rarr;</a>
-                @else
+
+                @foreach($this->batchOrders as $order)
+                @php
+                $orderIsTrial = $order->payment_status === PaymentStatus::Trialing;
+                $orderPrice = (float) $order->original_price;
+                $orderPaid = (float) $order->amount_paid;
+                @endphp
                 <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
                     <div>
-                        <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
-                        @php $displayPrice = $this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0;
-                        @endphp
-                        <p class="text-xs text-empower-muted">${{ number_format($displayPrice, $displayPrice ==
-                            floor($displayPrice) ? 0 : 2) }} per provider /
-                            {{ $this->currentBillingCycle()->period() }}</p>
+                        <p class="text-sm font-semibold text-[#173045]">{{ $order->package?->name }}</p>
+                        <p class="text-xs text-empower-muted">${{ number_format($orderPrice, $orderPrice ==
+                            floor($orderPrice) ? 0 : 2) }} /
+                            {{ $order->billing_cycle?->period() }}</p>
                     </div>
-                    <a href="{{ route('home') }}#pricing"
-                        class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
+                    <div class="flex flex-col items-end gap-1">
+                        <span
+                            class="inline-flex items-center px-2.5 py-1 rounded-full bg-[#d7f3ea] text-[#117a51] text-[0.68rem] font-extrabold tracking-wide uppercase">
+                            {{ $orderIsTrial ? 'Trial' : 'Paid' }}
+                        </span>
+                        <a href="{{ route('orders.receipt', $order) }}" target="_blank"
+                            class="text-xs font-semibold text-[#1a7aad] hover:underline">View Receipt</a>
+                    </div>
                 </div>
 
                 <div class="py-2.5 border-b border-[#eef2f6] mb-2">
-                    @if(! $this->appliedDiscountCode)
-                    <div class="flex gap-2">
-                        <input wire:model="discountCodeInput" type="text" placeholder="Discount code"
-                            class="flex-1 min-w-0 rounded-lg border border-empower-border bg-[#f8fbfd] px-3 py-2 text-sm uppercase text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        <button type="button" wire:click="applyDiscountCode" wire:target="applyDiscountCode"
-                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
-                            wire:target="applyDiscountCode"
-                            class="rounded-lg border border-empower-border px-3.5 py-2 text-xs font-bold text-[#173045] hover:bg-page transition-colors">
-                            <span wire:loading.remove wire:target="applyDiscountCode">Apply</span>
-                            <span wire:loading wire:target="applyDiscountCode">
-                                <x-spinner class="h-3.5 w-3.5" />
-                            </span>
-                        </button>
-                    </div>
-                    @error('discountCodeInput') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    @elseif($this->isFreeTrialCheckout)
+                    @if($order->discount_code)
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-semibold text-[#0f7a4f]">Free Trial ({{
-                            $this->appliedDiscountCode->code
-                            }}) — {{ $this->appliedDiscountCode->trial_days }} days</span>
-                        <button type="button" wire:click="removeDiscountCode"
-                            class="text-xs text-empower-muted hover:underline">Remove</button>
-                    </div>
-                    @else
-                    <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $this->appliedDiscountCode->code
+                        <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $order->discount_code
                             }})</span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format($this->discountAmount,
-                                2)
-                                }}</span>
-                            <button type="button" wire:click="removeDiscountCode"
-                                class="text-xs text-empower-muted hover:underline">Remove</button>
-                        </div>
+                        <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format((float)
+                            $order->discount_amount, 2) }}</span>
                     </div>
-                    @endif
-                </div>
-
-                @php $perProviderDisplay = ($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0)
-                * $this->billableProviders; @endphp
-                @if($this->isFreeTrialCheckout)
-                <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
-                    <span class="text-sm font-semibold text-[#173045]">Due Today</span>
-                    <span class="text-lg font-extrabold text-navy">$0.00</span>
-                </div>
-                <p class="text-xs text-empower-muted mt-1">Then
-                    @if($this->billableProviders > 0)
-                    ${{ number_format($perProviderDisplay, 2) }}/{{ $this->currentBillingCycle()->period() }}
                     @else
-                    enter your provider count to calculate pricing
+                    <p class="text-sm text-empower-muted">No discount applied</p>
                     @endif
-                    once your free trial ends, unless you cancel first.</p>
-                @else
-                <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
-                    <span class="text-sm font-semibold text-[#173045]">Total</span>
-                    <span class="text-lg font-extrabold text-navy">
-                        @if($this->billableProviders > 0)
-                        ${{ number_format($this->discountedTotal, 2) }}
-                        @else
-                        Enter provider count
-                        @endif
-                    </span>
                 </div>
-                @if($this->billableProviders > 1)
-                <p class="text-xs text-empower-muted mt-1 text-right">{{ $this->billableProviders }} &times; ${{
-                    number_format($displayPrice, 2) }}/{{ $this->currentBillingCycle()->period() }}</p>
-                @endif
-                @endif
-                @endif
 
-                @auth
-                @else
-                <div class="mt-3 pt-3 border-t border-[#eef2f6]">
-                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1 mt-3">Step 1.1
-                    </p>
+                <div
+                    class="flex items-center justify-between pt-2 {{ !$loop->last ? 'border-b border-[#eef2f6] mb-2 pb-2.5' : '' }}">
+                    <span class="text-sm font-semibold text-[#173045]">{{ $orderIsTrial ? 'Due Today' : 'Paid'
+                        }}</span>
+                    <span class="text-lg font-extrabold text-navy">${{ number_format($orderPaid, $orderPaid ==
+                        floor($orderPaid) ? 0 : 2) }}</span>
+                </div>
+                @endforeach
+
+                @if($newAccountEmail)
+                <div class="mt-1 pt-3 border-t border-[#eef2f6]">
+                    <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.1</p>
                     <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
-                    <p class="text-xs text-empower-muted mb-3">Create the account that will manage this practice's
-                        Empower portal.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span
-                                    class="text-red-500">*</span></label>
-                            <input wire:model.live="accountName" type="text" placeholder="Jane Provider" required
-                                maxlength="100" pattern="[\p{L}\s.'\-]+"
-                                title="Letters, spaces, periods, apostrophes and hyphens only"
-                                class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span
-                                    class="text-red-500">*</span></label>
-                            <input wire:model.live="accountEmail" type="email" placeholder="jane@practice.com" required
-                                maxlength="150" pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
-                                title="Please include a domain extension, e.g. name@example.com"
-                                class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-                    <p class="text-xs text-empower-muted mt-2">We'll email you a secure, auto-generated password to log
-                        in with.
-                    </p>
+                    <p class="text-xs text-empower-muted">Account created for {{ auth()->user()->name }}
+                        ({{ $newAccountEmail }}). A login password would be emailed there.</p>
                 </div>
-                @endauth
+                @endif
 
-                <div class="flex items-center justify-between gap-3 py-2.5 pt-3 border-t border-[#eef2f6]">
+                <div class="flex items-center justify-between gap-3 pt-3 mt-3 border-t border-[#eef2f6]">
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b]">How many billable providers do you
-                            have? <span class="text-red-500">*</span></label>
+                        <p class="text-sm font-semibold text-[#31465b]">How many billable providers do you have?</p>
                         <p class="text-xs text-empower-muted mt-0.5 max-w-sm">Physicians and non-physician
-                            practitioners billing under your group NPI. Required to calculate your price.</p>
-                        @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                            practitioners billing under your group NPI.</p>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                        <button type="button" wire:click="decrementProviders" aria-label="Fewer providers"
-                            class="h-9 w-9 rounded-lg border border-empower-border text-navy font-bold hover:bg-page transition-colors">&minus;</button>
-                        <input wire:model.live="billableProviders" type="number" min="0" max="9999"
-                            aria-label="Billable providers"
-                            class="w-16 text-center rounded-lg border border-empower-border bg-[#f8fbfd] px-2 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        <button type="button" wire:click="incrementProviders" aria-label="More providers"
-                            class="h-9 w-9 rounded-lg border border-empower-border text-navy font-bold hover:bg-page transition-colors">&plus;</button>
-                    </div>
+                    <p class="text-sm font-semibold text-navy flex-shrink-0">{{ $paidProviders }} provider{{
+                        $paidProviders === 1 ? '' : 's' }}</p>
                 </div>
             </div>
 
-            <div x-data="{
-                    cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false, showTerms: false, termsAccepted: false,
-                }"
-                class="flex flex-col bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <div
+                class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
                 <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.2</p>
-                <h3 class="text-lg font-semibold text-navy mb-1">Payment Details</h3>
-                <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved
-                    or
-                    logged by this form.</p>
-                @error('payment') <p
-                    class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
-                    {{
-                    $message }}</p> @enderror
-                @error('termsAccepted') <p x-show="!termsAccepted"
-                    class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
-                    {{
-                    $message }}</p> @enderror
+                <h3 class="text-lg font-semibold text-navy mb-3">Payment Details</h3>
+                <div @if($justPaid) x-data
+                    x-init="$el.animate([{ backgroundColor: '#d7f3e3' }, { backgroundColor: '#eef8f3' }], { duration: 1200, easing: 'ease-out' })"
+                    @endif
+                    class="flex items-center gap-3 rounded-xl bg-[#eef8f3] border border-[#bfe3d2] px-3.5 py-2.5">
+                    <span class="text-[#117a51]">&#10003;</span>
+                    <p class="text-sm font-semibold text-[#0f7a4f]">
+                        @if($isTrialBatch)
+                        Your free trial has started{{ $firstBatchOrder?->paid_at ? ' on
+                        '.$firstBatchOrder->paid_at->format('M j, Y') : '' }}{{ $cardEnding ? " (card ending
+                        {$cardEnding})" : '' }}.
+                        @else
+                        Payment of ${{ number_format($totalPaidAmount, $totalPaidAmount == floor($totalPaidAmount) ?
+                        0
+                        : 2)
+                        }} received{{ $firstBatchOrder?->paid_at ? ' on '.$firstBatchOrder->paid_at->format('M j,
+                        Y') :
+                        ''
+                        }}{{ $cardEnding ? " (card ending {$cardEnding})" : '' }}.
+                        @endif
+                    </p>
+                </div>
+            </div>
+        </div>
+        @elseif(! $this->selectedPackage && $milestone < 1) <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-6 text-center">
+            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+            <h2 class="text-lg font-semibold text-navy mb-1">Choose a package to continue</h2>
+            <p class="text-sm text-empower-muted mb-4 max-w-md mx-auto">
+                Pick the package that fits your practice before paying. You can compare every package on our pricing
+                page.
+            </p>
+            <a href="{{ route('home') }}#pricing"
+                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors">View
+                packages &rarr;</a>
+    </div>
+    @else
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+        <div
+            class="bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1</p>
+            <h2 class="text-lg font-semibold text-navy mb-1">Selected Package</h2>
+            <p class="text-xs text-empower-muted">
+                Complete payment first to unlock your practice intake form. Your documents are generated
+                automatically
+                once intake is submitted and reviewed.
+            </p>
+            @if(! $this->selectedPackage)
+            <p class="text-sm text-empower-muted italic mb-2">No package selected.</p>
+            <a href="{{ route('home') }}#pricing" class="text-xs font-bold text-[#1a7aad] hover:underline">Browse
+                packages &rarr;</a>
+            @else
+            <div class="flex items-center justify-between gap-3 py-2.5 border-b border-[#eef2f6] mb-2">
+                <div>
+                    <p class="text-sm font-semibold text-[#173045]">{{ $this->selectedPackage->name }}</p>
+                    @php $displayPrice = $this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0;
+                    @endphp
+                    <p class="text-xs text-empower-muted">${{ number_format($displayPrice, $displayPrice ==
+                        floor($displayPrice) ? 0 : 2) }} per provider /
+                        {{ $this->currentBillingCycle()->period() }}</p>
+                </div>
+                <a href="{{ route('home') }}#pricing"
+                    class="text-xs font-semibold text-[#1a7aad] hover:underline">Change package</a>
+            </div>
+
+            <div class="py-2.5 border-b border-[#eef2f6] mb-2">
+                @if(! $this->appliedDiscountCode)
+                <div class="flex gap-2">
+                    <input wire:model="discountCodeInput" type="text" placeholder="Discount code"
+                        class="flex-1 min-w-0 rounded-lg border border-empower-border bg-[#f8fbfd] px-3 py-2 text-sm uppercase text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <button type="button" wire:click="applyDiscountCode" wire:target="applyDiscountCode"
+                        wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                        wire:target="applyDiscountCode"
+                        class="rounded-lg border border-empower-border px-3.5 py-2 text-xs font-bold text-[#173045] hover:bg-page transition-colors">
+                        <span wire:loading.remove wire:target="applyDiscountCode">Apply</span>
+                        <span wire:loading wire:target="applyDiscountCode">
+                            <x-spinner class="h-3.5 w-3.5" />
+                        </span>
+                    </button>
+                </div>
+                @error('discountCodeInput') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                @elseif($this->isFreeTrialCheckout)
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-[#0f7a4f]">Free Trial ({{
+                        $this->appliedDiscountCode->code
+                        }}) — {{ $this->appliedDiscountCode->trial_days }} days</span>
+                    <button type="button" wire:click="removeDiscountCode"
+                        class="text-xs text-empower-muted hover:underline">Remove</button>
+                </div>
+                @else
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-[#0f7a4f]">Discount ({{ $this->appliedDiscountCode->code
+                        }})</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-semibold text-[#0f7a4f]">-${{ number_format($this->discountAmount,
+                            2)
+                            }}</span>
+                        <button type="button" wire:click="removeDiscountCode"
+                            class="text-xs text-empower-muted hover:underline">Remove</button>
+                    </div>
+                </div>
+                @endif
+            </div>
+
+            @php $perProviderDisplay = ($this->selectedPackage->priceForCycle($this->currentBillingCycle()) ?? 0.0)
+            * $this->billableProviders; @endphp
+            @if($this->isFreeTrialCheckout)
+            <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
+                <span class="text-sm font-semibold text-[#173045]">Due Today</span>
+                <span class="text-lg font-extrabold text-navy">$0.00</span>
+            </div>
+            <p class="text-xs text-empower-muted mt-1">Then
+                @if($this->billableProviders > 0)
+                ${{ number_format($perProviderDisplay, 2) }}/{{ $this->currentBillingCycle()->period() }}
+                @else
+                enter your provider count to calculate pricing
+                @endif
+                once your free trial ends, unless you cancel first.</p>
+            @else
+            <div class="flex items-center justify-between pt-2 border-t border-[#eef2f6]">
+                <span class="text-sm font-semibold text-[#173045]">Total</span>
+                <span class="text-lg font-extrabold text-navy">
+                    @if($this->billableProviders > 0)
+                    ${{ number_format($this->discountedTotal, 2) }}
+                    @else
+                    Enter provider count
+                    @endif
+                </span>
+            </div>
+            @if($this->billableProviders > 1)
+            <p class="text-xs text-empower-muted mt-1 text-right">{{ $this->billableProviders }} &times; ${{
+                number_format($displayPrice, 2) }}/{{ $this->currentBillingCycle()->period() }}</p>
+            @endif
+            @endif
+            @endif
+
+            @auth
+            @else
+            <div class="mt-3 pt-3 border-t border-[#eef2f6]">
+                <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1 mt-3">Step 1.1
+                </p>
+                <h3 class="text-sm font-semibold text-navy mb-1">Account Information</h3>
+                <p class="text-xs text-empower-muted mb-3">Create the account that will manage this practice's
+                    Empower portal.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Your name <span
                                 class="text-red-500">*</span></label>
-                        <input x-ref="cardName" type="text" placeholder="Jane Provider" maxlength="255"
-                            x-on:input="cardNameValid = /^[\p{L}\s.'-]+$/u.test($el.value.trim())"
+                        <input wire:model.live="accountName" type="text" placeholder="Jane Provider" required
+                            maxlength="100" pattern="[\p{L}\s.'\-]+"
+                            title="Letters, spaces, periods, apostrophes and hyphens only"
                             class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        @error('cardName') <p x-show="!cardNameValid" class="mt-1 text-xs text-red-600">{{ $message }}
-                        </p>
-                        @enderror
+                        @error('accountName') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Email address <span
                                 class="text-red-500">*</span></label>
-                        <input x-ref="cardNumber" type="text" placeholder="4242424242424242" inputmode="numeric"
-                            maxlength="16"
-                            x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 16); cardNumberValid = $el.value.length === 16"
+                        <input wire:model.live="accountEmail" type="email" placeholder="jane@practice.com" required
+                            maxlength="150" pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                            title="Please include a domain extension, e.g. name@example.com"
                             class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                        @error('accountEmail') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span
-                                class="text-red-500">*</span></label>
-                        <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
-                            x-on:input="
+                </div>
+                <p class="text-xs text-empower-muted mt-2">We'll email you a secure, auto-generated password to log
+                    in with.
+                </p>
+            </div>
+            @endauth
+
+            <div class="flex items-center justify-between gap-3 py-2.5 pt-3 border-t border-[#eef2f6]">
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b]">How many billable providers do you
+                        have? <span class="text-red-500">*</span></label>
+                    <p class="text-xs text-empower-muted mt-0.5 max-w-sm">Physicians and non-physician
+                        practitioners billing under your group NPI. Required to calculate your price.</p>
+                    @error('billableProviders') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" wire:click="decrementProviders" aria-label="Fewer providers"
+                        class="h-9 w-9 rounded-lg border border-empower-border text-navy font-bold hover:bg-page transition-colors">&minus;</button>
+                    <input wire:model.live="billableProviders" type="number" min="0" max="9999"
+                        aria-label="Billable providers"
+                        class="w-16 text-center rounded-lg border border-empower-border bg-[#f8fbfd] px-2 py-2 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <button type="button" wire:click="incrementProviders" aria-label="More providers"
+                        class="h-9 w-9 rounded-lg border border-empower-border text-navy font-bold hover:bg-page transition-colors">&plus;</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-data="{
+                    cardNameValid: false, cardNumberValid: false, cardExpiryError: '', cardCvcValid: false, showTerms: false, termsAccepted: false,
+                }"
+            class="flex flex-col bg-white border border-empower-border rounded-[1.25rem] shadow-[0_18px_50px_rgba(10,32,55,0.08)] p-4">
+            <p class="text-xs font-extrabold uppercase tracking-widest text-empower-muted mb-1">Step 1.2</p>
+            <h3 class="text-lg font-semibold text-navy mb-1">Payment Details</h3>
+            <p class="text-xs text-empower-muted mb-3">Your card is charged securely — these fields are never saved
+                or
+                logged by this form.</p>
+            @error('payment') <p
+                class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+                {{
+                $message }}</p> @enderror
+            @error('termsAccepted') <p x-show="!termsAccepted"
+                class="mb-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+                {{
+                $message }}</p> @enderror
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Name on card <span
+                            class="text-red-500">*</span></label>
+                    <input x-ref="cardName" type="text" placeholder="Jane Provider" maxlength="255"
+                        x-on:input="cardNameValid = /^[\p{L}\s.'-]+$/u.test($el.value.trim())"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardName') <p x-show="!cardNameValid" class="mt-1 text-xs text-red-600">{{ $message }}
+                    </p>
+                    @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Card number <span
+                            class="text-red-500">*</span></label>
+                    <input x-ref="cardNumber" type="text" placeholder="4242424242424242" inputmode="numeric"
+                        maxlength="16"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 16); cardNumberValid = $el.value.length === 16"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardNumber') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Expiry <span
+                            class="text-red-500">*</span></label>
+                    <input x-ref="cardExpiry" type="text" placeholder="MM / YY" inputmode="numeric" maxlength="5"
+                        x-on:input="
                             let digits = $el.value.replace(/[^0-9]/g, '').slice(0, 4);
                             let deleting = ($event.inputType || '').startsWith('delete');
                             $el.value = (digits.length >= 2 && !deleting) ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
@@ -3277,170 +3342,167 @@ $progressPct = ($milestone / 4) * 100;
                                 cardExpiryError = '';
                             }
                         " x-bind:class="cardExpiryError ? 'border-red-400' : 'border-empower-border'"
-                            class="w-full rounded-xl border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        <p x-show="cardExpiryError" x-text="cardExpiryError" class="mt-1 text-xs text-red-600"></p>
-                        @error('cardExpiry') <p x-show="!cardExpiryError" class="mt-1 text-xs text-red-600">{{ $message
-                            }}
-                        </p> @enderror
+                        class="w-full rounded-xl border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <p x-show="cardExpiryError" x-text="cardExpiryError" class="mt-1 text-xs text-red-600"></p>
+                    @error('cardExpiry') <p x-show="!cardExpiryError" class="mt-1 text-xs text-red-600">{{ $message
+                        }}
+                    </p> @enderror
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC <span
+                            class="text-red-500">*</span></label>
+                    <input x-ref="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, ''); cardCvcValid = $el.value.length >= 3 && $el.value.length <= 4"
+                        class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    @error('cardCvc') <p x-show="!cardCvcValid" class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3"
+                x-data="addressAutocomplete({ address1: 'billingAddress1', city: 'billingCity', state: 'billingState', zip: 'billingZip' })">
+                <div class="sm:col-span-2 relative">
+                    <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span
+                            class="text-red-500">*</span></label>
+                    <input type="text" placeholder="7 Clyde Road" required maxlength="255" autocomplete="off"
+                        role="combobox" aria-autocomplete="list" aria-expanded="open" data-ac-field="billingAddress1"
+                        x-model="query" x-on:input="onAddressInput()" x-on:keydown.down.prevent="move(1)"
+                        x-on:keydown.up.prevent="move(-1)" x-on:keydown.enter.prevent="chooseHighlighted()"
+                        x-on:keydown.escape="close()" x-on:blur="setTimeout(() => close(), 150)"
+                        class="w-full rounded-xl border {{ $errors->has('billingAddress1') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                    <ul x-show="open" x-cloak role="listbox"
+                        class="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-empower-border bg-white shadow-lg py-1">
+                        <template x-for="(suggestion, index) in suggestions" :key="suggestion.label">
+                            <li role="option" x-text="suggestion.label" x-on:mousedown.prevent="select(suggestion)"
+                                :class="index === highlightedIndex ? 'bg-[#f0f7fb]' : ''"
+                                class="px-4 py-2 text-sm text-empower-text cursor-pointer hover:bg-[#f0f7fb]">
+                            </li>
+                        </template>
+                    </ul>
+                    @error('billingAddress1') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+                <div class="sm:col-span-2 grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span
+                                class="text-red-500">*</span></label>
+                        <input wire:model.live="billingCity" type="text" placeholder="Somerset" required maxlength="100"
+                            data-ac-field="billingCity"
+                            class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">CVC <span
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span
                                 class="text-red-500">*</span></label>
-                        <input x-ref="cardCvc" type="text" placeholder="123" inputmode="numeric" maxlength="4"
-                            x-on:input="$el.value = $el.value.replace(/[^0-9]/g, ''); cardCvcValid = $el.value.length >= 3 && $el.value.length <= 4"
-                            class="w-full rounded-xl border border-empower-border bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        @error('cardCvc') <p x-show="!cardCvcValid" class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                        @enderror
+                        <input wire:model.live="billingState" type="text" placeholder="NJ or New Jersey" required
+                            maxlength="50" data-ac-field="billingState"
+                            class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3"
-                    x-data="addressAutocomplete({ address1: 'billingAddress1', city: 'billingCity', state: 'billingState', zip: 'billingZip' })">
-                    <div class="sm:col-span-2 relative">
-                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Billing address <span
+                    <div>
+                        <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" placeholder="7 Clyde Road" required maxlength="255" autocomplete="off"
-                            role="combobox" aria-autocomplete="list" aria-expanded="open"
-                            data-ac-field="billingAddress1" x-model="query" x-on:input="onAddressInput()"
-                            x-on:keydown.down.prevent="move(1)" x-on:keydown.up.prevent="move(-1)"
-                            x-on:keydown.enter.prevent="chooseHighlighted()" x-on:keydown.escape="close()"
-                            x-on:blur="setTimeout(() => close(), 150)"
-                            class="w-full rounded-xl border {{ $errors->has('billingAddress1') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                        <ul x-show="open" x-cloak role="listbox"
-                            class="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-empower-border bg-white shadow-lg py-1">
-                            <template x-for="(suggestion, index) in suggestions" :key="suggestion.label">
-                                <li role="option" x-text="suggestion.label" x-on:mousedown.prevent="select(suggestion)"
-                                    :class="index === highlightedIndex ? 'bg-[#f0f7fb]' : ''"
-                                    class="px-4 py-2 text-sm text-empower-text cursor-pointer hover:bg-[#f0f7fb]">
-                                </li>
-                            </template>
-                        </ul>
-                        @error('billingAddress1') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                    </div>
-                    <div class="sm:col-span-2 grid grid-cols-3 gap-3">
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">City <span
-                                    class="text-red-500">*</span></label>
-                            <input wire:model.live="billingCity" type="text" placeholder="Somerset" required
-                                maxlength="100" data-ac-field="billingCity"
-                                class="w-full rounded-xl border {{ $errors->has('billingCity') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('billingCity') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">State <span
-                                    class="text-red-500">*</span></label>
-                            <input wire:model.live="billingState" type="text" placeholder="NJ or New Jersey" required
-                                maxlength="50" data-ac-field="billingState"
-                                class="w-full rounded-xl border {{ $errors->has('billingState') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('billingState') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-[#31465b] mb-1.5">Zip <span
-                                    class="text-red-500">*</span></label>
-                            <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric"
-                                required maxlength="10" data-ac-field="billingZip"
-                                x-on:input="onZipInput($event.target.value)"
-                                class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
-                            @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
-                        </div>
+                        <input wire:model.live="billingZip" type="text" placeholder="08873" inputmode="numeric" required
+                            maxlength="10" data-ac-field="billingZip" x-on:input="onZipInput($event.target.value)"
+                            class="w-full rounded-xl border {{ $errors->has('billingZip') ? 'border-red-400' : 'border-empower-border' }} bg-[#f8fbfd] px-4 py-2.5 text-sm text-empower-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition">
+                        @error('billingZip') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                     </div>
                 </div>
+            </div>
 
-                <div class="mt-auto pt-5 flex justify-end">
-                    <button
-                        x-on:click="$wire.validatePayment($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then((valid) => { if (valid) showTerms = true })"
-                        class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
-                        wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
-                        wire:target="validatePayment">
-                        <span wire:loading.remove wire:target="validatePayment">
-                            @if($this->billableProviders < 1) Enter provider count &rarr; @elseif($this->
-                                isFreeTrialCheckout)
-                                Start Free Trial &rarr;
-                                @else
-                                Pay ${{ number_format($this->discountedTotal, 2) }}
-                                &rarr;
-                                @endif
-                        </span>
-                        <span wire:loading.inline-flex wire:target="validatePayment"
-                            class="inline-flex items-center gap-1.5">
-                            <x-spinner class="h-3.5 w-3.5" /> Checking…
-                        </span>
-                    </button>
-                </div>
+            <div class="mt-auto pt-5 flex justify-end">
+                <button
+                    x-on:click="$wire.validatePayment($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value).then((valid) => { if (valid) showTerms = true })"
+                    class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors"
+                    wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                    wire:target="validatePayment">
+                    <span wire:loading.remove wire:target="validatePayment">
+                        @if($this->billableProviders < 1) Enter provider count &rarr; @elseif($this->
+                            isFreeTrialCheckout)
+                            Start Free Trial &rarr;
+                            @else
+                            Pay ${{ number_format($this->discountedTotal, 2) }}
+                            &rarr;
+                            @endif
+                    </span>
+                    <span wire:loading.inline-flex wire:target="validatePayment"
+                        class="inline-flex items-center gap-1.5">
+                        <x-spinner class="h-3.5 w-3.5" /> Checking…
+                    </span>
+                </button>
+            </div>
 
-                <div x-show="showTerms" x-cloak
-                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-                    <div class="w-full max-w-md bg-white rounded-[1.25rem] shadow-xl p-6"
-                        x-on:click.outside="showTerms = false">
-                        <h3 class="text-base font-semibold text-navy mb-2">Review &amp; Accept Terms &amp; Conditions
-                        </h3>
-                        <p class="text-sm text-empower-muted mb-4">Before we process your payment, please confirm you
-                            agree
-                            to our Terms &amp; Conditions and the CareCloud Master Services Agreement (MSA).</p>
-                        <a href="{{ config('services.carecloud.msa_url') }}" target="_blank" rel="noopener noreferrer"
-                            class="inline-flex items-center gap-1 text-sm font-semibold text-[#1a7aad] hover:underline mb-4">
-                            Read the CareCloud MSA &#8599;
-                        </a>
-                        <label class="flex items-start gap-2.5 mb-5 cursor-pointer">
-                            <input type="checkbox" x-model="termsAccepted"
-                                class="mt-0.5 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
-                            <span class="text-sm text-empower-text">I agree to the Terms &amp; Conditions.</span>
-                        </label>
-                        <div class="flex justify-end gap-3">
-                            <button type="button" x-on:click="showTerms = false"
-                                class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
-                                Cancel
-                            </button>
-                            @if($this->isFreeTrialCheckout)
-                            <button type="button" wire:key="terms-confirm-payfreetrial" x-on:click="
+            <div x-show="showTerms" x-cloak
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+                <div class="w-full max-w-md bg-white rounded-[1.25rem] shadow-xl p-6"
+                    x-on:click.outside="showTerms = false">
+                    <h3 class="text-base font-semibold text-navy mb-2">Review &amp; Accept Terms &amp; Conditions
+                    </h3>
+                    <p class="text-sm text-empower-muted mb-4">Before we process your payment, please confirm you
+                        agree
+                        to our Terms &amp; Conditions and the CareCloud Master Services Agreement (MSA).</p>
+                    <a href="{{ config('services.carecloud.msa_url') }}" target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 text-sm font-semibold text-[#1a7aad] hover:underline mb-4">
+                        Read the CareCloud MSA &#8599;
+                    </a>
+                    <label class="flex items-start gap-2.5 mb-5 cursor-pointer">
+                        <input type="checkbox" x-model="termsAccepted"
+                            class="mt-0.5 h-4 w-4 rounded border-empower-border text-accent focus:ring-accent">
+                        <span class="text-sm text-empower-text">I agree to the Terms &amp; Conditions.</span>
+                    </label>
+                    <div class="flex justify-end gap-3">
+                        <button type="button" x-on:click="showTerms = false"
+                            class="rounded-lg border border-empower-border px-4 py-2 text-sm font-semibold text-empower-muted hover:bg-page transition-colors">
+                            Cancel
+                        </button>
+                        @if($this->isFreeTrialCheckout)
+                        <button type="button" wire:key="terms-confirm-payfreetrial" x-on:click="
                                     if (!navigator.onLine) { $dispatch('toast', { message: 'You\'re offline. Reconnect to the internet, then try again.', type: 'error' }); return; }
                                     $wire.payFreeTrial($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)
                                 " :disabled="!termsAccepted"
-                                :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
-                                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
-                                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
-                                wire:target="payFreeTrial">
-                                <span wire:loading.remove wire:target="payFreeTrial">I Agree — Start Free Trial
-                                    &rarr;</span>
-                                <span wire:loading.inline-flex wire:target="payFreeTrial"
-                                    class="inline-flex items-center gap-1.5">
-                                    <x-spinner class="h-3.5 w-3.5" /> Processing…
-                                </span>
-                            </button>
-                            @else
-                            <button type="button" wire:key="terms-confirm-pay" x-on:click="
+                            :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
+                            class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
+                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                            wire:target="payFreeTrial">
+                            <span wire:loading.remove wire:target="payFreeTrial">I Agree — Start Free Trial
+                                &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="payFreeTrial"
+                                class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Processing…
+                            </span>
+                        </button>
+                        @else
+                        <button type="button" wire:key="terms-confirm-pay" x-on:click="
                                     if (!navigator.onLine) { $dispatch('toast', { message: 'You\'re offline. Reconnect to the internet, then try again.', type: 'error' }); return; }
                                     $wire.pay($refs.cardName.value, $refs.cardNumber.value, $refs.cardExpiry.value, $refs.cardCvc.value, termsAccepted).finally(() => showTerms = false)
                                 " :disabled="!termsAccepted"
-                                :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
-                                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
-                                wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
-                                wire:target="pay">
-                                <span wire:loading.remove wire:target="pay">I Agree — Pay &rarr;</span>
-                                <span wire:loading.inline-flex wire:target="pay"
-                                    class="inline-flex items-center gap-1.5">
-                                    <x-spinner class="h-3.5 w-3.5" /> Processing…
-                                </span>
-                            </button>
-                            @endif
-                        </div>
+                            :class="!termsAccepted ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent-dark'"
+                            class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark transition-colors"
+                            wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
+                            wire:target="pay">
+                            <span wire:loading.remove wire:target="pay">I Agree — Pay &rarr;</span>
+                            <span wire:loading.inline-flex wire:target="pay" class="inline-flex items-center gap-1.5">
+                                <x-spinner class="h-3.5 w-3.5" /> Processing…
+                            </span>
+                        </button>
+                        @endif
                     </div>
                 </div>
             </div>
         </div>
-        @endif
-
-        <div class="flex justify-end">
-            <button wire:click="goToStep(2)" wire:target="goToStep(2)" @disabled($milestone < 1)
-                wire:loading.attr="disabled" wire:target="goToStep(2)"
-                class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                <span wire:loading.remove wire:target="goToStep(2)">Continue to Intake Form &rarr;</span>
-                <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5">
-                    <x-spinner class="h-3.5 w-3.5" /> Loading…
-                </span>
-            </button>
-        </div>
-        @endif
     </div>
+    @endif
+
+    <div class="flex justify-end">
+        <button wire:click="goToStep(2)" wire:target="goToStep(2)" @disabled($milestone < 1)
+            wire:loading.attr="disabled" wire:target="goToStep(2)"
+            class="inline-flex items-center gap-1 rounded bg-accent px-5 py-2 text-sm font-bold text-navy-dark hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <span wire:loading.remove wire:target="goToStep(2)">Continue to Intake Form &rarr;</span>
+            <span wire:loading.inline-flex wire:target="goToStep(2)" class="inline-flex items-center gap-1.5">
+                <x-spinner class="h-3.5 w-3.5" /> Loading…
+            </span>
+        </button>
+    </div>
+    @endif
+</div>
 </div>
 @endif
 
@@ -4078,38 +4140,56 @@ $progressPct = ($milestone / 4) * 100;
                                 </button>
                             </div>
                             @else
-                            {{-- "celebrate" block --}}
-                            <div class="text-center px-2 pt-1 pb-1 mb-1">
-                                <div
-                                    class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#1f9d6b] bg-[#e6f6ef]">
-                                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-                                        <path d="M5 13l4 4 10-10" stroke="#1f9d6b" stroke-width="2.5"
-                                            stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
+                            {{-- "celebrate" popup --}}
+                            <div x-data="{ open: true }" x-show="open" x-init="setTimeout(() => open = false, 5000)"
+                                x-transition:enter="transition ease-out duration-200"
+                                x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                                x-transition:leave="transition ease-in duration-150"
+                                x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                                class="fixed inset-0 z-50 flex items-center justify-center bg-[#0f172a]/20 px-4 py-8 backdrop-blur-[1px]">
+                                <div x-show="open" x-transition:enter="transition ease-out duration-200"
+                                    x-transition:enter-start="opacity-0 translate-y-2 scale-95"
+                                    x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                                    x-transition:leave="transition ease-in duration-150"
+                                    x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                                    x-transition:leave-end="opacity-0 translate-y-2 scale-95"
+                                    class="relative w-full max-w-3xl rounded-[1.75rem] border border-[#dfeaf1] bg-white/95 p-6 text-center shadow-[0_30px_80px_rgba(15,23,42,0.18)]">
+                                    <button type="button" @click="open = false"
+                                        class="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#dfeaf1] bg-white text-xl font-semibold text-[#5d6e7f] transition hover:border-[#0b9ed0] hover:text-[#0e3a61] focus:outline-none focus:ring-2 focus:ring-[#0b9ed0]">
+                                        &times;
+                                    </button>
+                                    <div
+                                        class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#1f9d6b] bg-[#e6f6ef]">
+                                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                                            <path d="M5 13l4 4 10-10" stroke="#1f9d6b" stroke-width="2.5"
+                                                stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                    </div>
+                                    <h3 class="text-[19px] font-extrabold text-[#0e1b30] mb-1.5">
+                                        {{ $isApproved ? 'Approved — your documents are ready' : 'Submitted — pending
+                                        review' }}
+                                    </h3>
+                                    <p class="text-sm text-[#5d6e7f] leading-relaxed max-w-lg mx-auto">
+                                        @if($isApproved)
+                                        Great news, {{ $reviewerFirstName }}. Your submission was approved and your
+                                        documents have been generated.
+                                        @else
+                                        Thanks, {{ $reviewerFirstName }}. Your intake is now pending review. We'll reach
+                                        out
+                                        if we have any questions or need clarification.
+                                        @endif
+                                    </p>
+                                    <p
+                                        class="inline-flex items-center gap-1.5 mt-3 rounded-full bg-[#e6f6ef] px-3 py-1.5 text-xs text-[#135f41]">
+                                        @if($isApproved)
+                                        &#10003; We've emailed a confirmation to <strong>{{ auth()->user()?->email
+                                            }}</strong>.
+                                        @else
+                                        You'll receive an email confirmation at <strong>{{ auth()->user()?->email
+                                            }}</strong> once it's approved.
+                                        @endif
+                                    </p>
                                 </div>
-                                <h3 class="text-[19px] font-extrabold text-[#0e1b30] mb-1.5">
-                                    {{ $isApproved ? 'Approved — your documents are ready' : 'Submitted — pending
-                                    review' }}
-                                </h3>
-                                <p class="text-sm text-[#5d6e7f] leading-relaxed max-w-md mx-auto">
-                                    @if($isApproved)
-                                    Great news, {{ $reviewerFirstName }}. Your submission was approved and your
-                                    documents have been generated.
-                                    @else
-                                    Thanks, {{ $reviewerFirstName }}. Your intake is now pending review. We'll reach out
-                                    if we have any questions or need clarification.
-                                    @endif
-                                </p>
-                                <p
-                                    class="inline-flex items-center gap-1.5 mt-3 rounded-full bg-[#e6f6ef] px-3 py-1.5 text-xs text-[#135f41]">
-                                    @if($isApproved)
-                                    &#10003; We've emailed a confirmation to <strong>{{ auth()->user()?->email
-                                        }}</strong>.
-                                    @else
-                                    You'll receive an email confirmation at <strong>{{ auth()->user()?->email
-                                        }}</strong> once it's approved.
-                                    @endif
-                                </p>
                             </div>
 
                             @if(! $isApproved)

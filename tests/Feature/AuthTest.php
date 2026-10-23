@@ -620,6 +620,25 @@ class AuthTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    public function test_returning_to_the_practice_picker_keeps_the_pending_selection_alive(): void
+    {
+        $this->fakeEmpowerSsoApi($this->multiPracticePayload());
+
+        $component = Livewire::test('auth.login-form')
+            ->call('selectSsoProvider', 'talkehr')
+            ->set('ssoUsername', '1163testing')
+            ->set('ssoPassword', 't@lkTest@1234')
+            ->call('loginViaSso');
+
+        $this->assertNotNull(session('sso_pending_key'));
+
+        $component->call('backToSsoCredentials')
+            ->assertSet('choosingPractice', false)
+            ->assertSet('pickedPracticeId', '1011163');
+
+        $this->assertNotNull(session('sso_pending_key'));
+    }
+
     public function test_choosing_the_default_practice_signs_in_with_its_full_details(): void
     {
         $this->fakeEmpowerSsoApi($this->multiPracticePayload());

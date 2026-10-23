@@ -167,7 +167,19 @@ new class extends Component
         $this->ssoProvider = null;
         $this->ssoUsername = '';
         $this->ssoPassword = '';
+        $this->pickedPracticeId = '';
         $this->resetErrorBag();
+    }
+
+    public function backToSsoCredentials(): void
+    {
+        $this->choosingPractice = false;
+        $this->practiceSearch = '';
+        $this->resetErrorBag();
+
+        if ($pending = $this->pending()) {
+            $this->pickedPracticeId = $pending['result']->selectedPracticeId ?? (string) $pending['result']->practices[0]['id'];
+        }
     }
 
     /**
@@ -431,19 +443,16 @@ new class extends Component
     {{-- Inline talkEHR credential form — submits to loginViaSso(), which verifies
     against EmpowerSSOAPI server-to-server and signs the user straight in. No redirect: the user
     never leaves this page/modal. --}}
-    <button type="button" wire:click="backFromSso"
-        class="inline-flex items-center gap-1 text-xs font-semibold text-[#5c778d] hover:text-[#0e3a61] transition-colors mb-4">
-        &larr; Back
-    </button>
-
-    <div class="flex items-center justify-center mb-5">
+    <div class="mb-4 flex items-center justify-start">
         <img src="{{ asset('images/'.($ssoProvider === 'carecloud' ? 'carcloud-logo.png' : 'talk-logo.png')) }}" alt=""
-            style="width: 10rem;">
+            class="h-10 w-auto object-contain">
     </div>
 
     @if($choosingPractice)
     <form wire:submit="choosePractice" novalidate>
-        <h3 class="text-base font-semibold text-[#0e3a61] mb-1">Which practice are you working in?</h3>
+        <div class="mb-3 text-left">
+            <h3 class="text-base font-semibold text-[#0e3a61]">Which practice are you working in?</h3>
+        </div>
         <p class="text-sm text-[#5c778d] mb-4">Your account is linked to more than one practice.</p>
 
         @if($this->practiceChoices['total'] > 8)
@@ -472,7 +481,13 @@ new class extends Component
         @error('pickedPracticeId') <p class="mb-3 text-xs text-red-600">{{ $message }}</p> @enderror
         <div class="mb-2"></div>
 
-        <div class="flex justify-end">
+        <div class="flex items-center justify-between gap-3">
+            <button type="button" wire:click="backToSsoCredentials"
+                class="inline-flex items-center gap-2 rounded bg-white px-4 py-2 text-sm font-semibold text-[#1c3457] hover:bg-[#f5f7fa] transition-colors">
+                <span aria-hidden="true" class="text-base font-black leading-none">&#8592;</span>
+                <span>Back</span>
+            </button>
+
             <button type="submit"
                 class="inline-flex items-center gap-1 rounded bg-[#2299dd] px-5 py-2 text-sm font-bold text-white hover:bg-[#087fa9] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed"
@@ -503,7 +518,13 @@ new class extends Component
             @error('ssoPassword') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
         </div>
 
-        <div class="flex justify-end">
+        <div class="flex items-center justify-between gap-3">
+            <button type="button" wire:click="backFromSso"
+                class="inline-flex items-center gap-2 rounded bg-white px-4 py-2 text-sm font-semibold text-[#1c3457] hover:bg-[#f5f7fa] transition-colors">
+                <span aria-hidden="true" class="text-base font-black leading-none">&#8592;</span>
+                <span>Back</span>
+            </button>
+
             <button type="submit"
                 class="inline-flex items-center gap-1 rounded bg-[#2299dd] px-5 py-2 text-sm font-bold text-white hover:bg-[#087fa9] transition-colors"
                 wire:loading.attr="disabled" wire:loading.class="opacity-70 cursor-not-allowed">

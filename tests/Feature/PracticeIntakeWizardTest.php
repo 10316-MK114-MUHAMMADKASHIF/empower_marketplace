@@ -120,6 +120,19 @@ class PracticeIntakeWizardTest extends TestCase
         $this->assertNull($component->instance()->currentSubmission->wizard_selected_services);
     }
 
+    public function test_select_all_services_label_switches_to_deselect_all_when_all_are_selected(): void
+    {
+        $user = User::factory()->create();
+        Practice::factory()->create(['user_id' => $user->id]);
+        $order = $this->makeProfessionalOrder($user);
+
+        Livewire::actingAs($user)
+            ->test('portal.practice-intake-wizard', ['orderIds' => [$order->id]])
+            ->set('screen', 'services')
+            ->call('toggleAllServices')
+            ->assertSee('Deselect all');
+    }
+
     public function test_unchecking_a_service_excludes_its_mapped_question_from_the_gate(): void
     {
         $fixture = $this->seedGatedQuestions();

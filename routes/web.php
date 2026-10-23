@@ -87,6 +87,14 @@ Route::middleware('auth')->group(function () {
         ->name('documents.download');
     Route::get('/orders/{order}/receipt', [ReceiptController::class, 'show'])
         ->name('orders.receipt');
+    Route::get('/orders/{order}/order-form', function (Order $order) {
+        abort_unless($order->user_id === auth()->id(), 403, 'You can only view your own order form.');
+
+        return response(app(OrderFormPdfGenerator::class)->generate($order), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"order-form-{$order->id}.pdf\"",
+        ]);
+    })->name('orders.order-form');
     Route::get('/intake-submissions/{submission}/answers', [IntakeAnswersDownloadController::class, 'show'])
         ->name('intake-submissions.answers');
     Route::get('/account/change-password', fn () => view('account.change-password'))

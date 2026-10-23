@@ -15,8 +15,8 @@ use App\Models\Package;
 use App\Models\Practice;
 use App\Models\SpecialistCallRequest;
 use App\Models\User;
-use App\Services\SpecialistCallSettings;
 use App\Notifications\NewSpecialistCallRequestNotification;
+use App\Services\SpecialistCallSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
@@ -3726,11 +3726,14 @@ new class extends Component
                 <p class="text-sm text-[#5d6e7f] mb-4">Check everything that applies. We'll skip the questions that
                     don't.</p>
 
+                @php
+                $servicesToggleLabel = $this->allServicesSelected ? 'Deselect all' : 'Select all';
+                @endphp
                 <label class="flex items-center gap-2.5 mb-3 cursor-pointer">
                     <input type="checkbox" wire:click="toggleAllServices" wire:loading.attr="disabled"
                         wire:target="toggleService,toggleAllServices,setServicesNone,continueFromServices"
                         @checked($this->allServicesSelected) class="accent-[#12304f]">
-                    <span class="text-sm font-semibold text-[#173045]">Select all</span>
+                    <span class="text-sm font-semibold text-[#173045]">{{ $servicesToggleLabel }}</span>
                 </label>
 
                 <div class="space-y-2.5 mb-3">
@@ -4183,7 +4186,8 @@ new class extends Component
                 @if($question->policies->count() > 1)
                 <p class="text-[12.5px] text-[#135f41] bg-[#e6f6ef] rounded-lg px-2.5 py-1.5 mb-2">One answer fills
                     <strong>{{ $question->policies->count() }} policies</strong>{{ $policyManualCount > 1 ? ' across
-                    '.$policyManualCount.' manuals' : '' }}.</p>
+                    '.$policyManualCount.' manuals' : '' }}.
+                </p>
                 @endif
                 <div class="flex flex-wrap gap-1.5">
                     @foreach($question->policies as $policy)
