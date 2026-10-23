@@ -24,8 +24,10 @@ class PackageFactory extends Factory
             'annual_price' => 999.00,
             'billing_type' => 'annual',
             'description' => fake()->sentence(),
-            'features' => ['Employee handbook', 'OSHA safety plan', 'Email support'],
-            'included_document_types' => ['employee_handbook_basic', 'osha_safety_plan'],
+            'features' => ['Compliance & Ethics Program', 'HIPAA Policies', 'Training Platform', 'Employee Manual Review'],
+            // Matches the real Essential tier (this factory's default slug) — no auto-generated
+            // manuals, since Essential reviews the practice's own uploaded documents instead.
+            'included_document_types' => [],
             'is_active' => true,
             'sort_order' => 0,
         ];

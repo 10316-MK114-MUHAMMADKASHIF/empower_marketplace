@@ -11,7 +11,7 @@ class AdminMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         if (! $request->user()?->isAdmin()) {
-            abort(403);
+            return redirect()->route('login')->with('status', 'Please log in to access this page.');
         }
 
         return $next($request);

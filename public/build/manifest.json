@@ -1,0 +1,30 @@
+{
+  "node_modules/driver.js/dist/driver.css": {
+    "file": "assets/driver-CTZuBZOi.css",
+    "src": "node_modules/driver.js/dist/driver.css"
+  },
+  "node_modules/driver.js/dist/driver.js.mjs": {
+    "file": "assets/driver.js-BIccnn-p.js",
+    "name": "driver.js",
+    "src": "node_modules/driver.js/dist/driver.js.mjs",
+    "isDynamicEntry": true
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-BSxKMZ9S.css",
+    "name": "app",
+    "names": [
+      "app.css"
+    ],
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-DdwDZlL4.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/driver.js/dist/driver.js.mjs"
+    ]
+  }
+}

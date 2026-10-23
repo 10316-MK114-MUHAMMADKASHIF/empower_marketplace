@@ -14,10 +14,10 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/public/sample-intake-answers.pdf
 /storage/*.key
 /storage/pail
 /vendor
@@ -25,3 +25,6 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/changes
+/tmp_tpl_check
+*.md

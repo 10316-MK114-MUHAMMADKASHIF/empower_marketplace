@@ -1,4 +1,3 @@
-<x-layouts.app title="Submissions">
-    @include('admin._nav', ['active' => 'submissions'])
+<x-layouts.app title="Submissions" :inline-heading="true">
     <livewire:admin.submission-list />
 </x-layouts.app>

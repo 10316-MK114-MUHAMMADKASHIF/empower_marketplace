@@ -1,19 +1,301 @@
 @import 'tailwindcss';
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
 @theme {
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 
-    /* Empower brand palette */
-    --color-navy: #12304f;
-    --color-navy-dark: #0a2037;
-    --color-accent: #76c8c0;
-    --color-accent-dark: #5bb2aa;
-    --color-page: #f4f7fb;
-    --color-empower-text: #173045;
-    --color-empower-muted: #5d6e7f;
-    --color-empower-border: #dbe4ee;
+    /* CareCloud-inspired brand palette */
+    --color-navy: #0e3a61;
+    --color-navy-dark: #0b2e4b;
+    --color-accent: #0b9ed0;
+    --color-accent-dark: #087fa9;
+    --color-page: #f2f8fd;
+    --color-empower-text: #173a59;
+    --color-empower-muted: #5c778d;
+    --color-empower-border: #d4e5f1;
+
+    --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
+}
+
+@layer base {
+    [x-cloak] {
+        display: none !important;
+    }
+
+    /* Tailwind's preflight resets buttons to the browser's native (non-pointer) cursor; the
+       client portal wants every clickable link/button to show a pointer, matching the client
+       prototype. Scoped to .client-portal (layouts/app.blade.php) so the admin panel is
+       unaffected. Disabled buttons keep the "not allowed" cursor rather than looking clickable. */
+    .client-portal a,
+    .client-portal button:not(:disabled),
+    .client-portal [role='button']:not(:disabled),
+    .client-portal input[type='submit']:not(:disabled),
+    .client-portal input[type='button']:not(:disabled) {
+        cursor: pointer;
+    }
+
+    .client-portal button:disabled,
+    .client-portal input[type='submit']:disabled,
+    .client-portal input[type='button']:disabled {
+        cursor: not-allowed;
+    }
+
+    a,
+    button {
+        cursor: pointer;
+    }
+}
+
+@layer utilities {
+
+    .client-portal input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']):not([type='submit']):not([type='button']):not([type='reset']):not([type='image']):not([type='range']):not([type='color']),
+    .client-portal select,
+    .client-portal textarea {
+        padding: .5rem;
+    }
+}
+
+/* Indeterminate linear progress bar — for a background task with no known completion percentage
+   (e.g. AI extraction/document generation). Pair with a relative, overflow-hidden track. */
+@keyframes indeterminate {
+    0% {
+        left: -40%;
+        width: 40%;
+    }
+
+    50% {
+        width: 60%;
+    }
+
+    100% {
+        left: 100%;
+        width: 40%;
+    }
+}
+
+/* Package-picker quiz's "Compare all packages" pulse — a radar-ping ring on the recommended
+   pricing card, matching the client prototype's .quiz-pick/@keyframes quizPick exactly. */
+@keyframes quiz-pick {
+    0% {
+        box-shadow: 0 0 0 0 rgba(11, 158, 208, 0.55);
+    }
+
+    70% {
+        box-shadow: 0 0 0 14px rgba(11, 158, 208, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(11, 158, 208, 0);
+    }
+}
+
+.quiz-pick {
+    animation: quiz-pick 1.6s ease-out 2;
+}
+
+/* Phase 6 — screen transitions, ported exactly from the client prototype's @keyframes qzInFwd /
+   pIn (see `changes/updated/Proactive Compliance Marketplace.html` lines ~651-657). Targeted by
+   wire:key prefix rather than a class: Livewire only mounts a genuinely new element (and so only
+   plays the animation) when a step/screen's wire:key actually changes — re-renders of the same
+   step/screen (typing, toggles) morph in place and never replay it, matching the prototype's own
+   "re-renders of the same screen are not animated" rule with zero JS needed. Exit/outro animations
+   (the prototype's qzOutFwd/pOut, played before the next screen slides in) are intentionally not
+   ported — Livewire's synchronous morph removes the old element immediately, so reproducing a
+   timed two-phase exit-then-enter would need the same leaveThen()-style JS orchestration the
+   prototype uses, not just a CSS class; the entrance animation alone is the visible majority of
+   this effect. */
+@keyframes portal-step-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes wizard-screen-in {
+    from {
+        opacity: 0;
+        transform: translateX(22px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+[wire\:key^="portal-step-"] {
+    animation: portal-step-in .36s cubic-bezier(.22, .8, .24, 1) backwards;
+}
+
+[wire\:key^="wizscreen-"] {
+    animation: wizard-screen-in .34s cubic-bezier(.22, .8, .24, 1) backwards;
+}
+
+/* New fields revealed in place by a choice (e.g. a gate's topic picker, "same as billing"
+   unchecking) fade+slide down, matching the prototype's @keyframes revealIn exactly. These ARE
+   genuinely new DOM nodes on first appearance (the @if block didn't render before), so a plain
+   class is enough — no wire:key trick needed. */
+@keyframes reveal-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.reveal-in {
+    animation: reveal-in .3s cubic-bezier(.22, .8, .24, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    [wire\:key^="portal-step-"],
+    [wire\:key^="wizscreen-"],
+    .reveal-in {
+        animation: none !important;
+    }
+}
+
+/* Sticky mobile Continue — ported from the prototype's "Sticky Continue on phones"
+   (@media max-width:640px) { .qz-continue { position:sticky; bottom:12px; ... } }). Applied to a
+   phone-only duplicate action bar rather than the real in-flow button (see
+   practice-intake-wizard.blade.php's question screen), so desktop's existing Back/Skip/Save row is
+   untouched. */
+@media (max-width: 640px) {
+    .sticky-mobile-bar {
+        position: sticky;
+        bottom: 12px;
+        z-index: 6;
+        margin-top: 12px;
+        box-shadow: 0 10px 24px rgba(18, 48, 79, .28);
+        border-radius: 10px;
+    }
+}
+
+/* Admin dashboard tour (driver.js) — brand the default popover. */
+.driver-popover.empower-tour {
+    border-radius: 1rem;
+    padding: 1.1rem 1.25rem;
+    font-family: inherit;
+    box-shadow: 0 18px 50px rgba(10, 32, 55, 0.25);
+}
+
+.driver-popover.empower-tour .driver-popover-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--color-navy);
+}
+
+.driver-popover.empower-tour .driver-popover-description {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #5c778d;
+}
+
+.driver-popover.empower-tour .driver-popover-progress-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #5c778d;
+}
+
+.driver-popover.empower-tour button {
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-shadow: none;
+}
+
+.driver-popover.empower-tour .driver-popover-next-btn,
+.driver-popover.empower-tour .driver-popover-close-btn:hover {
+    background: var(--color-navy);
+    border-color: var(--color-navy);
+    color: #fff;
+}
+
+.driver-popover.empower-tour .driver-popover-prev-btn {
+    background: #fff;
+    border: 1px solid #d4e5f1;
+    color: var(--color-navy);
+}
+
+.driver-popover.empower-tour .driver-popover-arrow-side-left.driver-popover-arrow {
+    border-left-color: #fff;
+}
+
+.driver-popover.empower-tour .driver-popover-arrow-side-right.driver-popover-arrow {
+    border-right-color: #fff;
+}
+
+.driver-popover.empower-tour .driver-popover-arrow-side-top.driver-popover-arrow {
+    border-top-color: #fff;
+}
+
+.driver-popover.empower-tour .driver-popover-arrow-side-bottom.driver-popover-arrow {
+    border-bottom-color: #fff;
+}
+
+/* "Take a tour" button: a soft pulsing ring and a nudging bolt until the admin has used a tour once. */
+@keyframes tour-ring {
+    0% {
+        box-shadow: 0 0 0 0 rgba(11, 158, 208, 0.55);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(11, 158, 208, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(11, 158, 208, 0);
+    }
+}
+
+@keyframes tour-bolt {
+
+    0%,
+    60%,
+    100% {
+        transform: rotate(0) scale(1);
+    }
+
+    70% {
+        transform: rotate(-14deg) scale(1.2);
+    }
+
+    80% {
+        transform: rotate(10deg) scale(1.2);
+    }
+
+    90% {
+        transform: rotate(-6deg) scale(1.1);
+    }
+}
+
+.tour-attention {
+    border-color: var(--color-accent);
+    animation: tour-ring 2s ease-out infinite;
+}
+
+.tour-attention .tour-bolt {
+    animation: tour-bolt 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .tour-attention,
+    .tour-attention .tour-bolt {
+        animation: none;
+    }
 }

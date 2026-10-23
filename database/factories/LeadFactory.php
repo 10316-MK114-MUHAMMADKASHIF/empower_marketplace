@@ -19,7 +19,7 @@ class LeadFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->safeEmail(),
-            'phone' => fake()->phoneNumber(),
+            'phone' => '+1'.fake()->numerify('##########'),
             'message' => fake()->paragraph(),
             'package_interest' => fake()->randomElement(array_column(PackageTier::cases(), 'value')),
             'is_contacted' => false,

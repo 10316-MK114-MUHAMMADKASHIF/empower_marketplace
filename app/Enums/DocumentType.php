@@ -4,18 +4,45 @@ namespace App\Enums;
 
 enum DocumentType: string
 {
+    // Retired 2026-08-24 — no longer auto-generated; there is no questionnaire in the
+    // catalog that feeds these, so nothing can trigger their generation anymore. Kept as
+    // valid backing values so historical GeneratedDocument rows remain readable.
     case EmployeeHandbookBasic = 'employee_handbook_basic';
     case EmployeeHandbookFull = 'employee_handbook_full';
     case OshaSafetyPlan = 'osha_safety_plan';
     case HrPolicyManual = 'hr_policy_manual';
-    case HipaaPrivacyPolicy = 'hipaa_privacy_policy';
     case OshaLocationReport = 'osha_location_report';
     case CustomComplianceDocument = 'custom_compliance_document';
     case RevenueCycleBillingManual = 'revenue_cycle_billing_manual';
-    case ComplianceEthicsManual = 'compliance_ethics_manual';
     case EmergencyOperationsPlan = 'emergency_operations_plan';
+
+    // Active — each one generates only when its matching questionnaire is uploaded,
+    // regardless of package tier. See linkedQuestionnaireType()/forQuestionnaireType().
+    case HipaaPrivacyPolicy = 'hipaa_privacy_policy';
+    case ComplianceEthicsManual = 'compliance_ethics_manual';
     case HipaaBusinessAssociateManual = 'hipaa_business_associate_manual';
     case HipaaSecurityManual = 'hipaa_security_manual';
+
+    // A client-uploaded existing document, AI-polished and generated 1:1 per upload rather
+    // than merged into one of the fixed manual templates above.
+    case PolishedClientDocument = 'polished_client_document';
+
+    // Advanced tier only — synthesized by AI from the practice's own data (workflow answers or
+    // an uploaded encounter list) rather than merged into a fixed template. See
+    // isAiSynthesizedReport() and GenerateComplianceDocument::generateAiSynthesizedReport().
+    case SecurityRiskAssessment = 'security_risk_assessment';
+    case CodingMiniAuditReport = 'coding_mini_audit_report';
+
+    // Every paid tier — synthesized by AI from the practice's own roster data (we don't hold
+    // individual provider names/NPIs today, so this documents Empower's screening process and
+    // attestation rather than a live per-person OIG LEIE/SAM.gov lookup). See
+    // isAiSynthesizedReport() and GenerateComplianceDocument::synthesizeExclusionsScreeningReport().
+    case ExclusionsScreeningReport = 'exclusions_screening_report';
+
+    // Professional tier's deliverable in place of Advanced's full Employee Manual — synthesized
+    // by AI from the practice's own "Compliance & HIPAA training" workflow answer. See
+    // isAiSynthesizedReport() and GenerateComplianceDocument::synthesizeTrainingPlanReport().
+    case TrainingPlanLmsEnrollment = 'training_plan_lms_enrollment';
 
     public function label(): string
     {
@@ -32,6 +59,22 @@ enum DocumentType: string
             self::EmergencyOperationsPlan => 'Emergency Operations Plan',
             self::HipaaBusinessAssociateManual => 'HIPAA Business Associate Manual',
             self::HipaaSecurityManual => 'HIPAA Security Manual',
+            self::PolishedClientDocument => 'Reviewed & Polished Document',
+            self::SecurityRiskAssessment => 'Security Risk Assessment (SRA)',
+            self::CodingMiniAuditReport => 'Coding & Documentation Mini Audit Report',
+            self::ExclusionsScreeningReport => 'Exclusions Screening Report',
+            self::TrainingPlanLmsEnrollment => 'Training Plan & LMS Enrollment',
+        };
+    }
+
+    /** Whether this document's content is synthesized by AI from the practice's own data
+     *  (workflow answers or an uploaded file) rather than merged into a fixed .docx template. */
+    public function isAiSynthesizedReport(): bool
+    {
+        return match ($this) {
+            self::SecurityRiskAssessment, self::CodingMiniAuditReport, self::ExclusionsScreeningReport,
+            self::TrainingPlanLmsEnrollment => true,
+            default => false,
         };
     }
 
@@ -40,7 +83,6 @@ enum DocumentType: string
     {
         return match ($this) {
             self::RevenueCycleBillingManual,
-            self::ComplianceEthicsManual,
             self::EmergencyOperationsPlan,
             self::HipaaBusinessAssociateManual,
             self::HipaaSecurityManual => true,
@@ -48,45 +90,40 @@ enum DocumentType: string
         };
     }
 
-    /** @return array<int, self> */
-    public static function forTier(PackageTier $tier): array
+    /** The DocumentType whose manual is built from this questionnaire, if any. */
+    public static function forQuestionnaireType(IntakeUploadType $uploadType): ?self
     {
-        return match ($tier) {
-            PackageTier::Essential => [
-                self::EmployeeHandbookBasic,
-                self::OshaSafetyPlan,
-            ],
-            PackageTier::Professional => [
-                self::EmployeeHandbookFull,
-                self::OshaSafetyPlan,
-                self::HrPolicyManual,
-            ],
-            PackageTier::Advanced => [
-                self::EmployeeHandbookFull,
-                self::OshaSafetyPlan,
-                self::HrPolicyManual,
-                self::HipaaPrivacyPolicy,
-                self::OshaLocationReport,
-            ],
-            PackageTier::Complete => [
-                self::EmployeeHandbookFull,
-                self::OshaSafetyPlan,
-                self::HrPolicyManual,
-                self::HipaaPrivacyPolicy,
-                self::OshaLocationReport,
-                self::CustomComplianceDocument,
-                self::RevenueCycleBillingManual,
-                self::ComplianceEthicsManual,
-                self::EmergencyOperationsPlan,
-                self::HipaaBusinessAssociateManual,
-                self::HipaaSecurityManual,
-            ],
-        };
+        foreach (self::cases() as $documentType) {
+            if ($documentType->linkedQuestionnaireType() === $uploadType) {
+                return $documentType;
+            }
+        }
+
+        return null;
     }
 
     /** Whether this document is generated once per OSHA location */
     public function isPerLocation(): bool
     {
         return $this === self::OshaLocationReport;
+    }
+
+    /** Whether this document is generated once per source upload, rather than once per order. */
+    public function isPerUpload(): bool
+    {
+        return $this === self::PolishedClientDocument;
+    }
+
+    /** The client questionnaire this document's content is sourced from, if any. */
+    public function linkedQuestionnaireType(): ?IntakeUploadType
+    {
+        return match ($this) {
+            self::ComplianceEthicsManual => IntakeUploadType::ComplianceEthicsQuestionnaire,
+            self::HipaaBusinessAssociateManual => IntakeUploadType::HipaaBusinessAssociateQuestionnaire,
+            self::HipaaPrivacyPolicy => IntakeUploadType::HipaaPrivacyQuestionnaire,
+            self::HipaaSecurityManual => IntakeUploadType::HipaaSecurityQuestionnaire,
+            self::PolishedClientDocument => IntakeUploadType::ClientDocumentForReview,
+            default => null,
+        };
     }
 }

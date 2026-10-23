@@ -1,4 +1,3 @@
-<x-layouts.app title="Documents">
-    @include('admin._nav', ['active' => 'documents'])
+<x-layouts.app title="Documents" :inline-heading="true">
     <livewire:admin.document-list />
 </x-layouts.app>

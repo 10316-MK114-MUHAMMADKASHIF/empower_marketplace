@@ -24,4 +24,34 @@ enum PackageTier: string
     {
         return $this === self::Complete;
     }
+
+    /** Whether Step 2 offers the "download our questionnaires" intake path — Essential Compliance
+     *  only ever offers document upload for review. */
+    public function allowsQuestionnaireDownload(): bool
+    {
+        return $this !== self::Essential;
+    }
+
+    /** Whether the package includes access to the Empower LMS (training courses in Moodle). */
+    public function includesLmsAccess(): bool
+    {
+        return $this !== self::Essential;
+    }
+
+    /** Whether the Practice Intake wizard's one-question-per-screen workflow questionnaire
+     *  applies to this tier. Essential only captures documents + practice basics — we don't
+     *  generate compliance documents at that price point, so there's nothing for the 66
+     *  workflow questions to feed. */
+    public function includesWorkflowQuestionnaire(): bool
+    {
+        return $this !== self::Essential;
+    }
+
+    /** Whether the "Your documents" screen offers the Advanced-only "Employee manual" and
+     *  "Encounter list (10 per provider)" upload categories, for its Coding & Documentation
+     *  Mini Audit and Employee Manual Creation features. */
+    public function includesAdvancedDocumentCategories(): bool
+    {
+        return $this === self::Advanced;
+    }
 }

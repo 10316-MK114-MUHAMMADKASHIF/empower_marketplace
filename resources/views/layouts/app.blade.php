@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? config('app.name') }} — My Portal</title>
+    <link rel="icon" type="image/x-icon" href="{{ asset('images/favicon.ico') }}">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -16,7 +17,7 @@
         <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div class="flex h-16 items-center justify-between">
                 <a href="{{ route('home') }}" class="flex items-center gap-2">
-                    <img src="{{ asset('images/logo.png') }}" alt="Empower" class="h-7 w-auto brightness-0 invert" onerror="this.style.display='none'">
+                    <img src="{{ asset('images/logo.png') }}" alt="Empower" class="h-[34px] sm:h-[45px] w-auto brightness-0 invert" onerror="this.style.display='none'">
                     <span class="text-lg font-semibold text-white">Empower</span>
                 </a>
 

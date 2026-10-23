@@ -1,0 +1,103 @@
+openapi: 3.0.3
+info:
+  title: Empower Marketplace SSO API
+  version: 1.0.0
+  description: >
+    A generic single sign-on API. An external system (a "partner", e.g. talkEHR) authenticates
+    server-to-server with its own API key, requests a one-time login token for a specific user by
+    email, and redirects that user's browser to the returned URL to complete the login.
+
+
+    Flow:
+
+    1. Partner's backend calls `POST /api/sso/token` with its `X-Sso-Api-Key` header.
+
+    2. Empower responds with a `login_url` containing a one-time, 60-second token.
+
+    3. Partner's backend redirects the user's browser to `login_url`.
+
+    4. Empower consumes the token once, starts a session, and redirects the browser into the
+    portal.
+servers:
+  - url: /
+paths:
+  /api/sso/token:
+    post:
+      summary: Issue a one-time SSO login token
+      description: >
+        Server-to-server only — the API key must never be exposed to a browser. Looks up an
+        existing account by email or creates one (matching the same account this app's normal
+        checkout flow creates), then returns a single-use, 60-second login link.
+      security:
+        - SsoApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueTokenRequest'
+      responses:
+        '200':
+          description: Token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueTokenResponse'
+        '401':
+          description: Missing, invalid, or inactive API key.
+        '422':
+          description: Validation failed (missing/malformed email).
+        '429':
+          description: Too many requests from this partner/IP — retry after the given delay.
+  /sso/consume/{token}:
+    get:
+      summary: Consume a one-time login token and start a session
+      description: >
+        Browser-facing. Not called directly by partner backends — this is the URL a partner
+        redirects the user's browser to. Single-use: a token cannot be consumed twice, and expires
+        60 seconds after issuance.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The raw one-time token from the `login_url` returned by /api/sso/token.
+      responses:
+        '302':
+          description: >
+            Redirects to the portal (`/portal`) if the token was valid and unused, or to `/login`
+            with a flash error if it was missing, expired, or already consumed.
+components:
+  securitySchemes:
+    SsoApiKey:
+      type: apiKey
+      in: header
+      name: X-Sso-Api-Key
+      description: >
+        A per-partner secret issued via `php artisan sso:create-partner {name}`. Shown once at
+        creation time and never retrievable again.
+  schemas:
+    IssueTokenRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: The user's email — the identity key used to find or create their account.
+          example: jane@practice.com
+        name:
+          type: string
+          nullable: true
+          description: Used as the display name only when a new account is created.
+          example: Jane Provider
+    IssueTokenResponse:
+      type: object
+      properties:
+        login_url:
+          type: string
+          format: uri
+          description: One-time URL, valid for 60 seconds, that logs the user in when opened.
+          example: https://marketplace.example.com/sso/consume/aBcD1234...

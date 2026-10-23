@@ -12,7 +12,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'order_id', 'status', 'handbook_answers',
-    'reviewer_notes', 'reviewed_by', 'reviewed_at', 'submitted_at',
+    'reviewer_notes', 'reviewed_by', 'reviewed_at', 'submitted_at', 'under_review_started_at',
+    'certified_by_name', 'certified_by_title', 'certified_signature', 'certified_at',
+    'wizard_screen', 'wizard_reached_screens', 'wizard_skipped_question_ids', 'wizard_missing_document_categories',
+    'wizard_selected_services', 'wizard_section_gates', 'wizard_skipped_section_ids',
 ])]
 class IntakeSubmission extends Model
 {
@@ -29,6 +32,14 @@ class IntakeSubmission extends Model
             'handbook_answers' => 'array',
             'reviewed_at' => 'datetime',
             'submitted_at' => 'datetime',
+            'under_review_started_at' => 'datetime',
+            'certified_at' => 'datetime',
+            'wizard_reached_screens' => 'array',
+            'wizard_skipped_question_ids' => 'array',
+            'wizard_missing_document_categories' => 'array',
+            'wizard_selected_services' => 'array',
+            'wizard_section_gates' => 'array',
+            'wizard_skipped_section_ids' => 'array',
         ];
     }
 
@@ -45,6 +56,17 @@ class IntakeSubmission extends Model
     public function intakeUploads(): HasMany
     {
         return $this->hasMany(IntakeUpload::class);
+    }
+
+    /** Reviewer-to-client questions, oldest first. */
+    public function reviewerQuestions(): HasMany
+    {
+        return $this->hasMany(ReviewerQuestion::class)->oldest('id');
+    }
+
+    public function intakeAnswers(): HasMany
+    {
+        return $this->hasMany(IntakeAnswer::class);
     }
 
     public function allUploadsProcessed(): bool

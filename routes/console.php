@@ -2,7 +2,18 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Schedule::command('subscriptions:process-billing')
+    ->dailyAt('06:00')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('reports:finance-daily')
+    ->dailyAt('07:00')
+    ->withoutOverlapping()
+    ->onOneServer();
